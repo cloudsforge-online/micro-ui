@@ -13,8 +13,8 @@
  * Specification: docs/ecosystem/assets/design-system.md sections 3 and 5.
  */
 
-/** Surfaces a person chooses between: the five products. */
-export type ProductKey = 'network' | 'trade' | 'create' | 'market' | 'worlds'
+/** Surfaces a person chooses between: the six products. */
+export type ProductKey = 'foresight' | 'network' | 'trade' | 'create' | 'market' | 'worlds'
 
 /** Everything that may appear in the product switcher, products plus the operator tools. */
 export type SwitcherKey = ProductKey | 'admin' | 'lantern' | 'beacon'
@@ -87,13 +87,53 @@ export interface CloudsForgeSurface {
 export const CLOUDSFORGE_EMBER = '#e8622c'
 
 /**
- * The five validated product accents, in switcher order.
+ * The six validated product accents, in switcher order.
  *
  * Exported so the guard test can assert that no product in the registry wears anything else.
  * That test is the mechanism that stops a sixth orange being added by hand, which is exactly how
  * the previous palette reached five oranges out of six accents.
+ *
+ * ## The sixth accent, and how it was chosen
+ *
+ * `#1e89c7` — Forge Foresight. **Blue was the empty region of the palette**: the five before it
+ * are red, teal, gold, purple and green. It was found by search, not taste — hue swept in 2°
+ * steps across four saturations and four values, filtered to the existing set's lightness and
+ * chroma band and to a safe distance from every RETIRED_ACCENT, then scored on the metric that
+ * actually governs this palette.
+ *
+ * Measured with CIEDE2000 over a Viénot dichromat simulation, normal + deuteranopia + protanopia:
+ *
+ * | | before | after |
+ * | --- | --- | --- |
+ * | worst ADJACENT pair | dE 36.1 | **dE 36.1 — unchanged** |
+ * | all-pairs floor | dE 5.6 | **dE 5.6 — unchanged** |
+ *
+ * It is first in the array because that is the insertion point the search chose: its only
+ * neighbour is then `network`'s red, which it clears by dE 50 normal and dE 65 deuteranopic. Any
+ * other position puts it beside `trade` or `market` and the adjacent guarantee collapses to dE 8.
+ *
+ * **The one thing to know before using it elsewhere:** blue sits dE 7.1 from `trade`'s teal and
+ * dE 8.1 from `market`'s purple under deuteranopia, because deuteranopia collapses the whole
+ * blue-teal-purple region. That is above the palette's existing dE 5.6 floor, so it worsens
+ * nothing — but Foresight must never be rendered adjacent to Trade, and the accent must never be
+ * the only cue distinguishing two things. The rule below already says product accents are not a
+ * categorical palette; this is the sharpest instance of why.
+ *
+ * **A discrepancy left visible rather than reconciled.** The figures recorded in
+ * docs/ecosystem/03 for the original five (worst adjacent dE 17.0 normal, 12.9 deuteranopic) do
+ * not reproduce under the method above, which measures the same five at 36.1 and 37.6 — a
+ * different formula or dichromat severity. The comparison here is internally consistent: both
+ * columns of the table use one metric, so the *relative* guarantee is sound. But the two absolute
+ * sets of numbers cannot both be right, and nobody has yet established which is.
  */
-export const PRODUCT_ACCENTS = ['#d6412f', '#2a9e93', '#b28e1e', '#9b7bf0', '#6d9a49'] as const
+export const PRODUCT_ACCENTS = [
+  '#1e89c7',
+  '#d6412f',
+  '#2a9e93',
+  '#b28e1e',
+  '#9b7bf0',
+  '#6d9a49',
+] as const
 
 /**
  * Accents that were retired, and must never reappear anywhere in the registry.
@@ -124,7 +164,22 @@ export const RETIRED_ACCENTS = ['#ff5a1e', '#ff8a1f', '#d9812f', '#ff7a2f', '#ff
  * reason — it is the container the user is already inside, not a destination.
  */
 export const SURFACES: readonly CloudsForgeSurface[] = [
-  /* --- the five products, in the validated separation order ---------- */
+  /* --- the six products, in the validated separation order ----------- */
+  {
+    key: 'foresight',
+    name: 'Forge Foresight',
+    verb: 'Predict',
+    kind: 'product',
+    subdomain: 'foresight',
+    devPort: 4011,
+    // Blue was the empty region of the palette: the other five are red, teal, gold, purple and
+    // green. Chosen by search rather than taste — see the note above PRODUCT_ACCENTS.
+    accent: '#1e89c7',
+    glyph: '◈',
+    markId: 'mark-foresight',
+    blurb: 'Stake on what happens next, settled on chain',
+    inSwitcher: true,
+  },
   {
     key: 'network',
     name: 'Forge Network',

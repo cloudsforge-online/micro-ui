@@ -84,7 +84,7 @@ describe('resolveProducts', () => {
     atHostname('localhost')
     assert.deepEqual(
       resolveProducts().map((p) => p.key),
-      ['network', 'trade', 'create', 'market', 'worlds'],
+      ['foresight', 'network', 'trade', 'create', 'market', 'worlds'],
     )
   })
 
@@ -92,7 +92,7 @@ describe('resolveProducts', () => {
     atHostname('localhost')
     assert.deepEqual(
       resolveProducts(undefined, true).map((p) => p.key),
-      ['network', 'trade', 'create', 'market', 'worlds', 'admin', 'lantern', 'beacon'],
+      ['foresight', 'network', 'trade', 'create', 'market', 'worlds', 'admin', 'lantern', 'beacon'],
     )
   })
 

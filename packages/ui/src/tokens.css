@@ -293,21 +293,50 @@
  *
  * Two rules fix it. Ember became company chrome only (above). And because
  * the switcher is a VERTICAL LIST, only neighbours ever touch, so adjacent
- * separation is the honest gate — all-pairs across eight brand-faithful
- * hues is unachievable and was verified so exhaustively. The five below
- * measure worst-adjacent dE 12.9 under deuteranopia and dE 17.0 under
- * normal vision, all inside lightness 0.48–0.67, all above 3:1 on the
- * panel. dE 4.1 became dE 17.0.
+ * separation is the honest gate — all-pairs across brand-faithful hues is
+ * unachievable and was verified so exhaustively.
+ *
+ * MEASURED NUMBERS, CORRECTED. This block used to claim worst-adjacent
+ * dE 12.9 deuteranopic / 17.0 normal, and pointed at a
+ * `scripts/validate_palette.js` that HAS NEVER EXISTED in this repository —
+ * so the figures could not be re-derived by anyone, and they were wrong in
+ * both directions. The validator now exists
+ * (`scripts/validate_palette.mjs`) and reports, for the six accents below:
+ *
+ *   worst ADJACENT   dE 36.1  (#2a9e93|#b28e1e, normal vision)
+ *   worst ALL-PAIRS  dE  5.6  (#d6412f|#b28e1e, deuteranopia)
+ *
+ * Adjacent separation is therefore far better than was claimed. All-pairs
+ * is far WORSE: network's red and create's gold are all but the same
+ * colour to a deuteranopic reader. They are never adjacent in the switcher,
+ * which is why this is a documented trade rather than a defect — but it is
+ * the reason the rule below is absolute. Render those two together in a
+ * legend and a deuteranopic reader sees one product.
+ *
+ * Slot 1 is Forge Foresight, added later and placed first because that is
+ * the only position where its blue neighbours red rather than teal or
+ * purple; deuteranopia collapses the blue/teal/purple region and it sits
+ * dE 7-8 from both. Adding it changed neither worst case: both still fall
+ * on pairs that do not involve it.
  *
  * Reproduce:
- *   node scripts/validate_palette.js "#d6412f,#2a9e93,#b28e1e,#9b7bf0,#6d9a49" \
- *     --mode dark --surface "#141110"
+ *   node scripts/validate_palette.mjs \
+ *     "#1e89c7,#d6412f,#2a9e93,#b28e1e,#9b7bf0,#6d9a49" --surface "#141110"
  *
  * Colour is still never the only channel: every switcher entry also ships a
  * glyph, a name and a blurb. The accent reinforces; it does not carry.
  * ------------------------------------------------------------------- */
 
-/* Slot 1 — Forge Network — molten */
+/* Slot 1 — Forge Foresight — signal blue. The empty region of the palette:
+ * the others are red, teal, gold, purple and green. */
+[data-product='foresight'] {
+  --cf-accent: #1e89c7;
+  --cf-accent-hover: #3fa0d8;
+  --cf-accent-ink: #04121b;
+  --cf-accent-glow: rgb(30 137 199 / 28%);
+}
+
+/* Slot 2 — Forge Network — molten */
 [data-cf-product='network'] {
   --cf-accent: #d6412f;
   --cf-accent-hover: #ef5a45;
@@ -315,7 +344,7 @@
   --cf-accent-glow: rgba(214, 65, 47, 0.26);
 }
 
-/* Slot 2 — Forge Trade — quench */
+/* Slot 3 — Forge Trade — quench */
 [data-cf-product='trade'] {
   --cf-accent: #2a9e93;
   --cf-accent-hover: #3fc8bb;
@@ -323,7 +352,7 @@
   --cf-accent-glow: rgba(42, 158, 147, 0.26);
 }
 
-/* Slot 3 — Forge Create — brass */
+/* Slot 4 — Forge Create — brass */
 [data-cf-product='create'] {
   --cf-accent: #b28e1e;
   --cf-accent-hover: #d4ad35;
@@ -331,7 +360,7 @@
   --cf-accent-glow: rgba(178, 142, 30, 0.26);
 }
 
-/* Slot 4 — Forge Market — amethyst */
+/* Slot 5 — Forge Market — amethyst */
 [data-cf-product='market'] {
   --cf-accent: #9b7bf0;
   --cf-accent-hover: #b79cff;
@@ -339,7 +368,7 @@
   --cf-accent-glow: rgba(155, 123, 240, 0.26);
 }
 
-/* Slot 5 — Forge Worlds — moss */
+/* Slot 6 — Forge Worlds — moss */
 [data-cf-product='worlds'] {
   --cf-accent: #6d9a49;
   --cf-accent-hover: #88b862;

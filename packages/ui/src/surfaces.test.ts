@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 import {
   CLOUDSFORGE_EMBER,
@@ -20,6 +22,11 @@ import {
  * the registry for narrative reasons fails here and has to be argued with the specification.
  */
 const DOCUMENTED_SWITCHER_ORDER: readonly SurfaceKey[] = [
+  // Foresight is FIRST, and that is a measured position rather than a product-story one: it is the
+  // only slot where its blue is not adjacent to trade's teal or market's purple, which under
+  // deuteranopia sit dE 7-8 away from it. Beside network's red it clears dE 50. See the note above
+  // PRODUCT_ACCENTS in surfaces.ts.
+  'foresight',
   'network',
   'trade',
   'create',
@@ -120,8 +127,10 @@ describe('the accent guard', () => {
 })
 
 describe('the registry', () => {
-  it('has five products and no more', () => {
-    assert.equal(PRODUCTS.length, 5)
+  it('has six products and no more', () => {
+    // The count is asserted so that adding a product is a deliberate act that updates this file,
+    // not something that happens by editing an array. Forge Foresight was the sixth.
+    assert.equal(PRODUCTS.length, 6)
   })
 
   it('keeps the marketing site and Forge Hub out of the switcher', () => {
@@ -182,5 +191,55 @@ describe('KNOWN_SUBS', () => {
     assert.ok(KNOWN_SUBS.has('trade'))
     assert.ok(KNOWN_SUBS.has('www'))
     assert.ok(!KNOWN_SUBS.has(''))
+  })
+})
+
+describe('the palette is measured, not asserted', () => {
+  // The design system used to record dE figures beside a "Reproduce:" line pointing at a script
+  // that had never existed, so the numbers could not be checked and were wrong in both directions:
+  // adjacent separation was far better than claimed, all-pairs far worse. These tests run the real
+  // validator, so the claim and the measurement cannot drift apart again.
+  const run = (csv: string) =>
+    execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../../scripts/validate_palette.mjs', import.meta.url)), csv],
+      { encoding: 'utf8' },
+    )
+
+  it('the validator the comments point at actually exists and runs', () => {
+    assert.match(run(PRODUCT_ACCENTS.join(',')), /worst ADJACENT/)
+  })
+
+  it('every accent in the registry is one of the validated set', () => {
+    for (const p of PRODUCTS) {
+      assert.ok(
+        (PRODUCT_ACCENTS as readonly string[]).includes(p.accent),
+        `${p.key} wears ${p.accent}, which is not a validated accent`,
+      )
+    }
+  })
+
+  it('no retired accent has crept back in', () => {
+    for (const p of PRODUCTS) {
+      assert.ok(!(RETIRED_ACCENTS as readonly string[]).includes(p.accent))
+    }
+  })
+
+  it('adjacent separation in switcher order clears the gate', () => {
+    // The honest gate: the switcher is a vertical list, so only neighbours ever touch. This is the
+    // property that must not regress when a product is added or the order is changed for a
+    // narrative reason.
+    const out = run(PRODUCTS.map((p) => p.accent).join(','))
+    const worst = Number(/worst ADJACENT : dE ([\d.]+)/.exec(out)?.[1])
+    assert.ok(worst >= 30, `worst adjacent dE ${worst} — the recorded guarantee is 36.1`)
+  })
+
+  it('records the all-pairs weakness rather than pretending it is not there', () => {
+    // Red and gold are dE 5.6 apart under deuteranopia. They are never adjacent, which is why this
+    // is a documented trade — but a test that quietly passed would let someone put them in one
+    // legend. If this ever IMPROVES, update the number; it is a floor, not a target.
+    const out = run(PRODUCTS.map((p) => p.accent).join(','))
+    const worst = Number(/worst ALL-PAIRS: dE ([\d.]+)/.exec(out)?.[1])
+    assert.ok(worst < 10, 'if all-pairs separation is now good, this comment and tokens.css are stale')
   })
 })
