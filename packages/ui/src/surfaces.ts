@@ -171,7 +171,10 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     verb: 'Predict',
     kind: 'product',
     subdomain: 'foresight',
-    devPort: 4011,
+    // 4021, because that is the port the service actually binds
+    // (`foresight/.env.example:13`). It was briefly 4011, which is beacon's — so
+    // `cloudsforgeHosts().foresight` resolved a local stack to the monitoring service.
+    devPort: 4021,
     // Blue was the empty region of the palette: the other five are red, teal, gold, purple and
     // green. Chosen by search rather than taste — see the note above PRODUCT_ACCENTS.
     accent: '#1e89c7',

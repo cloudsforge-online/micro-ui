@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 import {
@@ -241,5 +242,65 @@ describe('the palette is measured, not asserted', () => {
     const out = run(PRODUCTS.map((p) => p.accent).join(','))
     const worst = Number(/worst ALL-PAIRS: dE ([\d.]+)/.exec(out)?.[1])
     assert.ok(worst < 10, 'if all-pairs separation is now good, this comment and tokens.css are stale')
+  })
+})
+
+describe('the registry and the stylesheet agree', () => {
+  // Both tests below exist because both defects shipped in one commit, were invisible to 75 green
+  // tests, and were found by the first application to consume the new product — micro-foresight-web.
+  // A registry entry that no stylesheet rule matches, and a port that resolves to another service,
+  // are exactly the failures a type checker cannot see.
+  const TOKENS = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8')
+
+  it('every product has an accent rule, spelled data-cf-product', () => {
+    // Foresight was added as `[data-product='foresight']` — missing the `cf-` prefix every other
+    // product carries. The rule matched nothing, so the accent silently fell back to the company
+    // ember: the product looked fine and wore the wrong colour.
+    for (const p of PRODUCTS) {
+      assert.match(
+        TOKENS,
+        new RegExp(`\\[data-cf-product=['"]${p.key}['"]\\]`),
+        `${p.key} has no [data-cf-product='${p.key}'] rule in tokens.css`,
+      )
+    }
+    assert.doesNotMatch(
+      TOKENS,
+      /\[data-product=/,
+      'an unprefixed [data-product=...] selector matches nothing in this design system',
+    )
+  })
+
+  it('every product accent rule declares the hue the registry records', () => {
+    // The rule existing is not enough — it has to carry the same value, or the registry and the
+    // stylesheet disagree about what colour a product is.
+    for (const p of PRODUCTS) {
+      const block = new RegExp(
+        `\\[data-cf-product=['"]${p.key}['"]\\][^{]*\\{[^}]*--cf-accent:\\s*${p.accent}`,
+        'i',
+      )
+      assert.match(TOKENS, block, `${p.key}'s rule does not set --cf-accent: ${p.accent}`)
+    }
+  })
+
+  it('no two unrelated surfaces claim the same dev port', () => {
+    // Three collisions are deliberate: a sub-surface served by its parent's dev server. Anything
+    // else means one surface's local URL resolves to another service — foresight briefly shared
+    // beacon's 4011, so a local Forge Foresight was the monitoring stack.
+    // Keys are compared sorted, so these are written sorted too.
+    const CO_HOSTED = new Set(['faucet+network', 'hub+wallet', 'account+nimbus'])
+    const byPort = new Map<number, string[]>()
+    for (const s of SURFACES) {
+      const list = byPort.get(s.devPort) ?? []
+      list.push(String(s.key))
+      byPort.set(s.devPort, list)
+    }
+    for (const [port, keys] of byPort) {
+      if (keys.length < 2) continue
+      const pair = keys.sort().join('+')
+      assert.ok(
+        CO_HOSTED.has(pair),
+        `port ${port} is claimed by ${pair}; if that is deliberate co-hosting, say so in CO_HOSTED`,
+      )
+    }
   })
 })

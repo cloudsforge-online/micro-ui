@@ -329,7 +329,7 @@
 
 /* Slot 1 — Forge Foresight — signal blue. The empty region of the palette:
  * the others are red, teal, gold, purple and green. */
-[data-product='foresight'] {
+[data-cf-product='foresight'] {
   --cf-accent: #1e89c7;
   --cf-accent-hover: #3fa0d8;
   --cf-accent-ink: #04121b;
