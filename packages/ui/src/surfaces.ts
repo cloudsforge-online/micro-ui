@@ -24,6 +24,7 @@ export type SurfaceKey =
   | SwitcherKey
   | 'hub'
   | 'site'
+  | 'emberkin'
   | 'wallet'
   | 'faucet'
   | 'developers'
@@ -382,6 +383,26 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
+    // A Forge Worlds TITLE, not a sixth product: it is played through Worlds and appears in no
+    // switcher. It is here because it is served from its own subdomain, and a surface absent from
+    // this registry is absent from KNOWN_SUBS — so `cloudsforgeHosts()` could not strip
+    // `emberkin.` when deriving the apex, and resolved identity, billing and telemetry to
+    // `nimbus.emberkin.<apex>` and friends: three hostnames that do not exist. Found by
+    // micro-emberkin-web, which carried a local correction until this entry existed.
+    key: 'emberkin',
+    name: 'Emberkin',
+    verb: null,
+    kind: 'service',
+    subdomain: 'emberkin',
+    devPort: 3014,
+    // Worlds' accent: a title wears its product's colour rather than claiming one of its own.
+    accent: '#6d9a49',
+    glyph: '◆',
+    markId: null,
+    blurb: 'A monster-collecting RPG, played through Forge Worlds',
+    inSwitcher: false,
+  },
+  {
     // Beacon's public face, pre-auth and redacted. It shares Beacon's accent block because it is
     // the same tool with its internals removed.
     key: 'status',
@@ -514,7 +535,7 @@ export function surface(key: SurfaceKey): CloudsForgeSurface {
  */
 export const PRODUCTS: readonly CloudsForgeSurface[] = SURFACES.filter((s) => s.kind === 'product')
 
-/** Everything the switcher may show, in order: the five products, then the operator tools. */
+/** Everything the switcher may show, in order: the six products, then the operator tools. */
 export const SWITCHER_SURFACES: readonly CloudsForgeSurface[] = SURFACES.filter((s) => s.inSwitcher)
 
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
