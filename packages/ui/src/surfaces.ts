@@ -25,6 +25,7 @@ export type SurfaceKey =
   | 'hub'
   | 'site'
   | 'emberkin'
+  | 'aetherholm'
   | 'wallet'
   | 'faucet'
   | 'developers'
@@ -415,6 +416,28 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: null,
     blurb: 'A monster-collecting RPG, played through Forge Worlds',
+    inSwitcher: false,
+  },
+  {
+    // The THIRD Forge Worlds title, beside Emberkin: a sky-island strategy MMO, played through
+    // Worlds and in no switcher. Present for the same reason Emberkin is — a surface absent from
+    // this registry is absent from KNOWN_SUBS, and `cloudsforgeHosts()` then cannot strip its
+    // subdomain when deriving the apex.
+    key: 'aetherholm',
+    name: 'Aetherholm',
+    verb: null,
+    kind: 'service',
+    subdomain: 'aetherholm',
+    // 4120, because that is the port the service binds (`aetherholm/src/env.ts:105`,
+    // `aetherholm/.env.example:31`). A devPort is a fact about a service, not an allocation —
+    // this entry class has been wrong three times, so the test below reads the value.
+    devPort: 4120,
+    // Worlds' accent: a title wears its product's colour rather than claiming one of its own,
+    // exactly as Emberkin does above.
+    accent: '#6d9a49',
+    glyph: '◆',
+    markId: null,
+    blurb: 'A sky-island strategy MMO, played through Forge Worlds',
     inSwitcher: false,
   },
   {

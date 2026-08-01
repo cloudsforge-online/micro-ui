@@ -191,6 +191,7 @@ describe('the registry', () => {
       beacon: { port: 4011, source: 'beacon/src/env.ts' },
       foresight: { port: 4021, source: 'foresight/src/env.ts' },
       emberkin: { port: 4100, source: 'emberkin/src/env.ts' },
+      aetherholm: { port: 4120, source: 'aetherholm/src/env.ts:105' },
       explorer: { port: 4008, source: 'indexer/src/env.ts:295 — the chain index this surface reads' },
       keyvault: { port: 4005, source: 'custody/src/env.ts:188 — custody, which this entry names' },
     }
