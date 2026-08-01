@@ -262,7 +262,18 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     verb: null,
     kind: 'service',
     subdomain: 'admin',
-    devPort: 3002,
+    // 4014, because that is the port `admin-api` binds (`admin-api/src/env.ts:167`, and
+    // `admin-api/.env.example:76`). It said 3002, which nothing anywhere listens on. Production
+    // hid it — the console and its API share an origin behind `admin.<apex>`, so `apiBase()` is
+    // '' and every request is relative — but `pnpm dev` resolved to a dead port. micro-admin-web
+    // found it and deliberately did not paper over it with a literal, because a hard-coded host
+    // is an unversioned second copy of this registry and the copy is the one that goes stale.
+    //
+    // A devPort is a FACT ABOUT A SERVICE, not an allocation. It is the third time this entry
+    // class was wrong (foresight 4021 read as beacon's 4011; emberkin 4100 read as 3014), and the
+    // collision guard could not catch any of them: a wrong port that collides with nothing looks
+    // exactly like a right one. `surfaces.test.ts` now checks the value, not just its uniqueness.
+    devPort: 4014,
     // Clay: an explicit block at last. The console has been setting data-cf-product="admin"
     // against a selector that did not exist, falling through to the ember default in silence.
     accent: '#c2704f',

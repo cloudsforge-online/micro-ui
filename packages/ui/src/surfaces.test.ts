@@ -167,6 +167,44 @@ describe('the registry', () => {
     }
   })
 
+  /**
+   * A devPort is a FACT ABOUT A SERVICE, not an allocation — and three of them have been wrong.
+   *
+   * `foresight` carried beacon's 4011; `emberkin` carried 3014 while binding 4100; `admin` carried
+   * 3002 while `admin-api` binds 4014. The uniqueness check below cannot catch any of these,
+   * because a wrong port that collides with nothing is indistinguishable from a right one. Only
+   * comparing against the service settles it.
+   *
+   * This package cannot import another repository's `env.ts`, so the verified value is pinned here
+   * WITH the line it was read from. That makes the pin falsifiable: changing the registry without
+   * changing the service fails, and moving the service means updating a citation somebody can
+   * check rather than a number nobody can.
+   *
+   * Only surfaces whose service binds a DISTINCTIVE port are listed. Most services default to
+   * `PORT 4000` (the service-template default) and are separated by compose, so for those the
+   * registry port really is an allocation and pinning it here would assert something untrue.
+   */
+  it('agrees with the port each service actually binds', () => {
+    const BOUND: Record<string, { port: number; source: string }> = {
+      admin: { port: 4014, source: 'admin-api/src/env.ts:167' },
+      lantern: { port: 4010, source: 'lantern/src/env.ts' },
+      beacon: { port: 4011, source: 'beacon/src/env.ts' },
+      foresight: { port: 4021, source: 'foresight/src/env.ts' },
+      emberkin: { port: 4100, source: 'emberkin/src/env.ts' },
+    }
+    for (const [key, { port, source }] of Object.entries(BOUND)) {
+      const s = SURFACES.find((o) => o.key === key)
+      if (!s) throw new Error(`${key} is pinned to a port but is not in the registry`)
+      assert.equal(
+        s.devPort,
+        port,
+        `${key} says devPort ${s.devPort}, but the service binds ${port} (${source}). ` +
+          `Under 'pnpm dev' the registry value is the one a frontend calls, so a wrong one ` +
+          `resolves to a port nothing listens on.`,
+      )
+    }
+  })
+
   it('gives a basePath surface a rooted path on a host that exists', () => {
     for (const s of SURFACES) {
       if (s.basePath === undefined) continue
