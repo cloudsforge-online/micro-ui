@@ -440,7 +440,20 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     verb: null,
     kind: 'service',
     subdomain: 'explorer',
-    devPort: 8080,
+    // 4008, the port `micro-indexer` binds (`indexer/src/env.ts:295`), NOT 8080.
+    //
+    // 8080 was this bundle's own nginx container port, which is the one number that is certainly
+    // wrong here: `hosts.ts` uses devPort to resolve the host a frontend CALLS, so `explorer`
+    // resolved to the app itself. Under `pnpm dev`, micro-explorer-web asked localhost:8080 —
+    // where its own static server sits, if anything — for chain data, and an indexer started from
+    // its own .env.example was never consulted.
+    //
+    // There is no separate `indexer` key to point at instead: `CloudsForgeHosts` is
+    // `Record<SurfaceKey, string>`, so a frontend can only name a surface, and `explorer` is the
+    // only one that means "the chain index". The registry entry therefore has to carry the
+    // service's port, which is the same rule as everywhere else — a devPort is a fact about the
+    // thing you call, not an allocation.
+    devPort: 4008,
     accent: '#d6412f',
     glyph: '▦',
     markId: null,

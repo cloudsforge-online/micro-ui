@@ -146,6 +146,73 @@
   border-color: var(--cf-line-strong);
 }
 
+/* --- Form controls ---------------------------------------------------- *
+ * These did not exist, and five frontends had each written their own:
+ * `.ex-input`, `.mk-input`, `.mw-input`, `.tw-input`, `.dp-input`. Four of the
+ * five had independently converged on exactly the rule below, which is what
+ * makes this an extraction rather than an invention.
+ *
+ * The two that had drifted are the argument for having it here at all:
+ * `market-web` used `border-radius: 8px`, `padding: 0.5rem 0.6rem` and
+ * `font-size: 0.9rem` — raw literals that do not follow the substrate — and
+ * `mint-web` used `--cf-bg` and `--cf-line`, so its inputs sat flat against the
+ * page where every other app's are recessed. Neither was a decision; both were
+ * a copy that aged.
+ *
+ * A MISSING CLASS FAILS AS SILENTLY AS A MISSING TOKEN. `var(--cf-nope)` voids
+ * a declaration; `class="cf-input"` with no rule behind it renders a bare
+ * browser-default input, on a dark ground, looking like a bug nobody wrote.
+ * That is why the estate's frontends kept writing local copies instead: the
+ * canonical name was not there to use.
+ *
+ * Font family is `inherit` rather than fixed, because the one genuine
+ * disagreement was deliberate: micro-explorer-web sets mono for hashes and
+ * addresses, micro-devportal-web sets sans for prose. `--mono` is the modifier
+ * for the former, so neither app has to restate the whole control to differ in
+ * one property.
+ * ---------------------------------------------------------------------- */
+.cf-input,
+.cf-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--cf-space-sm) var(--cf-space-md);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg);
+  font-family: inherit;
+  font-size: var(--cf-text-md);
+  line-height: 1.4;
+  transition: border-color var(--cf-speed) var(--cf-ease);
+}
+
+.cf-input--mono,
+.cf-select--mono {
+  font-family: var(--cf-font-mono);
+}
+
+.cf-input:focus-visible,
+.cf-select:focus-visible {
+  outline: none;
+  border-color: var(--cf-accent);
+}
+
+.cf-input::placeholder {
+  color: var(--cf-fg-dim);
+}
+
+.cf-input:disabled,
+.cf-select:disabled {
+  /* Reads as unavailable rather than as broken: an operator must be able to
+     tell "you may not" from "this did not load". */
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cf-input[aria-invalid='true'] {
+  border-color: var(--cf-danger);
+}
+
 /* Ember, use 2 of 3: the one solid call to action ("Sign in"). */
 .cf-btn--ember {
   background: var(--cf-ember);
