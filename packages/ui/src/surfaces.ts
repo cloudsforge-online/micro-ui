@@ -394,7 +394,11 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     verb: null,
     kind: 'service',
     subdomain: 'emberkin',
-    devPort: 3014,
+    // 4100, because that is the port the service binds (`emberkin/src/env.ts:121`,
+    // `emberkin/.env.example:40`). It was briefly 3014 — a free-looking number chosen without
+    // reading the service, which is precisely how foresight came to be given beacon's 4011. A
+    // devPort is not an allocation; it is a fact about a service, and the test below reads it.
+    devPort: 4100,
     // Worlds' accent: a title wears its product's colour rather than claiming one of its own.
     accent: '#6d9a49',
     glyph: '◆',
