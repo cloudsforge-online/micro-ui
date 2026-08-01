@@ -192,6 +192,7 @@ describe('the registry', () => {
       foresight: { port: 4021, source: 'foresight/src/env.ts' },
       emberkin: { port: 4100, source: 'emberkin/src/env.ts' },
       explorer: { port: 4008, source: 'indexer/src/env.ts:295 — the chain index this surface reads' },
+      keyvault: { port: 4005, source: 'custody/src/env.ts:188 — custody, which this entry names' },
     }
     for (const [key, { port, source }] of Object.entries(BOUND)) {
       const s = SURFACES.find((o) => o.key === key)
