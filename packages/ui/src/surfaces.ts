@@ -23,6 +23,7 @@ export type SwitcherKey = ProductKey | 'admin' | 'lantern' | 'beacon'
 export type SurfaceKey =
   | SwitcherKey
   | 'hub'
+  | 'signin'
   | 'site'
   | 'emberkin'
   | 'aetherholm'
@@ -331,6 +332,49 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
+    /**
+     * THE SIGN-IN SURFACE — the page `signInRedirect()` sends every product to.
+     *
+     * ── Why this row exists, and why it rides on Hub ───────────────────────────────────────────
+     *
+     * `accountUrl()` used to resolve the `account` row below, which is `account.<apex>` in
+     * production and `localhost:4001` under `pnpm dev`. **Nothing in the estate serves either
+     * address.** `micro-identity` binds 4001 and renders no HTML at all — `identity/src/server.ts`
+     * §3 forbids it ("NO PRODUCT FEATURE LIVES HERE… no portal") and
+     * `identity/src/server.test.ts:890` asserts that `/`, `/portal` and friends 404. There is no
+     * `account-web` among the 58 repositories. So every product in the estate sent every
+     * signed-out visitor to a page that has never existed, and nobody could sign in from a
+     * browser. Recorded as the largest blocker in docs/ecosystem/22 §8.1.
+     *
+     * A surface has to SERVE it. Forge Hub is the one that can, today, with no new hostname, no
+     * new container and no DNS: it is already deployed, it already routes `/account/*` (hub-api's
+     * next-action cards deep-link into it), and `hub.cloudsforge.online` is already on the
+     * gateway's CORS allowlist (`deploy/gateway/dynamic/policy.yml`) — which the sign-in page
+     * needs, because it POSTs credentials to `nimbus.<apex>` cross-origin. `account.<apex>` is
+     * NOT on that allowlist, so a page served there could not have called identity even if
+     * something had served it.
+     *
+     * This is a NEW row rather than an edit to `account` on purpose. `account` is asserted by name
+     * in the host tests of six sibling frontends this change does not own — `site`, `web-template`,
+     * `hub-web`, `foresight-web`, `admin-web`, `foresight-admin-web` — and repointing it would
+     * turn one defect into six red suites. `account` keeps its meaning as the reserved hostname;
+     * `signin` is the address a person is actually sent to. The day something is served at
+     * `account.<apex>`, this row's `subdomain`/`devPort`/`basePath` change and nothing else does.
+     */
+    key: 'signin',
+    name: 'Sign in to CloudsForge',
+    verb: null,
+    kind: 'surface',
+    subdomain: 'hub',
+    devPort: 3010,
+    basePath: '/account',
+    accent: CLOUDSFORGE_EMBER,
+    glyph: '◇',
+    markId: null,
+    blurb: 'One account, every surface',
+    inSwitcher: false,
+  },
+  {
     key: 'site',
     name: 'CloudsForge',
     verb: null,
@@ -497,9 +541,14 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
-    // The same service as Nimbus on a second hostname: `nimbus.` is what issues tokens,
-    // `account.` is where a person is sent to sign in. Both rows exist so neither meaning has to
+    // The same service as Nimbus on a second hostname: `nimbus.` is what issues tokens, `account.`
+    // is the hostname RESERVED for the account portal. Both rows exist so neither meaning has to
     // be inferred from a string at a call site.
+    //
+    // NOTHING IS SERVED HERE TODAY. identity binds 4001 and renders no HTML (its own server.ts §3
+    // forbids it; server.test.ts:890 asserts the 404s), and no repository in the estate serves
+    // `account.<apex>`. The address a person is actually sent to sign in is the `signin` row
+    // above — do not resolve this one for a redirect until something answers it.
     key: 'account',
     name: 'CloudsForge Account',
     verb: null,

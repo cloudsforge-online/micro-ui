@@ -160,11 +160,20 @@ export function cloudsforgeHosts(): CloudsForgeHosts {
 /* ===================== company-wide SSO helpers =================== */
 
 /**
- * Base URL of the CloudsForge Account portal — the single, company-wide login surface every
- * product redirects to. `http://localhost:4001` in dev, `https://account.<apex>` in production.
+ * Base URL of the CloudsForge sign-in surface — the single, company-wide login page every product
+ * redirects to. `http://localhost:3010/account` in dev, `https://hub.<apex>/account` in production.
+ *
+ * ── This used to resolve `account`, and `account` is served by nothing ─────────────────────────
+ *
+ * `cloudsforgeHosts().account` is `https://account.<apex>` / `localhost:4001`. Both addresses are
+ * empty: `micro-identity` binds 4001 and renders no HTML (`identity/src/server.ts` §3 forbids it,
+ * `identity/src/server.test.ts:890` asserts the 404s), and no repository in the estate serves the
+ * `account.` hostname. So every `Sign in` button in the estate led to a page that has never
+ * existed. The registry entry `signin` is the address that IS served — see its note in
+ * surfaces.ts for why it rides on Hub rather than claiming a hostname of its own.
  */
 export function accountUrl(): string {
-  return cloudsforgeHosts().account
+  return cloudsforgeHosts().signin
 }
 
 /**
@@ -191,6 +200,85 @@ export function signOutRedirect(returnUrl?: string): void {
 export interface AuthCallbackTokens {
   accessToken: string
   refreshToken: string
+  /** Lifetime of the access token in seconds, as identity reports it. */
+  expiresIn?: number
+}
+
+/**
+ * The two identity routes this module speaks, spelled once.
+ *
+ * ── Why they are named here rather than written into the fetch calls ───────────────────────────
+ *
+ * The version of this file that shipped posted the hand-off code to `/auth/exchange`.
+ * **`micro-identity` has never served `/auth/exchange`.** It serves `POST /auth/handoff` to mint a
+ * code and `POST /auth/handoff/redeem` to spend one (`identity/src/server.ts:1076` and `:1084`,
+ * with `/auth/handoff/redeem` in the throttle table at `:410`). Every SSO callback in the estate
+ * therefore 404'd, silently, and `consumeAuthCallback` returned null exactly as it does for a
+ * stale code — so it looked like an expiry rather than like a wrong address.
+ *
+ * The test that was supposed to catch it asserted `fetched.url === '…/auth/exchange'`: it read the
+ * URL out of the implementation and compared it to itself, so it passed for any value. The
+ * replacement drives these calls against a stand-in that serves ONLY the routes identity serves
+ * and 404s the rest — see auth.test.ts. Naming the paths here gives that stand-in and this module
+ * one string to disagree about instead of two.
+ */
+export const IDENTITY_AUTH_ROUTES = {
+  /** Mint a single-use, origin-bound hand-off code. `identity/src/server.ts:1076`. */
+  handoff: '/auth/handoff',
+  /** Spend one. `identity/src/server.ts:1084`. */
+  handoffRedeem: '/auth/handoff/redeem',
+} as const
+
+/**
+ * Mint an SSO hand-off code for `redirectOrigin`, using a session this surface already holds.
+ *
+ * Called by the sign-in surface once credentials have been accepted, and by nothing else: the
+ * caller must present an access token, and identity refuses an origin that is not on
+ * `IDENTITY_HANDOFF_ORIGINS` (`identity/src/handoff.ts:31-47`) rather than minting a code that
+ * could not be redeemed. `redirectOrigin` is an ORIGIN — scheme, host and port, no path — because
+ * that is what a browser puts in the `Origin` header of the redemption POST, and the two are
+ * compared for equality when the code is spent.
+ *
+ * Returns null on any refusal. There is nothing useful for a caller to do with the distinction
+ * between "that origin is not allowed" and "that token is not valid", and both mean the same
+ * thing on screen: this hand-off cannot be completed, sign in on the destination instead.
+ */
+export async function mintHandoffCode(
+  accessToken: string,
+  redirectOrigin: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoff}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ redirectOrigin }),
+    })
+    if (!res.ok) return null
+    const body: unknown = await res.json()
+    const code = (body as { code?: unknown } | null)?.code
+    return typeof code === 'string' && code.length > 0 ? code : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Put a hand-off code on the return address, in the FRAGMENT.
+ *
+ * The fragment, never the query string: a fragment is not sent to the server, so the code does not
+ * appear in the destination's access log, in its referrer chain or in any proxy in between. It is
+ * the same reason `consumeAuthCallback` strips it before the redemption request goes out.
+ *
+ * Any fragment the return address already carried is preserved after the code — an app may keep
+ * its own route there, and the redeeming side puts the remainder back on the URL.
+ */
+export function handoffReturnUrl(returnUrl: string, code: string): string {
+  const url = new URL(returnUrl)
+  const existing = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash
+  const params = new URLSearchParams(existing)
+  params.set('cf_code', code)
+  url.hash = params.toString()
+  return url.toString()
 }
 
 /**
@@ -198,6 +286,9 @@ export interface AuthCallbackTokens {
  * own tokens. The code is single-use, expires in a minute and is bound to this origin. Call it
  * once before the app hydrates its session, then store the tokens with the app's own storage.
  * Returns null when there is no code, or when redemption fails.
+ *
+ * The route is `POST /auth/handoff/redeem` — see {@link IDENTITY_AUTH_ROUTES} for what it was
+ * before, why that 404'd everywhere, and why the test that guarded it could not fail.
  *
  * THE ORDER OF THE TWO SIDE EFFECTS IS DELIBERATE. The hash is stripped with
  * `history.replaceState` BEFORE the exchange request is sent, not after it resolves. A code left
@@ -222,15 +313,40 @@ export async function consumeAuthCallback(): Promise<AuthCallbackTokens | null> 
   window.history.replaceState(null, '', url)
 
   try {
-    const res = await fetch(`${cloudsforgeHosts().nimbus}/auth/exchange`, {
+    // No `authorization` header and no credentials: the code IS the credential, and it is bound to
+    // this origin — which the browser states in `Origin` on every cross-site POST and identity
+    // matches against the value the code was minted for (`identity/src/handoff.ts:73-86`).
+    const res = await fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoffRedeem}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code }),
     })
     if (!res.ok) return null
-    return (await res.json()) as AuthCallbackTokens
+    const body: unknown = await res.json()
+    return readCallbackTokens(body)
   } catch {
     return null
+  }
+}
+
+/**
+ * Read the redemption response, or nothing.
+ *
+ * A cast would have made `setTokens(undefined)` the failure mode for any answer that is not the
+ * one expected — a gateway's HTML error page parsed as JSON, a 200 from something that is not
+ * identity — and the app would then have believed it held a session while storing `undefined`
+ * under the token key. This checks the two fields it is about to use and nothing else; it is not
+ * a schema, and it asserts no rule about what identity is allowed to send.
+ */
+function readCallbackTokens(body: unknown): AuthCallbackTokens | null {
+  if (typeof body !== 'object' || body === null) return null
+  const { accessToken, refreshToken, expiresIn } = body as Record<string, unknown>
+  if (typeof accessToken !== 'string' || accessToken === '') return null
+  if (typeof refreshToken !== 'string' || refreshToken === '') return null
+  return {
+    accessToken,
+    refreshToken,
+    ...(typeof expiresIn === 'number' ? { expiresIn } : {}),
   }
 }
 

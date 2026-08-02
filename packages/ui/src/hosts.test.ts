@@ -72,10 +72,28 @@ describe('cloudsforgeHosts', () => {
     assert.equal(cloudsforgeHosts().wallet, 'http://localhost:3010/wallet')
   })
 
-  it('points accountUrl at the sign-in hostname, not at the token issuer', () => {
+  it('points accountUrl at a surface something serves, not at the token issuer', () => {
+    // It used to resolve `account.<apex>`, which nothing in the estate serves and which is not on
+    // the gateway's CORS allowlist — so the sign-in page could neither be fetched nor, had it
+    // been, call identity. The address has to belong to a bundle that is actually deployed.
     atHostname('cloudsforge.online')
-    assert.equal(accountUrl(), 'https://account.cloudsforge.online')
+    assert.equal(accountUrl(), 'https://hub.cloudsforge.online/account')
     assert.notEqual(accountUrl(), cloudsforgeHosts().nimbus)
+    assert.notEqual(
+      accountUrl(),
+      cloudsforgeHosts().account,
+      'accountUrl must not resolve the reserved `account.` hostname while nothing serves it',
+    )
+    atHostname('localhost')
+    assert.equal(accountUrl(), 'http://localhost:3010/account')
+  })
+
+  it('keeps the reserved account hostname resolvable, and distinct from the sign-in page', () => {
+    // The `account` row stays: six sibling frontends assert it by name, and it is the hostname the
+    // portal moves to the day one is served there. It simply is not where anybody is sent today.
+    atHostname('cloudsforge.online')
+    assert.equal(cloudsforgeHosts().account, 'https://account.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().signin, 'https://hub.cloudsforge.online/account')
   })
 })
 

@@ -328,7 +328,10 @@ describe('the registry and the stylesheet agree', () => {
     // else means one surface's local URL resolves to another service — foresight briefly shared
     // beacon's 4011, so a local Forge Foresight was the monitoring stack.
     // Keys are compared sorted, so these are written sorted too.
-    const CO_HOSTED = new Set(['faucet+network', 'hub+wallet', 'account+nimbus'])
+    // `hub+signin+wallet`: Forge Hub serves the wallet page AND, since docs/ecosystem/22 §8.1, the
+    // sign-in surface — the estate has no other bundle that could, and every product's `Sign in`
+    // button led to an address nothing answered until it did.
+    const CO_HOSTED = new Set(['faucet+network', 'hub+signin+wallet', 'account+nimbus'])
     const byPort = new Map<number, string[]>()
     for (const s of SURFACES) {
       const list = byPort.get(s.devPort) ?? []
