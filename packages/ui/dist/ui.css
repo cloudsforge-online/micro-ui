@@ -372,13 +372,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The one accent FILL in this package that carries type, and it was the one
+   place --cf-accent-ink had never been valid.
+ *
+ * The sheen used to run from the accent to the accent mixed 55% with
+ * --cf-ash-800 — that is, it DARKENED the fill by nearly half across the
+ * disc while keeping an ink chosen for the undarkened accent. Measured, the
+ * initials sat between 2.17:1 (network) and 3.87:1 (lantern) at the dark
+ * corner, on every product and on both substrates: 9.9px uppercase text at
+ * under half the AA floor, in the account menu, on fourteen surfaces.
+ *
+ * The sheen now runs between two colours the product already declares, and
+ * it runs the other way: --cf-accent-hover is lighter than --cf-accent for
+ * every product (checked in src/contrast.test.ts), so the DARKEST point of
+ * the fill is now the accent itself — which is the ground --cf-accent-ink is
+ * defined against and validated on. No new hex, and the binding case became
+ * the one the token was always specified for. */
 .cf-account__avatar {
   display: grid;
   place-items: center;
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--cf-accent), color-mix(in srgb, var(--cf-accent) 55%, var(--cf-ash-800)));
+  background: linear-gradient(135deg, var(--cf-accent-hover), var(--cf-accent));
   color: var(--cf-accent-ink);
   font-family: var(--cf-font-mono);
   font-size: var(--cf-text-2xs);

@@ -53,6 +53,13 @@ Then reference the semantic layer, never the raw ramps: `--cf-bg`, `--cf-bg-rais
 
 ## Rules the package enforces rather than documents
 
+- **Every text pair this package ships clears WCAG AA, on every substrate and every accent.**
+  `src/contrast.test.ts` reads `tokens.css` the way a browser resolves it, reads every `color:` in
+  `ui.css`, works out the ground each one is actually painted on, and measures it. It exists
+  because `--cf-fg-mute` shipped at 3.54:1 on the `cool` substrate — under the 4.5:1 floor for
+  normal text, on every muted label in the system — and nothing in the design system computed a
+  ratio, so the only thing that could catch it was a per-frontend axe run on whatever surface
+  happened to render it. A contrast rule belongs in the package that defines the colours.
 - **Ember is company chrome, never a product accent.** It appears in exactly three places: the
   logo mark, the sign-in call to action and the bar's top seam.
 - **There are five product accents**, and `surfaces.test.ts` fails if a sixth appears. The palette

@@ -148,6 +148,62 @@
  *
  * `cool` is the quench: the same charred ash pulled towards blue-grey, for
  * products about measurement rather than heat.
+ *
+ * THE BONE RAMP HERE WAS NOT A QUENCH OF THE WARM ONE, AND THAT WAS A
+ * MEASURABLE ACCESSIBILITY DEFECT. "The same ash pulled towards blue-grey"
+ * describes a hue rotation. What actually shipped also DARKENED the two
+ * dimmed bone steps while LIGHTENING the ash they sit on, and the two
+ * errors compounded:
+ *
+ *                       warm                     cool, as shipped
+ *   panel               #141110                  #151d21  (lighter)
+ *   --cf-fg-dim         #b7ae9b   8.54:1         #96a5a6   6.69:1
+ *   --cf-fg-mute        #8e866f   5.18:1         #63757a   3.54:1  ✗
+ *
+ * 3.54:1 is under the 4.5:1 WCAG 2.2 AA floor for normal text, and
+ * --cf-fg-mute is the token behind every secondary label, timestamp, table
+ * caption, chart axis and helper string in the system. It failed on every
+ * surface that set data-cf-substrate="cool" and on none that set "warm",
+ * which is why the browser suites reported it as one number (3.54:1 on the
+ * panel) on three repositories and as nothing at all on the other eleven.
+ *
+ * WHY THE TOKEN MOVED RATHER THAN THE SURFACES. Four options were open:
+ * retune the token, darken the surfaces under it, restrict it to large text
+ * where 3:1 applies, or split it into two tokens. The last two are the same
+ * bad trade — they hand the caller a colour they must remember not to use
+ * for small text, and every caller here uses it for exactly that (9.9px and
+ * 10.9px labels). Darkening the cool ash ramp would fix contrast by making
+ * the "cool" substrate a different substrate. Retuning the token is the
+ * only option that fixes it everywhere at once, and it is the honest one
+ * BECAUSE THE WARM RAMP ALREADY PROVES THE COLOUR CAN BE BOTH: #8e866f is
+ * unmistakably muted against #ece5d6 and still clears AA. The cool ramp did
+ * not need a new idea, it needed the warm ramp's own numbers.
+ *
+ * SO THE TWO VALUES ARE DERIVED, NOT PICKED. Each is the existing cool
+ * colour scaled in LINEAR LIGHT — which preserves its chromaticity exactly,
+ * so the blue-grey is untouched — until it reproduces the warm ramp's
+ * contrast against the tightest ground the same step lands on in the warm
+ * system. That ground is not the panel: it is a hovered row, --cf-surface-
+ * hover (bone at 6%) composited over --cf-bg-raised, where warm --cf-fg-mute
+ * measures 4.569:1. Anchoring on the panel alone would have produced
+ * #7b9197, which clears AA on the panel at 5.16:1 and fails a hovered row
+ * at 4.47:1 — the same class of miss as the original, one surface further
+ * in. Reproduce both numbers with `src/contrast.test.ts`, which measures
+ * every pair rather than the one that was reported.
+ *
+ *                       cool, as shipped         cool, now
+ *   --cf-fg-dim         #96a5a6   6.69:1         #abbcbd   8.67:1
+ *   --cf-fg-mute        #63757a   3.54:1         #7d9399   5.29:1
+ *
+ * --cf-fg-dim moved too, and it was not failing. That is the point: raising
+ * only the muted step to 4.5 and stopping would have left it 7.1 L* below
+ * the dimmed step it has to be distinguishable from — against 15.3 L* in
+ * the warm ramp — and a muted token that reads as the same weight as the
+ * text it annotates has stopped doing the job the token exists for. Both
+ * steps move, and the cool ladder is now 90.7 / 75.0 / 59.5 L*: gaps of
+ * 15.7 and 15.6, against the warm ramp's 19.8 and 15.3. `contrast.test.ts`
+ * asserts that gap as well as the ratio, so "make it pass by lightening it"
+ * is not a change that can land here.
  * ------------------------------------------------------------------- */
 [data-cf-substrate='cool'] {
   --cf-ash-950: #0b0f11;
@@ -159,8 +215,8 @@
   --cf-ash-500: #43555e;
 
   --cf-bone: #dfe6e4;
-  --cf-bone-dim: #96a5a6;
-  --cf-khaki: #63757a;
+  --cf-bone-dim: #abbcbd;
+  --cf-khaki: #7d9399;
 }
 
 /* --- Semantic layer ------------------------------------------------ *
@@ -230,9 +286,22 @@
   --cf-viz-ap-4: #cc5384;
 
   /* Sequential — magnitude. One hue, ember, seven steps, dark to light on
-     a dark surface. Step 100 still clears 2:1 against the panel, so "near
-     zero" is visible rather than invisible. A second simultaneous
-     sequential context takes teal (--cf-viz-2) as its own one-hue ramp. */
+     a dark surface. Step 100 sits BELOW the 3:1 non-text floor on purpose:
+     it encodes "near zero", and lifting it into the band would compress the
+     step that separates nothing from a little, which is the encoding. It is
+     still meant to be visible rather than invisible, and the figure recorded
+     here — and in chart-palette.md — used to be a flat "clears 2:1 against
+     the panel". That was measured on the WARM panel and stated as if it were
+     universal: #6b3a22 is 2.02:1 on #141110 and 1.83:1 on the cool panel
+     #151d21, because every one of these steps measures lower on the lighter
+     cool ground and nothing had ever checked the cool substrate at all. The
+     ramp is not retuned for it — 0.17 of contrast is not worth a third off
+     the darkest step's separation from step 200 — but the claim is now two
+     numbers instead of one. src/contrast.test.ts holds the ramp to what
+     actually has to be true: monotonic, every adjacent pair a visible step,
+     the light end over 3:1, and the dark end still under it. A second
+     simultaneous sequential context takes teal (--cf-viz-2) as its own
+     one-hue ramp. */
   --cf-viz-seq-100: #6b3a22;
   --cf-viz-seq-200: #8c4522;
   --cf-viz-seq-300: #ae5025;
@@ -336,11 +405,24 @@
   --cf-accent-glow: rgb(30 137 199 / 28%);
 }
 
-/* Slot 2 — Forge Network — molten */
+/* Slot 2 — Forge Network — molten.
+ *
+ * The ink is very nearly black, and it has to be. #d6412f is the lightest
+ * accent in the set, and PURE BLACK on it measures only 4.66:1 — so the
+ * whole budget for AA text on this fill is 0.16 of headroom, and the
+ * #1c0806 that shipped here spent it: it measured 4.28:1, under the floor,
+ * on the one control that sets text in --cf-accent-ink (.cf-account__avatar,
+ * uppercase initials at 9.9px). Scaled in linear light to 4.55:1 it keeps
+ * what hue it can at that luminance, which is almost none.
+ *
+ * This is also the argument for the rule the rest of the system already
+ * follows: a product accent is drawn as an OUTLINE, not as a fill with text
+ * on it. There is exactly one accent fill carrying type in this package, and
+ * it is the one that was wrong. */
 [data-cf-product='network'] {
   --cf-accent: #d6412f;
   --cf-accent-hover: #ef5a45;
-  --cf-accent-ink: #1c0806;
+  --cf-accent-ink: #0a0202;
   --cf-accent-glow: rgba(214, 65, 47, 0.26);
 }
 
