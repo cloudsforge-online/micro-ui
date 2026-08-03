@@ -22,6 +22,7 @@ export type SwitcherKey = ProductKey | 'admin' | 'lantern' | 'beacon'
 /** Every addressable CloudsForge surface, including the ones with no UI of their own. */
 export type SurfaceKey =
   | SwitcherKey
+  | 'foresight-admin'
   | 'hub'
   | 'signin'
   | 'site'
@@ -284,6 +285,49 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     markId: null,
     blurb: 'Operator console, every action audited',
     inSwitcher: true,
+    adminOnly: true,
+  },
+  {
+    // The Foresight operator panel. It is here for the same reason `emberkin` is, and it is the
+    // last surface in the estate that was missing: **a hostname absent from this registry is
+    // absent from `KNOWN_SUBS`, so `cloudsforgeHosts()` cannot strip it when deriving the apex,
+    // and every address that bundle composes gains a level.** Served at `foresight-admin.<apex>`
+    // it resolved sign-out to `https://hub.foresight-admin.<apex>/account/logout` — a 404 — and
+    // identity, billing and telemetry the same way, so the console could not deliver a single
+    // telemetry sample. `lantern.foresight-admin.<apex>` is served by nothing.
+    //
+    // Sign-out was only the loudest symptom, which is why the fix is this row and not a gateway
+    // rewrite: rewriting the one URL would have hidden a 404 and left the other three composing
+    // hostnames that do not exist. Recorded from both ends before it was fixed —
+    // `deploy/compose/docker-compose.estate.yml` beside the container, and
+    // `foresight-admin-web/src/lib/hosts.ts`, which carried the diagnosis in its header while
+    // deliberately refusing to shim it locally.
+    //
+    // **`inSwitcher` is false and that is not an oversight.** 19-new-products.md §2.2 folds this
+    // console into `admin-web` at P13 — "kept as its own small surface for now". The row exists so
+    // the apex derives correctly today; it is not a claim that this deserves a permanent hostname.
+    // When the fold happens this entry goes, and the gateway route with it.
+    key: 'foresight-admin',
+    name: 'Foresight Admin',
+    verb: null,
+    kind: 'service',
+    subdomain: 'foresight-admin',
+    // 5185, from `foresight-admin-web/vite.config.ts:44`. Unlike `admin`, `foresight`, `emberkin`
+    // and the rest, this number is NOT the port of a service behind the hostname, because there is
+    // no such service: the console calls Foresight's API (`API_SURFACE = 'foresight'`,
+    // `foresight-admin-web/src/lib/hosts.ts:33`), which resolves through the `foresight` row and
+    // its 4021. So nothing ever resolves this surface as an API target, and the honest value is
+    // the address at which the surface itself answers under `pnpm dev`.
+    //
+    // That places it in the category `surfaces.test.ts` already names: entries whose registry port
+    // "really is an allocation", which is why it is deliberately absent from that test's BOUND map
+    // rather than pinned to a service file that does not exist.
+    devPort: 5185,
+    accent: '#4f7fc2',
+    glyph: '◈',
+    markId: null,
+    blurb: 'Foresight operator panel, folding into Admin',
+    inSwitcher: false,
     adminOnly: true,
   },
   {
