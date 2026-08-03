@@ -17,5 +17,12 @@ in which a built artefact reaches them. `pnpm check` recompiles the sources and 
 committed bytes are not their output — see `packages/ui/README.md`, "Why the build output is in
 git".
 
-Specification: `docs/ecosystem/assets/design-system.md` and
-`docs/ecosystem/assets/chart-palette.md`.
+Design authority: [`ecosystem/assets/design-system.md`](https://github.com/cloudsforge-online/micro-docs/blob/main/ecosystem/assets/design-system.md) and
+[`ecosystem/assets/chart-palette.md`](https://github.com/cloudsforge-online/micro-docs/blob/main/ecosystem/assets/chart-palette.md).
+
+---
+
+## Provenance
+
+The code in this repository was written by **Claude Opus 5** and **Claude Fable 5**, under
+human direction and review.
