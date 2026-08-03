@@ -123,18 +123,40 @@ function lightness(c: Colour): number {
  * is why the stylesheet says `in srgb` and why this must too. Mixing in a linear space produces a
  * lighter result and would report a pass for something the browser paints differently.
  *
- * The second operand is very often `transparent`, which in `color-mix` is
- * `rgb(0 0 0 / 0)` — so the alpha falls to `p%` and the RGB is pulled toward black. That is the
- * behaviour every `--cf-line` and `--cf-surface-hover` in this system depends on.
+ * ── PREMULTIPLIED, AND THEN UN-PREMULTIPLIED, WHICH IS THE WHOLE ANSWER ────────────────────────
+ *
+ * This function used to interpolate the channels straight and say so:
+ *
+ *   "The second operand is very often `transparent`, which in `color-mix` is `rgb(0 0 0 / 0)` —
+ *    so the alpha falls to `p%` AND THE RGB IS PULLED TOWARD BLACK."
+ *
+ * The first clause is right and the second is wrong. CSS Color 5 §color-mix interpolates in
+ * PREMULTIPLIED space and converts back, so `color-mix(in srgb, white 6%, transparent)` is
+ * `rgb(255 255 255 / 0.06)` — full-strength white at 6% alpha, not a 6%-grey at 6% alpha. Every
+ * `--cf-line`, `--cf-line-strong`, `--cf-surface` and `--cf-surface-hover` in this system is that
+ * form, so the error was not academic: the channels were being multiplied by the alpha here and
+ * then multiplied by it AGAIN in `over`, and every alpha ground in the package resolved almost to
+ * the opaque surface beneath it.
+ *
+ * What that cost, in the one place it was load-bearing. `--cf-surface-hover` is bone at 6% and the
+ * hovered panel row is the TIGHTEST ground in the system — it is the ground `tokens.css` says the
+ * cool ramp was renormalised against, at "4.569:1". This file computed that same pair at 5.19:1,
+ * because it resolved the hovered row to `#141110` (the panel itself) rather than to `#211e1c`.
+ * The derivation of `--cf-khaki` was done with the right maths OUTSIDE this file and the test that
+ * was meant to hold it computed a different, laxer number — which is exactly the shape of defect
+ * this package keeps finding elsewhere: the guard and the thing it guards had drifted apart, and
+ * the guard was the one reporting a pass.
+ *
+ * It is fixed rather than pinned because a resolver that is 0.6 of contrast optimistic on every
+ * alpha ground is a resolver that will wave through the next token too.
  */
 function mixSrgb(a: Colour, percent: number, b: Colour): Colour {
   const f = percent / 100
-  return {
-    r: a.r * f + b.r * (1 - f),
-    g: a.g * f + b.g * (1 - f),
-    b: a.b * f + b.b * (1 - f),
-    a: a.a * f + b.a * (1 - f),
-  }
+  const alpha = a.a * f + b.a * (1 - f)
+  if (alpha === 0) return TRANSPARENT
+  // Interpolate premultiplied, then divide the alpha back out.
+  const ch = (x: number, y: number): number => (x * a.a * f + y * b.a * (1 - f)) / alpha
+  return { r: ch(a.r, b.r), g: ch(a.g, b.g), b: ch(a.b, b.b), a: alpha }
 }
 
 /** `src` composited over `dst`, the plain source-over rule, so an alpha ground becomes a colour. */
@@ -425,6 +447,36 @@ function groundsFor(className: string, tokens: ReadonlyMap<string, string>): Col
     if (out.length > 0) break
   }
   return out.length > 0 ? out : [page]
+}
+
+/**
+ * Every custom property a declared value REACHES through its `var()` chain.
+ *
+ * Names, not colours, and that distinction is the whole point of the accent-as-text check below:
+ * whether a rule is allowed to paint text is a question about which TOKEN it names, and it has to
+ * stay a question about the token even when the colour behind that token happens to measure fine.
+ *
+ * `stopAt` is walked to but not through. `--cf-accent-text` resolves to `var(--cf-accent)` for the
+ * three products whose accent already clears the text floor, so without a terminal the sanctioned
+ * token would report itself as the forbidden one.
+ */
+function tokensReached(
+  value: string,
+  tokens: ReadonlyMap<string, string>,
+  stopAt: ReadonlySet<string> = new Set(),
+  depth = 0,
+): Set<string> {
+  const out = new Set<string>()
+  if (depth > 12) return out
+  for (const m of value.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)) {
+    const name = m[1] ?? ''
+    out.add(name)
+    if (stopAt.has(name)) continue
+    const declared = tokens.get(name)
+    if (declared === undefined) continue
+    for (const inner of tokensReached(declared, tokens, stopAt, depth + 1)) out.add(inner)
+  }
+  return out
 }
 
 /* ═══════════════════════════════════ the scopes under test ═══════════════════════════════════ */
@@ -805,6 +857,320 @@ describe('the label on a filled control is legible against its fill', () => {
           )
         }
       }
+    }
+  })
+})
+
+/* ═══════════════════════════ an accent USED AS TEXT, held to the text floor ═══════════════════ */
+
+/**
+ * THE DEFECT: A COLOUR VALIDATED FOR ONE JOB AND USED FOR ANOTHER.
+ *
+ * `design-system.md` §Contrast says "large text and UI marks >= 3:1. Every accent above clears 3:1
+ * on --cf-bg-raised, verified." That is the right floor for what `--cf-accent` does in THIS
+ * package — border, outline, box-shadow, fill — and `ui.css` sets it as `color:` nowhere.
+ *
+ * Consumers set it as `color:` on 0.9rem body copy, where the floor is 4.5:1. So a product accent
+ * could pass every check this system ran and still fail on the surface, and one did:
+ * `micro-foresight-admin-web` painted `.wt-link` in foresight's `#1e89c7`, 4.44:1 on the cool
+ * panel, from the day it shipped.
+ *
+ * `--cf-accent-text` is the colour for that job, derived per product (see tokens.css). What is
+ * asserted here is not just that it clears the floor — it is that the FLOOR AND THE USAGE CANNOT
+ * DISAGREE AGAIN, which takes four assertions pulling in different directions:
+ *
+ *   1. `--cf-accent-text` clears 4.5:1 on every ground this package composes text on. The
+ *      validation the accent never got.
+ *   2. `--cf-accent` still clears its OWN 3:1 floor there. It keeps its job; this is not a
+ *      deprecation, and retuning the text step must not be allowed to break the mark step.
+ *   3. A `color:` rule may not NAME `--cf-accent` or `--cf-accent-hover`. By token name, never by
+ *      measured ratio — a ratio check passes for whichever products happen to clear, and that
+ *      per-product pass is precisely what hid foresight behind trade.
+ *   4. The eight accents that FAIL the text floor are recorded and asserted to still fail. Same
+ *      shape as `assertKnownStillBroken`: the day the palette is retuned so every accent clears,
+ *      this goes red and says `--cf-accent-text` has become a fork worth deleting.
+ */
+describe('an accent used as text', () => {
+  /** The classes WCAG 1.4.3 exempts as logotype. Bounded by the test below, not by this comment. */
+  const LOGOTYPE = ['cf-logo__mark', 'cf-logo__word']
+
+  /**
+   * Every ground this package composes BODY COPY on, derived from the sheet rather than listed.
+   *
+   * "Body copy" is the qualifier that makes the set the right one, and it is read out of the
+   * stylesheet rather than assumed: a ground counts if some rule paints text on it in one of the
+   * three foreground tokens. That excludes the accent and ember FILLS — `.cf-btn--primary`,
+   * `.cf-account__avatar` — which are grounds for `--cf-accent-ink`, a pair already closed by
+   * "the label on a filled control is legible against its fill" above. Sweeping them here would
+   * measure accent-on-accent at 1.1:1 and report the token unfixable rather than unfixed.
+   *
+   * `--cf-accent-text` is a substitute for body copy, so the grounds body copy lands on are
+   * exactly the grounds it has to survive.
+   */
+  const FOREGROUND = new Set(['--cf-fg', '--cf-fg-dim', '--cf-fg-mute'])
+
+  function textGrounds(tokens: ReadonlyMap<string, string>): Map<string, Colour> {
+    const out = new Map<string, Colour>()
+    for (const painted of paintedText()) {
+      const reached = tokensReached(painted.value, tokens)
+      if (![...reached].some((t) => FOREGROUND.has(t))) continue
+      for (const ground of groundsFor(painted.className, tokens)) out.set(toHex(ground), ground)
+    }
+    return out
+  }
+
+  it('composites an alpha ground to what the browser paints, not to the surface beneath it', () => {
+    /*
+     * The premise every number below rests on, pinned by hex.
+     *
+     * `--cf-surface-hover` is `color-mix(in srgb, var(--cf-fg) 6%, transparent)`. CSS Color 5
+     * interpolates color-mix in PREMULTIPLIED space and converts back, so that is bone at full
+     * strength with alpha 0.06 — and a hovered panel row is therefore #211e1c warm / #21292d cool,
+     * not the panel. `mixSrgb` used to interpolate straight, which multiplied the channels by the
+     * alpha here and again in `over`, and resolved every alpha ground in the package to very
+     * nearly the opaque surface behind it: 5.19:1 for `--cf-fg-mute` on a hovered warm row against
+     * the 4.58:1 the browser actually paints. tokens.css derived the cool ramp against "4.569:1",
+     * so the derivation and the test that was meant to hold it had already drifted apart, with the
+     * test reporting the laxer number.
+     */
+    const warm = declaredTokens({ substrate: 'warm', product: null })
+    const cool = declaredTokens({ substrate: 'cool', product: null })
+    const row = (t: ReadonlyMap<string, string>): string =>
+      toHex(over(resolveColour('var(--cf-surface-hover)', t), resolveColour('var(--cf-bg-raised)', t)))
+    assert.equal(row(warm), '#211e1c')
+    assert.equal(row(cool), '#21292d')
+    // And the lightest thing this package sets text on: the current menu item, --cf-fg at 8%.
+    const current = (t: ReadonlyMap<string, string>): string =>
+      toHex(
+        over(
+          resolveColour('color-mix(in srgb, var(--cf-fg) 8%, transparent)', t),
+          resolveColour('var(--cf-surface-solid)', t),
+        ),
+      )
+    assert.equal(current(warm), '#252220')
+    assert.equal(current(cool), '#252d31')
+  })
+
+  it('sweeps a useful number of grounds, so a pass here cannot be a pass over nothing', () => {
+    for (const substrate of SUBSTRATES) {
+      const grounds = textGrounds(declaredTokens({ substrate, product: null }))
+      assert.ok(grounds.size >= 4, `only ${grounds.size} distinct text grounds on ${substrate}`)
+      // The tightest one has to be in the set, or the sweep is measuring the easy surfaces.
+      assert.ok(
+        grounds.has(substrate === 'warm' ? '#252220' : '#252d31'),
+        `the current-menu-item ground is not in the ${substrate} sweep: ${[...grounds.keys()].join(' ')}`,
+      )
+    }
+  })
+
+  it('clears the 4.5:1 TEXT floor for every product, on every ground, on both substrates', () => {
+    const failures: string[] = []
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const tokens = declaredTokens({ substrate, product })
+        const ink = resolveColour('var(--cf-accent-text)', tokens)
+        for (const ground of textGrounds(tokens).values()) {
+          const ratio = contrast(over(ink, ground), ground)
+          if (ratio >= TEXT_AA) continue
+          failures.push(
+            `  --cf-accent-text ${toHex(ink)} on ${toHex(ground)} = ${ratio.toFixed(2)}:1 ` +
+              `[substrate=${substrate}, product=${product ?? 'default'}]`,
+          )
+        }
+      }
+    }
+    assert.equal(failures.length, 0, `accent text below the AA floor:\n${failures.join('\n')}`)
+  })
+
+  it('leaves --cf-accent clearing the 3:1 NON-TEXT floor it is validated at', () => {
+    // The job the accent keeps. Splitting the token is not a deprecation, and a retune of the text
+    // step must not be allowed to quietly break the border, outline and rule the accent still is.
+    const failures: string[] = []
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const tokens = declaredTokens({ substrate, product })
+        for (const name of ['--cf-accent', '--cf-accent-hover']) {
+          const mark = resolveColour(`var(${name})`, tokens)
+          for (const ground of textGrounds(tokens).values()) {
+            const ratio = contrast(over(mark, ground), ground)
+            if (ratio >= NON_TEXT_AA) continue
+            failures.push(
+              `  ${name} ${toHex(mark)} on ${toHex(ground)} = ${ratio.toFixed(2)}:1 ` +
+                `[substrate=${substrate}, product=${product ?? 'default'}]`,
+            )
+          }
+        }
+      }
+    }
+    assert.equal(failures.length, 0, `an accent below its own non-text floor:\n${failures.join('\n')}`)
+  })
+
+  it('never lets a `color:` rule NAME the accent instead of the accent text token', () => {
+    /*
+     * THE ASSERTION THAT MAKES VALIDATION AND USAGE AGREE, and the one that had to be about names.
+     *
+     * The ratio sweep at the top of this file already measures every `color:` in `ui.css` at
+     * 4.5:1 — and it would have passed a rule painted in `--cf-accent` for eight of the eleven
+     * products while failing it for the other three, which is EXACTLY what happened in the estate:
+     * trade at 5.21:1 and worlds at 5.18:1 looked like evidence the rule was fine, and foresight
+     * at 4.44:1 was written off as one surface's problem. A check whose answer depends on which
+     * product is mounted cannot enforce a rule about which token to use.
+     *
+     * So the rule is enforced by name: 3:1 tokens are not text. It holds for every product at
+     * once, it holds for a product added tomorrow, and it holds for the accent of a product whose
+     * hue happens to be light enough to get away with it today.
+     */
+    const tokens = declaredTokens({ substrate: 'cool', product: null })
+    const sanctioned = new Set(['--cf-accent-text', '--cf-ember-text'])
+    const forbidden = new Set(['--cf-accent', '--cf-accent-hover', '--cf-ember', '--cf-ember-hover'])
+    const offenders = paintedText()
+      .filter((p) => !LOGOTYPE.includes(p.className))
+      .filter((p) => [...tokensReached(p.value, tokens, sanctioned)].some((t) => forbidden.has(t)))
+      .map((p) => `  ${p.selector} { color: ${p.value} }`)
+    assert.deepEqual(
+      offenders,
+      [],
+      'a rule paints text in a token validated at 3:1. Use --cf-accent-text, which is the same ' +
+        `hue derived to clear 4.5:1 on the tightest ground in the system:\n${offenders.join('\n')}`,
+    )
+  })
+
+  it('exempts the logotype by name, and only where WCAG actually exempts it', () => {
+    /*
+     * The one exemption from the rule above, and the three things that stop it being a hole.
+     *
+     * WCAG 2.2 SC 1.4.3 exempts logotypes in terms: "Text that is part of a logo or brand name has
+     * no contrast requirement." `.cf-logo__mark` is an SVG glyph reading `currentColor` and
+     * `.cf-logo__word b` is the "Forge" half of the wordmark. They are the two places ui.css names
+     * ember as `color:`, and the header of that file already records ember's three sanctioned uses.
+     *
+     *   1. Each entry must still resolve to EMBER, the company's chrome. A product accent is never
+     *      a logotype, and it is product accents on body copy that this whole section is about.
+     *   2. Each entry must still be a rule that exists. A logotype that stops being painted takes
+     *      its exemption with it.
+     *   3. THE EXEMPTION IS FROM THE NAME RULE, NOT FROM THE RATIO. Both are asserted at 4.5:1 on
+     *      their own grounds regardless — the sweep at the top of this file measures them, and so
+     *      does the assertion below. So the list cannot be used to excuse a contrast failure; it
+     *      only says which token a logotype is allowed to be spelled in.
+     */
+    const base = declaredTokens({ substrate: 'cool', product: null })
+    const accentish = new Set(['--cf-accent', '--cf-accent-hover', '--cf-ember', '--cf-ember-hover'])
+    const painted = paintedText()
+    for (const className of LOGOTYPE) {
+      // `.cf-logo__word` also carries a plain --cf-fg rule; only the accent-spelled ones are what
+      // the exemption is for, and there has to be at least one or the entry is dead weight.
+      const rules = painted.filter(
+        (p) => p.className === className && [...tokensReached(p.value, base)].some((t) => accentish.has(t)),
+      )
+      assert.ok(
+        rules.length > 0,
+        `.${className} no longer paints text in an accent token — delete the LOGOTYPE exemption`,
+      )
+      for (const substrate of SUBSTRATES) {
+        for (const product of PRODUCTS) {
+          const scope = declaredTokens({ substrate, product })
+          for (const rule of rules) {
+            assert.ok(
+              tokensReached(rule.value, scope).has('--cf-ember'),
+              `.${className} is spelled ${rule.value}, which is not the company ember — a product ` +
+                'accent is not a logotype and does not get this exemption',
+            )
+            const ink = resolveColour(rule.value, scope)
+            for (const ground of groundsFor(rule.className, scope)) {
+              const ratio = contrast(over(ink, ground), ground)
+              assert.ok(
+                ratio >= TEXT_AA,
+                `.${className} ${toHex(ink)} on ${toHex(ground)} is ${ratio.toFixed(2)}:1 ` +
+                  `[${substrate}, ${product ?? 'default'}] — the logotype exemption is from the ` +
+                  'token-name rule, never from the ratio',
+              )
+            }
+          }
+        }
+      }
+    }
+  })
+
+  it('is a lift of the accent, not a second brand colour', () => {
+    /*
+     * The counterweight to "just make it lighter until it passes", and the reason this does not
+     * re-open the CVD derivation in tokens.css. Each text step is its own accent scaled in linear
+     * light, so it is the SAME chromaticity one step up — never darker, and never a new hue that
+     * would have to be validated against the other five products as a set.
+     */
+    const hueOf = (c: Colour): number => {
+      const [mx, mn] = [Math.max(c.r, c.g, c.b), Math.min(c.r, c.g, c.b)]
+      if (mx === mn) return 0
+      const h =
+        mx === c.r ? ((c.g - c.b) / (mx - mn)) % 6 : mx === c.g ? (c.b - c.r) / (mx - mn) + 2 : (c.r - c.g) / (mx - mn) + 4
+      return (h * 60 + 360) % 360
+    }
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const tokens = declaredTokens({ substrate, product })
+        const accent = resolveColour('var(--cf-accent)', tokens)
+        const text = resolveColour('var(--cf-accent-text)', tokens)
+        const where = `product=${product ?? 'default'} (${substrate})`
+        assert.ok(
+          luminance(text) >= luminance(accent) - 1e-9,
+          `--cf-accent-text ${toHex(text)} is DARKER than --cf-accent ${toHex(accent)} for ${where}`,
+        )
+        const gap = Math.min(
+          Math.abs(hueOf(text) - hueOf(accent)) % 360,
+          360 - (Math.abs(hueOf(text) - hueOf(accent)) % 360),
+        )
+        assert.ok(
+          gap <= 3,
+          `--cf-accent-text ${toHex(text)} is ${gap.toFixed(1)} degrees off --cf-accent ` +
+            `${toHex(accent)} for ${where} — it is a different colour, not a lighter step of the ` +
+            'same one, and the switcher palette has to be re-validated as a set',
+        )
+      }
+    }
+  })
+
+  it('still needs to exist — every accent recorded as failing the text floor still fails', () => {
+    /*
+     * The inverted half, and the reason `--cf-accent-text` is not a fork that can only ever pass.
+     *
+     * Eight of the eleven accents cannot be text on the tightest ground; three can, and those
+     * three declare `--cf-accent-text: var(--cf-accent)` rather than a new hex. If the palette is
+     * ever retuned so that all eleven clear, this token has stopped being a fix and started being
+     * a second colour nobody needs — and this assertion says so instead of leaving it in place.
+     */
+    const CANNOT_BE_TEXT = ['foresight', 'network', 'trade', 'market', 'worlds', 'admin', 'developers']
+    const CAN_BE_TEXT = ['create', 'lantern', 'beacon']
+    for (const p of [...CANNOT_BE_TEXT, ...CAN_BE_TEXT]) {
+      assert.ok(PRODUCTS.includes(p), `tokens.css no longer declares a block for ${p}`)
+    }
+
+    const worstFor = (product: string | null, token: string): number => {
+      let worst = Number.POSITIVE_INFINITY
+      for (const substrate of SUBSTRATES) {
+        const tokens = declaredTokens({ substrate, product })
+        const ink = resolveColour(`var(${token})`, tokens)
+        for (const ground of textGrounds(tokens).values()) worst = Math.min(worst, contrast(ink, ground))
+      }
+      return worst
+    }
+
+    // The default (ember) fails too, which is why --cf-ember-text exists beside --cf-ember.
+    for (const product of [null, ...CANNOT_BE_TEXT]) {
+      const worst = worstFor(product, '--cf-accent')
+      assert.ok(
+        worst < TEXT_AA,
+        `--cf-accent for product=${product ?? 'default'} now measures ${worst.toFixed(2)}:1 on every ` +
+          'ground in the package — it can be text unaided, so its --cf-accent-text entry is a fork ' +
+          'and should become var(--cf-accent) or be deleted with the rest',
+      )
+    }
+    for (const product of CAN_BE_TEXT) {
+      const worst = worstFor(product, '--cf-accent')
+      assert.ok(
+        worst >= TEXT_AA,
+        `${product} declares --cf-accent-text: var(--cf-accent) but its accent measures ` +
+          `${worst.toFixed(2)}:1 — it needs a derived text step like the other eight`,
+      )
     }
   })
 })
