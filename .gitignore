@@ -1,4 +1,17 @@
 node_modules/
-dist/
+
+# packages/ui/dist IS NOT IGNORED, and that is deliberate. Every consumer resolves this package
+# through `link:../ui/packages/ui` — a symlink to this working tree — and no consumer runs a build
+# here: not `pnpm install`, not the Dockerfiles (which COPY packages/ui out of a named build
+# context), and not the second checkout in each frontend's CI. Committed output is therefore the
+# only shape in which a built artefact reaches them at all. `src/dist.test.ts` recompiles the
+# sources on every `pnpm test` and fails if a committed byte differs, so it cannot go stale
+# unnoticed. See packages/ui/README.md, "Why the build output is in git".
+#
+# The parity test compiles into a sibling of dist/ — same depth, so a source map's relative
+# `sources` entry comes out identical and the comparison measures the compiler rather than the
+# path. It is removed when the test finishes; this line covers an interrupted run.
+packages/*/.dist-check-*
+
 *.tsbuildinfo
 .DS_Store

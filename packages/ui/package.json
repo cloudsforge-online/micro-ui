@@ -5,28 +5,21 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": ["**/*.css"],
-  "main": "src/index.tsx",
-  "types": "src/index.tsx",
+  "//": "THE ENTRY POINTS NAME dist/, AND dist/ IS COMMITTED. Every consumer resolves this package through `link:../ui/packages/ui`, which symlinks this working tree; nothing in that path ever runs a build here, so an entry point naming src/ meant thirteen frontends compiling this package's TSX with THEIR OWN toolchain settings. That is what produced the classic JSX transform under `node --test` and the `globalThis.React` workaround in eight of them. It also meant the artefact that would be published had never been executed by anything. src/ is still what is edited and still what the source maps point at; `src/dist.test.ts` rebuilds it on every `pnpm test` and fails if a byte differs, so a stale dist cannot be committed. See README, 'Why the build output is in git'.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.tsx",
-    "./charts": "./src/charts.tsx",
-    "./surfaces": "./src/surfaces.ts",
-    "./tokens.css": "./src/tokens.css",
-    "./ui.css": "./src/ui.css",
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./charts": { "types": "./dist/charts.d.ts", "default": "./dist/charts.js" },
+    "./surfaces": { "types": "./dist/surfaces.d.ts", "default": "./dist/surfaces.js" },
+    "./cite": { "types": "./dist/cite.d.ts", "default": "./dist/cite.js" },
+    "./test-loader": { "types": "./dist/test-loader.d.ts", "default": "./dist/test-loader.js" },
+    "./tokens.css": "./dist/tokens.css",
+    "./ui.css": "./dist/ui.css",
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-      "./charts": { "types": "./dist/charts.d.ts", "default": "./dist/charts.js" },
-      "./surfaces": { "types": "./dist/surfaces.d.ts", "default": "./dist/surfaces.js" },
-      "./tokens.css": "./dist/tokens.css",
-      "./ui.css": "./dist/ui.css",
-      "./package.json": "./package.json"
-    }
+    "access": "public"
   },
   "files": ["dist"],
   "engines": { "node": ">=22" },
@@ -34,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/*.test.ts",
     "build": "tsc -p tsconfig.build.json && cp src/tokens.css src/ui.css dist/",
+    "watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "prepack": "pnpm build"
   },
   "peerDependencies": {

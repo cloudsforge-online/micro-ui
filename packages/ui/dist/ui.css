@@ -1,0 +1,714 @@
+/* ------------------------------------------------------------------ *
+ * @cloudsforge/ui — component styles
+ *
+ * Self-contained, plain CSS. Every value is keyed off the shared --cf-*
+ * tokens (see tokens.css). No Tailwind, no utility classes — these drop
+ * into any app regardless of its CSS framework. All selectors are prefixed
+ * `cf-` to avoid collisions with the host app.
+ *
+ * Colour comes from the SEMANTIC layer (--cf-bg/--cf-fg/--cf-line), never
+ * from the raw ash/bone ramps, so a product that retints the substrate
+ * retints this chrome with it and the bar never seams against its page.
+ *
+ * The exception is --cf-ember, which appears in EXACTLY THREE PLACES:
+ *   1. the logo mark (.cf-logo__mark, .cf-logo__word b)
+ *   2. the sign-in call to action (.cf-btn--ember)
+ *   3. the seam of forge light along the bar's top edge (.cf-bar)
+ * They are the COMPANY's colour on every product, and are deliberately not
+ * the product accent. Ember is not a product accent anywhere in this system;
+ * a fourth use of it here would make it one again by accident.
+ * ------------------------------------------------------------------ */
+
+/* ============================ the bar ============================= */
+.cf-bar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  width: 100%;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cf-bg-sunken) 92%, transparent),
+    color-mix(in srgb, var(--cf-bg) 86%, transparent)
+  );
+  border-bottom: 1px solid var(--cf-line);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+  /* Ember, use 3 of 3: a faint seam along the very top edge — the forge light. */
+  box-shadow: 0 -1px 0 0 var(--cf-ember-glow) inset;
+}
+
+.cf-bar__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--cf-space-sm);
+  width: 100%;
+  max-width: var(--cf-max-w);
+  min-height: var(--cf-bar-h);
+  margin-inline: auto;
+  padding-inline: var(--cf-space-xl);
+  box-sizing: border-box;
+}
+
+.cf-bar__spacer {
+  flex: 1 1 auto;
+}
+
+.cf-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--cf-space-sm);
+}
+
+.cf-bar__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--cf-line-strong);
+  margin-inline: var(--cf-space-3xs);
+}
+
+/* ============================ the logo ============================ */
+.cf-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cf-space-sm);
+  text-decoration: none;
+  color: var(--cf-fg);
+  border-radius: var(--cf-radius-sm);
+  padding: var(--cf-space-3xs) var(--cf-space-2xs);
+  transition: opacity var(--cf-speed) var(--cf-ease);
+}
+.cf-logo:hover {
+  opacity: 0.85;
+}
+/* Ember, use 1 of 3: the mark. */
+.cf-logo__mark {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--cf-ember);
+}
+.cf-logo__word {
+  font-family: var(--cf-font-sans);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  font-size: var(--cf-text-lg);
+  color: var(--cf-fg);
+  white-space: nowrap;
+}
+.cf-logo__word b {
+  color: var(--cf-ember);
+  font-weight: 800;
+}
+
+/* ============================ the marks =========================== */
+/* Product marks. The ridge reads `currentColor`, which <Mark> sets to
+   --cf-fg-mute; the accent element reads --cf-accent, which the switcher
+   overrides per entry so five marks on one page each wear their OWN
+   product's colour rather than the colour of the page listing them. */
+.cf-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/* ==================== shared trigger / button ==================== */
+.cf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cf-space-xs);
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: var(--cf-space-2xs) var(--cf-space-md);
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--cf-radius-sm);
+  background: transparent;
+  color: var(--cf-fg-dim);
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--cf-speed) var(--cf-ease),
+    background-color var(--cf-speed) var(--cf-ease),
+    border-color var(--cf-speed) var(--cf-ease);
+}
+.cf-btn:hover {
+  color: var(--cf-fg);
+  background: var(--cf-surface-hover);
+}
+.cf-btn[aria-expanded='true'] {
+  color: var(--cf-fg);
+  background: var(--cf-surface-hover);
+  border-color: var(--cf-line-strong);
+}
+
+/* --- Form controls ---------------------------------------------------- *
+ * These did not exist, and five frontends had each written their own:
+ * `.ex-input`, `.mk-input`, `.mw-input`, `.tw-input`, `.dp-input`. Four of the
+ * five had independently converged on exactly the rule below, which is what
+ * makes this an extraction rather than an invention.
+ *
+ * The two that had drifted are the argument for having it here at all:
+ * `market-web` used `border-radius: 8px`, `padding: 0.5rem 0.6rem` and
+ * `font-size: 0.9rem` — raw literals that do not follow the substrate — and
+ * `mint-web` used `--cf-bg` and `--cf-line`, so its inputs sat flat against the
+ * page where every other app's are recessed. Neither was a decision; both were
+ * a copy that aged.
+ *
+ * A MISSING CLASS FAILS AS SILENTLY AS A MISSING TOKEN. `var(--cf-nope)` voids
+ * a declaration; `class="cf-input"` with no rule behind it renders a bare
+ * browser-default input, on a dark ground, looking like a bug nobody wrote.
+ * That is why the estate's frontends kept writing local copies instead: the
+ * canonical name was not there to use.
+ *
+ * Font family is `inherit` rather than fixed, because the one genuine
+ * disagreement was deliberate: micro-explorer-web sets mono for hashes and
+ * addresses, micro-devportal-web sets sans for prose. `--mono` is the modifier
+ * for the former, so neither app has to restate the whole control to differ in
+ * one property.
+ * ---------------------------------------------------------------------- */
+.cf-input,
+.cf-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--cf-space-sm) var(--cf-space-md);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg);
+  font-family: inherit;
+  font-size: var(--cf-text-md);
+  line-height: 1.4;
+  transition: border-color var(--cf-speed) var(--cf-ease);
+}
+
+.cf-input--mono,
+.cf-select--mono {
+  font-family: var(--cf-font-mono);
+}
+
+.cf-input:focus-visible,
+.cf-select:focus-visible {
+  outline: none;
+  border-color: var(--cf-accent);
+}
+
+.cf-input::placeholder {
+  color: var(--cf-fg-dim);
+}
+
+.cf-input:disabled,
+.cf-select:disabled {
+  /* Reads as unavailable rather than as broken: an operator must be able to
+     tell "you may not" from "this did not load". */
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cf-input[aria-invalid='true'] {
+  border-color: var(--cf-danger);
+}
+
+/* Ember, use 2 of 3: the one solid call to action ("Sign in"). */
+.cf-btn--ember {
+  background: var(--cf-ember);
+  color: var(--cf-ember-ink);
+  border-color: var(--cf-ember);
+}
+.cf-btn--ember:hover {
+  background: var(--cf-ember-hover);
+  border-color: var(--cf-ember-hover);
+  color: var(--cf-ember-ink);
+}
+
+.cf-btn__caret {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  transition: transform var(--cf-speed) var(--cf-ease);
+  opacity: 0.7;
+}
+.cf-btn[aria-expanded='true'] .cf-btn__caret {
+  transform: rotate(180deg);
+}
+
+/* small round dot marking the current product on its trigger */
+.cf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cf-accent);
+  box-shadow: 0 0 8px 0 var(--cf-accent-glow);
+  flex: 0 0 auto;
+}
+
+/* ======================= dropdown popovers ======================= */
+.cf-pop {
+  position: relative;
+  display: inline-flex;
+}
+
+.cf-menu {
+  position: absolute;
+  top: calc(100% + var(--cf-space-xs));
+  min-width: 220px;
+  padding: var(--cf-space-xs);
+  margin: 0;
+  list-style: none;
+  background: var(--cf-surface-solid);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius);
+  box-shadow: var(--cf-shadow-sm), var(--cf-shadow);
+  z-index: 70;
+  animation: cf-pop-in var(--cf-speed) var(--cf-ease);
+}
+.cf-menu--left {
+  left: 0;
+}
+.cf-menu--right {
+  right: 0;
+}
+
+@keyframes cf-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cf-menu__label {
+  padding: var(--cf-space-xs) var(--cf-space-md) var(--cf-space-2xs);
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cf-fg-mute);
+}
+
+.cf-menu__sep {
+  height: 1px;
+  margin: var(--cf-space-xs) var(--cf-space-2xs);
+  background: var(--cf-line);
+  border: 0;
+}
+
+.cf-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--cf-space-md);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--cf-space-xs) var(--cf-space-md);
+  border: 0;
+  border-radius: var(--cf-radius-sm);
+  background: transparent;
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  /* At least 24px tall, larger than the 18px mark it contains. */
+  min-height: 32px;
+  transition: background-color var(--cf-speed) var(--cf-ease);
+}
+.cf-menu__item:hover,
+.cf-menu__item:focus-visible {
+  background: var(--cf-surface-hover);
+}
+.cf-menu__item[aria-current='true'] {
+  background: color-mix(in srgb, var(--cf-fg) 8%, transparent);
+}
+
+.cf-menu__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  text-align: center;
+}
+.cf-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.cf-menu__name {
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--cf-fg);
+}
+.cf-menu__blurb {
+  font-size: var(--cf-text-xs);
+  line-height: 1.25;
+  color: var(--cf-fg-dim);
+}
+.cf-menu__check {
+  margin-left: auto;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+  flex: 0 0 auto;
+}
+
+/* ========================= account menu ========================= */
+.cf-account__handle {
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-sm);
+  font-weight: 600;
+  color: var(--cf-fg);
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-account__avatar {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--cf-accent), color-mix(in srgb, var(--cf-accent) 55%, var(--cf-ash-800)));
+  color: var(--cf-accent-ink);
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-2xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+/* ====================== focus visibility ======================== *
+ * Focus is always visible, and a product's local CSS must not remove it.
+ * It rides the accent rather than ember so the ring belongs to the surface
+ * the reader is actually on.
+ * ---------------------------------------------------------------- */
+.cf-bar :focus-visible,
+.cf-chart :focus-visible,
+.cf-tile :focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
+  border-radius: var(--cf-radius-sm);
+}
+.cf-menu__item:focus {
+  outline: none;
+}
+
+/* ======================== chart primitives ====================== *
+ * See docs/ecosystem/assets/chart-palette.md section 7. Text here is in
+ * TEXT tokens only, never in a series colour: the moment a label wears its
+ * series' hue, the label stops being readable at small sizes and the hue
+ * stops being available for the mark.
+ * ---------------------------------------------------------------- */
+.cf-num {
+  font-family: var(--cf-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Available to a screen reader, absent from the page. Used to carry the
+   WORD alongside every status colour and every delta arrow. */
+.cf-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cf-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cf-space-sm);
+  margin: 0;
+  padding: var(--cf-space-xl);
+  background: var(--cf-viz-surface);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-lg);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+}
+
+.cf-chart__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cf-space-md);
+}
+.cf-chart__title {
+  font-size: var(--cf-text-md);
+  font-weight: 600;
+  color: var(--cf-fg);
+}
+/* The pricing timestamp. Never optional in practice: a balance without one
+   is a number the oracle may have stopped updating fifteen minutes ago. */
+.cf-chart__stamp {
+  font-size: var(--cf-text-xs);
+  color: var(--cf-fg-mute);
+}
+
+.cf-chart__plot {
+  position: relative;
+}
+.cf-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.cf-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-2xs);
+  color: var(--cf-viz-axis);
+}
+
+.cf-chart__tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--cf-space-2xs) var(--cf-space-sm);
+  background: var(--cf-surface-solid);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  box-shadow: var(--cf-shadow);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.cf-chart__tip-label {
+  font-size: var(--cf-text-2xs);
+  color: var(--cf-fg-mute);
+}
+.cf-chart__tip-value {
+  font-size: var(--cf-text-sm);
+  color: var(--cf-fg);
+}
+
+/* --- the two states that must not look alike --------------------- *
+ * Empty is quiet: a dashed rule and a muted sentence, because nothing is
+ * wrong. Failed is loud: the critical token with an icon AND a word, so a
+ * reader who cannot separate the hues still gets the message. Beacon and
+ * Lantern already distinguish these two, and a shared primitive that
+ * collapsed them would be a regression in both.
+ * ---------------------------------------------------------------- */
+.cf-chart__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cf-space-sm);
+  align-items: stretch;
+  padding-block: var(--cf-space-xl);
+}
+.cf-chart__empty-rule {
+  height: 0;
+  border-top: 1px dashed var(--cf-line-strong);
+}
+.cf-chart__empty-text {
+  font-size: var(--cf-text-xs);
+  color: var(--cf-fg-mute);
+}
+.cf-chart__fail {
+  display: flex;
+  align-items: center;
+  gap: var(--cf-space-sm);
+  padding: var(--cf-space-md);
+  border: 1px solid color-mix(in srgb, var(--cf-viz-crit) 45%, transparent);
+  border-radius: var(--cf-radius);
+  background: color-mix(in srgb, var(--cf-viz-crit) 8%, transparent);
+}
+.cf-chart__fail-icon {
+  color: var(--cf-viz-crit);
+  font-size: var(--cf-text-sm);
+  line-height: 1;
+}
+.cf-chart__fail-text {
+  font-size: var(--cf-text-xs);
+  color: var(--cf-fg-dim);
+}
+
+.cf-chart__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  color: var(--cf-fg);
+}
+.cf-chart__table-caption {
+  text-align: left;
+  padding-bottom: var(--cf-space-sm);
+  font-weight: 600;
+}
+.cf-chart__table th,
+.cf-chart__table td {
+  padding: var(--cf-space-2xs) var(--cf-space-sm);
+  border-bottom: 1px solid var(--cf-line);
+  text-align: left;
+}
+.cf-chart__table td {
+  text-align: right;
+  color: var(--cf-fg-dim);
+}
+
+/* --- horizontal bars: sorted, direct-labelled, no pie ------------- */
+.cf-bars {
+  display: flex;
+  flex-direction: column;
+  /* 2px between adjacent bars, in the surface colour, as for stacked fills. */
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cf-bars__row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--cf-space-md);
+  padding-block: var(--cf-space-2xs);
+}
+.cf-bars__track {
+  width: 100%;
+  height: 10px;
+}
+.cf-bars__label {
+  font-size: var(--cf-text-md);
+  color: var(--cf-fg);
+}
+.cf-bars__value {
+  font-size: var(--cf-text-sm);
+  color: var(--cf-fg-dim);
+}
+
+/* --- stat tile --------------------------------------------------- */
+.cf-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cf-space-2xs);
+  padding: var(--cf-space-xl);
+  background: var(--cf-viz-surface);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-lg);
+}
+.cf-tile__label {
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-2xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cf-fg-mute);
+}
+.cf-tile__value {
+  font-size: var(--cf-text-3xl);
+  line-height: 1.1;
+  color: var(--cf-fg);
+}
+.cf-tile__stamp {
+  font-size: var(--cf-text-2xs);
+  color: var(--cf-fg-mute);
+}
+.cf-tile__plot {
+  margin-top: var(--cf-space-sm);
+}
+.cf-spark {
+  display: block;
+  overflow: visible;
+}
+
+/* --- delta ------------------------------------------------------- *
+ * The tone is the only place a viz colour touches text, and it is a
+ * NUMBER, not a label — the sign is also carried by an arrow and by a word
+ * in .cf-sr, so colour is never the only channel.
+ * ---------------------------------------------------------------- */
+.cf-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--cf-space-2xs);
+  color: var(--cf-delta-tone, var(--cf-fg-dim));
+  font-size: var(--cf-text-sm);
+}
+.cf-delta__icon {
+  font-size: var(--cf-text-2xs);
+  line-height: 1;
+}
+
+/* --- meter: one stacked track ------------------------------------ */
+.cf-meter {
+  display: block;
+  width: 100%;
+  height: 8px;
+}
+.cf-meter__key {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cf-space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cf-meter__key-row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: var(--cf-space-sm);
+  font-size: var(--cf-text-xs);
+  color: var(--cf-fg-dim);
+}
+.cf-meter__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.cf-meter__name {
+  color: var(--cf-fg);
+}
+.cf-meter__value {
+  color: var(--cf-fg-dim);
+}
+
+/* ===================== responsive niceties ====================== */
+@media (max-width: 560px) {
+  .cf-switch__label,
+  .cf-account__handle {
+    display: none;
+  }
+  .cf-chart,
+  .cf-tile {
+    padding: var(--cf-space-md);
+  }
+}
+
+/* ===================== reduced motion =========================== *
+ * Honoured globally. A product may not reintroduce animation on top of
+ * this, and no chart in this package animates on load: an entrance
+ * animation on a number is a delay before the number.
+ * ---------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .cf-bar,
+  .cf-btn,
+  .cf-btn__caret,
+  .cf-logo,
+  .cf-menu,
+  .cf-menu__item,
+  .cf-chart,
+  .cf-chart__svg,
+  .cf-tile {
+    transition: none !important;
+    animation: none !important;
+  }
+}
