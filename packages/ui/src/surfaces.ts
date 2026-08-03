@@ -27,6 +27,7 @@ export type SurfaceKey =
   | 'site'
   | 'emberkin'
   | 'aetherholm'
+  | 'tessera'
   | 'wallet'
   | 'faucet'
   | 'developers'
@@ -482,6 +483,51 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: null,
     blurb: 'A sky-island strategy MMO, played through Forge Worlds',
+    inSwitcher: false,
+  },
+  {
+    // The FOURTH Forge Worlds title, beside Emberkin and Aetherholm: a persistent, user-made
+    // isometric world in a browser tab. Present for the same reason those two are — a surface
+    // absent from this registry is absent from KNOWN_SUBS, so `cloudsforgeHosts()` cannot strip
+    // `tessera.` when deriving the apex and resolves identity, billing and telemetry to
+    // `nimbus.tessera.<apex>` and friends: hostnames that do not exist.
+    //
+    // This one has a second consumer the other two do not. micro-tessera's own suite reads this
+    // row back and asserts the service and the registry agree about the port — so a wrong number
+    // here fails a build in another repository rather than being discovered in a browser.
+    key: 'tessera',
+    name: 'Tessera',
+    verb: null,
+    kind: 'service',
+    subdomain: 'tessera',
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // 4022, AND IT IS THE ONE NUMBER IN THIS ROW THAT WAS ARGUED RATHER THAN PICKED.
+    //
+    // It is the port the service binds — `tessera/src/env.ts:55`, `DEFAULT_PORT = 4022` — and a
+    // devPort is a fact about a service, not an allocation. That much is the standing rule, and
+    // it has been broken three times (foresight carried beacon's 4011; emberkin carried 3014
+    // while binding 4100; admin carried 3002 while admin-api binds 4014).
+    //
+    // What is different here is WHY the service binds 4022 rather than something in the 4100s.
+    // 23-tessera.md §10.1 separates three port spaces this estate keeps confusing: the port a
+    // service binds, the HOST port in the estate compose file (derived — `4100 + index in
+    // deployableRepos()`, org/tools/cfctl.ts:864-871), and this field. Spaces one and two already
+    // collide three times: emberkin binds 4100, which is identity's compose host port; aetherholm
+    // binds 4120, which is admin-api's; nda binds 4110, which is notify's. Each of those services
+    // binds a number the estate hands to somebody else.
+    //
+    // 4022 sits BELOW the derived 4100+ block, so no number of repositories appended to
+    // `deployableRepos()` can grow into it. The point is not that 4022 is free today — 4100 was
+    // free the day emberkin took it — but that it is in a region the derivation cannot reach.
+    // **Do not tidy this into the 4100 block.** Its distance from that block is the property.
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    devPort: 4022,
+    // Worlds' accent: a title wears its product's colour rather than claiming one of its own,
+    // exactly as Emberkin and Aetherholm do above.
+    accent: '#6d9a49',
+    glyph: '◆',
+    markId: null,
+    blurb: 'A world you build in a browser tab, played through Forge Worlds',
     inSwitcher: false,
   },
   {

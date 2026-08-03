@@ -192,6 +192,14 @@ describe('the registry', () => {
       foresight: { port: 4021, source: 'foresight/src/env.ts' },
       emberkin: { port: 4100, source: 'emberkin/src/env.ts' },
       aetherholm: { port: 4120, source: 'aetherholm/src/env.ts:105' },
+      // The only pin here whose value was chosen for a REASON rather than merely read. The three
+      // above are ports their services happened to bind, and two of them collide with another
+      // service's compose host port (emberkin's 4100 is identity's; aetherholm's 4120 is
+      // admin-api's). 4022 is deliberately below the derived 4100+ block so that no future entry
+      // in micro-org's `deployableRepos()` can grow into it — 23-tessera.md §10.1. Moving it INTO
+      // that block would look like tidying and would reintroduce exactly the collision class the
+      // other two entries are living examples of.
+      tessera: { port: 4022, source: 'tessera/src/env.ts:55 — DEFAULT_PORT, argued at §10.1' },
       explorer: { port: 4008, source: 'indexer/src/env.ts:295 — the chain index this surface reads' },
       keyvault: { port: 4005, source: 'custody/src/env.ts:188 — custody, which this entry names' },
     }
