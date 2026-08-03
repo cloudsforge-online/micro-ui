@@ -166,13 +166,31 @@ describe('the committed build is the build of these sources', () => {
   const out = mkdtempSync(join(PKG_ROOT, '.dist-check-'))
   after(() => rmSync(out, { recursive: true, force: true }))
 
-  execFileSync(process.execPath, [tsc, '-p', 'tsconfig.build.json', '--outDir', out], {
-    cwd: PKG_ROOT,
-    stdio: 'pipe',
-  })
+  /**
+   * The compiler's own complaint, kept, rather than thrown out of a `describe` body.
+   *
+   * `pnpm build` is not a step in this repository's CI — this rebuild is how the build gets run at
+   * all. So a build that FAILS has to fail this file legibly. Letting `execFileSync` throw out of
+   * the suite body does turn the run red, but it reports "the committed build is the build of
+   * these sources" with a stack, and not the one line of `tsc` output that says what is wrong.
+   */
+  let buildError = ''
+  try {
+    execFileSync(process.execPath, [tsc, '-p', 'tsconfig.build.json', '--outDir', out], {
+      cwd: PKG_ROOT,
+      stdio: 'pipe',
+    })
+  } catch (e) {
+    const { stdout, stderr } = e as { stdout?: Buffer; stderr?: Buffer }
+    buildError = `${stdout?.toString() ?? ''}${stderr?.toString() ?? ''}`.trim() || String(e)
+  }
 
-  const compiled = readdirSync(out).sort()
+  const compiled = buildError === '' ? readdirSync(out).sort() : []
   const committed = readdirSync(DIST).sort()
+
+  it('compiles at all — this is where CI runs the build', () => {
+    assert.equal(buildError, '', `tsc -p tsconfig.build.json failed:\n${buildError}`)
+  })
 
   it('compiled something, so a silent no-op build cannot pass this file', () => {
     assert.ok(compiled.length >= 10, `the rebuild produced ${compiled.length} files: ${compiled}`)
