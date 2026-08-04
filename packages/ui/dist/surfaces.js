@@ -240,7 +240,7 @@ export const SURFACES = [
      * Its own comment predicted this: "`inSwitcher` is false and that is not an oversight …
      * 19-new-products.md §2.2 folds this console into `admin-web` at P13 … When the fold happens
      * this entry goes, and the gateway route with it." Both went, in the same change:
-     * `deploy/gateway/dynamic/estate-web.yml` lost `cf-web-foresight-admin`, `policy.yml` lost the
+     * `deploy/gateway/dynamic/estate-web.yml` lost its bundle router, `policy.yml` lost the
      * CORS origin, `docker-compose.estate.yml` lost the container and `cloudflared/gen.py` lost two
      * tunnel hostnames. `deploy/scripts/surface-routes.py` is what makes that simultaneity
      * mandatory: check 2 fails on a router for a host no row declares, and check 5 fails on a CORS
