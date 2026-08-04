@@ -1,0 +1,18 @@
+{
+  // The workspace-root sources: `scripts/`, which is tooling rather than a published package.
+  //
+  // It exists because `pnpm typecheck` was `pnpm -r typecheck` — recursive over WORKSPACE
+  // PACKAGES — and `scripts/` is in none of them, so everything here was unchecked. That is how
+  // `scripts/validate_palette.js` came to be cited by tokens.css for months without existing.
+  // `scripts/footer-audit.ts` is a guard the estate is meant to rely on; a guard that does not
+  // typecheck is a guard nobody has read.
+  //
+  // DOM is in the library set for one reason: the function this script hands to
+  // `page.evaluate()` runs IN the page, so it is DOM code that happens to live in a Node file.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.ts"]
+}

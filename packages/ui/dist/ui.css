@@ -697,6 +697,124 @@
   color: var(--cf-fg-dim);
 }
 
+/* ============================ the footer ========================== *
+ * The company footer, `CloudsForgeFooter`. Sibling of the bar and the
+ * opposite decision about substrate: the BAR is `.cf-dark` and pins its own
+ * scope, because it must read as one strip across every surface whatever
+ * that surface's page looks like. The footer is the END of the page and
+ * belongs to it, so it takes the semantic layer as the host app declares it
+ * — a product that retints the substrate retints this with it, and the
+ * footer never seams against the content above it.
+ *
+ * Ember appears NOWHERE below. It is company chrome allowed in exactly
+ * three places (see the header of this file) and a fourth use here — a
+ * hovered link, a rule above the closing line — would make it a fifth
+ * accent by accident, which is precisely the mistake the palette note in
+ * surfaces.ts records the estate already making once.
+ *
+ * `--cf-accent` appears once, as a focus ring: an outline is a NON-TEXT use
+ * and the accents are validated at 3:1 for exactly that. No rule below sets
+ * `color:` to anything whose var() chain reaches it; `contrast.test.ts`
+ * fails the build if one ever does, and it discovers these rules by parsing
+ * this file rather than from a list, so every pair here is measured on both
+ * substrates against all six product accents without being enrolled.
+ * ------------------------------------------------------------------ */
+.cf-foot {
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg-dim);
+  border-top: 1px solid var(--cf-line);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  /* `auto` top margin, so a short page pins the footer to the bottom of the
+     viewport instead of leaving it floating mid-screen. It only bites in a
+     flex/grid column; in a normal flow it is inert, which is why it is safe
+     to ship in a component nineteen different shells lay out differently. */
+  margin-top: auto;
+}
+.cf-foot__inner {
+  max-width: var(--cf-max-w);
+  margin: 0 auto;
+  padding: var(--cf-space-3xl) var(--cf-space-xl) var(--cf-space-2xl);
+}
+.cf-foot__cols {
+  display: grid;
+  /* auto-fit rather than a fixed count: the number of columns is decided by
+     the registry (three kinds plus Legal) and by whether the reader is an
+     operator, so a hard `repeat(4, …)` would be a second opinion about how
+     many there are. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--cf-space-2xl);
+}
+.cf-foot__col {
+  min-width: 0;
+}
+.cf-foot__title {
+  margin: 0 0 var(--cf-space-md);
+  font-size: var(--cf-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cf-fg-mute);
+}
+.cf-foot__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--cf-space-sm);
+}
+.cf-foot__link {
+  color: var(--cf-fg-dim);
+  text-decoration: none;
+  border-radius: var(--cf-radius-sm);
+  transition: color var(--cf-speed) var(--cf-ease);
+}
+.cf-foot__link:hover {
+  color: var(--cf-fg);
+  text-decoration: underline;
+}
+/* The focus ring is an OUTLINE, never a colour swap. A keyboard reader must
+   see where they are, and `:focus-visible` keeps it off a mouse click. */
+.cf-foot__link:focus-visible {
+  color: var(--cf-fg);
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 3px;
+}
+/* The current surface. Colour is NOT the only channel: the anchor carries
+   `aria-current="page"`, which is what a screen reader announces, and the
+   weight change is what a sighted reader sees. */
+.cf-foot__link[aria-current='page'] {
+  color: var(--cf-fg);
+  font-weight: 600;
+}
+.cf-foot__note {
+  margin: var(--cf-space-2xl) 0 0;
+  padding-top: var(--cf-space-xl);
+  border-top: 1px solid var(--cf-line);
+  max-width: 68ch;
+  font-size: var(--cf-text-md);
+  line-height: 1.55;
+  color: var(--cf-fg-dim);
+}
+.cf-foot__base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cf-space-md) var(--cf-space-xl);
+  margin-top: var(--cf-space-2xl);
+  padding-top: var(--cf-space-xl);
+  border-top: 1px solid var(--cf-line);
+}
+.cf-foot__brand {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cf-fg);
+}
+.cf-foot__here {
+  font-size: var(--cf-text-sm);
+  color: var(--cf-fg-mute);
+}
+
 /* ===================== responsive niceties ====================== */
 @media (max-width: 560px) {
   .cf-switch__label,
@@ -706,6 +824,12 @@
   .cf-chart,
   .cf-tile {
     padding: var(--cf-space-md);
+  }
+  .cf-foot__inner {
+    padding: var(--cf-space-2xl) var(--cf-space-lg) var(--cf-space-xl);
+  }
+  .cf-foot__cols {
+    gap: var(--cf-space-xl);
   }
 }
 
@@ -723,7 +847,8 @@
   .cf-menu__item,
   .cf-chart,
   .cf-chart__svg,
-  .cf-tile {
+  .cf-tile,
+  .cf-foot__link {
     transition: none !important;
     animation: none !important;
   }

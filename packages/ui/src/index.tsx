@@ -22,9 +22,11 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  FOOTER_GROUPS,
   KNOWN_SUBS,
   SURFACES,
   SWITCHER_SURFACES,
+  surface,
   type CloudsForgeSurface,
   type ProductKey,
   type SurfaceKey,
@@ -33,6 +35,8 @@ import {
 
 export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface }
 export {
+  FOOTER_GROUPS,
+  FOOTER_SURFACES,
   PRODUCTS,
   PRODUCT_ACCENTS,
   RETIRED_ACCENTS,
@@ -844,5 +848,192 @@ export function CloudsForgeBar({
         <AccountMenu account={account} onSignIn={onSignIn} onSignOut={onSignOut} />
       </div>
     </div>
+  )
+}
+
+/* ========================= CloudsForgeFooter ====================== */
+
+/**
+ * Links that are deliberately NOT registry surfaces.
+ *
+ * The brief for this component said to drive it from `SURFACES` and, where a link genuinely is not
+ * a surface, to say so explicitly rather than blur the two. This is that list, and it is two
+ * entries long: both are ROUTES ON THE MARKETING SITE, resolved against `cloudsforgeHosts().site`
+ * so they follow the apex like everything else and are never a typed URL.
+ *
+ * The paths and the labels are not invented here either — they are `site/src/lib/routes.ts`, whose
+ * `ROUTES` carries `terms` and `privacy` with `label: null` (that null is what keeps them out of
+ * the site header) and a `summary` whose clause before the em dash is the name. This restates
+ * those four strings because `@cloudsforge/ui` cannot import from a consumer, and that restatement
+ * is the one place in this footer where drift is possible. `footer.test.ts` reads `site`'s route
+ * module when a checkout of it is present and fails on disagreement.
+ *
+ * ── What is deliberately absent ───────────────────────────────────────────────────────────────
+ *
+ * **A security page.** The brief named one as a legitimate non-surface link. Nothing in the estate
+ * serves `/security`, and a link that 404s from the footer of nineteen surfaces is a worse defect
+ * than the missing footer this component exists to fix. Add the page, then add the link.
+ *
+ * **A link to the source.** Same reason: these repositories are private, and a footer link to a
+ * 404 on GitHub is a link to a login wall.
+ *
+ * **A copyright year computed from `Date`.** The closing line carries the company name and no
+ * year. A year rendered from the reader's clock is a claim about a legal fact, sourced from a
+ * device setting.
+ */
+export const FOOTER_LEGAL_LINKS: readonly { readonly path: string; readonly label: string }[] = [
+  { path: '/terms', label: 'Terms of service' },
+  { path: '/privacy', label: 'Privacy notice' },
+]
+
+export interface CloudsForgeFooterProps {
+  /**
+   * The surface this footer is being rendered on. Its own entry is marked `aria-current`, exactly
+   * as the switcher marks it — a link that goes where you already are, announced as such.
+   */
+  current: SurfaceKey
+  /**
+   * The viewer, for `adminOnly` visibility. **Omitting it hides every operator surface**, which is
+   * the safe default and the one a signed-out visitor gets. Only `roles` is read; this component
+   * renders no account state of its own, because the bar already owns that.
+   */
+  account?: AccountState | undefined
+  /** Override resolved surface URLs, exactly as the bar's `productUrls` does. */
+  surfaceUrls?: Partial<Record<SurfaceKey, string>> | undefined
+  /**
+   * One sentence this surface wants to close with.
+   *
+   * This exists because four frontends had already written a footer and three of them contained
+   * nothing but such a sentence — Foresight's "stakes go from your wallet to the market's contract
+   * on Hearth", Market's "money on this surface is held by Forge Ledger", Status's "this page is
+   * served independently of the systems it describes". Those are the honest, load-bearing part of
+   * what this estate wanted a footer for, and centralising the chrome must not delete them. They
+   * move here.
+   */
+  note?: ReactNode | undefined
+}
+
+/**
+ * The company footer: the estate's navigation of last resort, on every surface.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * **EVERY LINK IN THE THREE NAVIGATION COLUMNS IS DERIVED FROM `SURFACES`. NONE IS TYPED HERE.**
+ *
+ * The label is `surface.name`, the address is `cloudsforgeHosts()[key]`, the column is decided by
+ * `surface.kind`, whether it appears at all is `surface.servesUi`, and whether a signed-out reader
+ * sees it is `surface.adminOnly`. There is no list of surfaces in this file. A seventh product is
+ * a registry row and nothing else — which is the whole reason `surfaces.ts` exists, and this
+ * component was written precisely because the estate had instead grown four hand-written footers,
+ * nine surfaces with none, and a registry comment (`surfaces.ts`, the `developers` row: "Reached
+ * from the footer, not the product switcher") describing a navigation path that did not exist.
+ *
+ * The two links that are NOT surfaces are in `FOOTER_LEGAL_LINKS` above, under their own heading,
+ * with the reasoning for each absence written out.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ── `adminOnly` and the signed-out visitor ─────────────────────────────────────────────────────
+ *
+ * `admin` and `foresight-admin` are `adminOnly` and are omitted unless `account.roles` contains
+ * `admin`, on the same rule and for the same reason as `resolveProducts`. **Hiding is not the
+ * security boundary** — each service verifies the role on the token — but a footer is worse than a
+ * switcher here: a switcher is a menu somebody opens, and a footer is on the page, so an
+ * `adminOnly` entry rendered there advertises the operator console to every signed-out reader of
+ * every product. The default is hidden: an app that passes no `account` gets the signed-out set.
+ *
+ * ── Accessibility ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `role="contentinfo"` is stated rather than left implicit. It IS implicit for a `<footer>` that
+ * is not inside a sectioning element, but that condition is a property of the CONSUMER's tree, not
+ * of this file — a shell that one day wraps its outlet in a `<section>` would silently demote this
+ * landmark to a generic group, and the guard that reads it would go quiet rather than red.
+ *
+ * Each column is a `<nav>` labelled by its own visible heading (`aria-labelledby`), so a screen
+ * reader announces "Products navigation" rather than four unlabelled ones. Headings are `<h2>`:
+ * every consuming page has an `<h1>`, and nothing between is skipped.
+ *
+ * Link text is always the surface's registry NAME — a full, meaningful phrase out of context,
+ * which is the actual requirement behind "never write click here". Nothing here is a button, a
+ * `div` with a handler, or an anchor without an `href`, so the whole footer is in the tab order by
+ * construction rather than by an added `tabindex`.
+ *
+ * Colour is `--cf-*` tokens only; see `.cf-foot` in ui.css. There is no hex literal in this
+ * component and none in its stylesheet.
+ */
+export function CloudsForgeFooter({
+  current,
+  account,
+  surfaceUrls,
+  note,
+}: CloudsForgeFooterProps) {
+  const hosts = cloudsforgeHosts()
+  const isAdmin = account?.roles?.includes('admin') ?? false
+  const idBase = useId()
+
+  // The surface being stood on, for the identity line. `surface()` throws on an unknown key rather
+  // than resolving it to a URL, which is what we want: a typo must not render a footer at all.
+  const here = surface(current)
+
+  return (
+    <footer className="cf-foot" role="contentinfo" aria-label="CloudsForge">
+      <div className="cf-foot__inner">
+        <div className="cf-foot__cols">
+          {FOOTER_GROUPS.map((group) => {
+            const visible = group.surfaces.filter((s) => isAdmin || !s.adminOnly)
+            // A column that would render empty is not rendered: an <h2> over nothing is a
+            // navigation landmark a reader can enter and find no links in.
+            if (visible.length === 0) return null
+            const headingId = `${idBase}-${group.kind}`
+            return (
+              <nav className="cf-foot__col" key={group.kind} aria-labelledby={headingId}>
+                <h2 className="cf-foot__title" id={headingId}>
+                  {group.title}
+                </h2>
+                <ul className="cf-foot__list">
+                  {visible.map((s) => (
+                    <li key={s.key}>
+                      <a
+                        className="cf-foot__link"
+                        href={surfaceUrls?.[s.key] ?? hosts[s.key]}
+                        aria-current={s.key === current ? 'page' : undefined}
+                      >
+                        {s.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )
+          })}
+
+          <nav className="cf-foot__col" aria-labelledby={`${idBase}-legal`}>
+            <h2 className="cf-foot__title" id={`${idBase}-legal`}>
+              Legal
+            </h2>
+            <ul className="cf-foot__list">
+              {FOOTER_LEGAL_LINKS.map((l) => (
+                <li key={l.path}>
+                  {/* Not a surface. A route on the marketing site — see FOOTER_LEGAL_LINKS. */}
+                  <a className="cf-foot__link" href={`${hosts.site}${l.path}`}>
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+
+        {note && <p className="cf-foot__note">{note}</p>}
+
+        <div className="cf-foot__base">
+          <span className="cf-foot__brand">
+            <CloudsForgeLogo size={16} />
+          </span>
+          {/* The surface's own name and blurb, from the registry. Not a tagline written here. */}
+          <span className="cf-foot__here">
+            {here.name} — {here.blurb}
+          </span>
+        </div>
+      </div>
+    </footer>
   )
 }

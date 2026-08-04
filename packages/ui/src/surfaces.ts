@@ -79,6 +79,40 @@ export interface CloudsForgeSurface {
   readonly markId: string | null
   /** One line, shown under the name in the switcher and on product cards. */
   readonly blurb: string
+  /**
+   * True when a PERSON can open this address in a browser and be served a page.
+   *
+   * ── Why this is a field rather than something inferred ────────────────────────────────────────
+   *
+   * `kind` does not answer it. `explorer` is a `service` and serves a full SPA; `beacon` is a
+   * `service`, is `inSwitcher`, and serves no HTML at all. Neither does `markId`, `inSwitcher` or
+   * `basePath`. The footer needs exactly this question answered for every row — a footer link to
+   * an address that 404s is worse than no footer — and the only honest place for the answer is
+   * beside the hostname it is a fact about.
+   *
+   * **Every value below was measured through the estate gateway rather than reasoned about**, on
+   * 2026-08-04, with `curl --cacert deploy/gateway/certs/ca.crt https://<sub>.cloudsforge.localtest.me/`.
+   * `true` means that request returned `200 text/html`. The three `basePath` rows were measured at
+   * their full path (`hub./account`, `hub./wallet`, `network./faucet` — all 200 text/html), because
+   * for them the host answering is not the question.
+   *
+   * TWO RESULTS ARE WORTH NAMING, because they are not what the registry reads like:
+   *
+   *   - **`lantern` and `beacon` are `inSwitcher: true` and serve no page.** Both answered
+   *     `404 application/json` on their own hostname. deploy/gateway/dynamic/estate-web.yml:432
+   *     says so in its own words — "no bundle is served at `beacon.<apex>`" — and routes the whole
+   *     host to the API. So the operator switcher offers two entries that cannot open. That is a
+   *     pre-existing defect in `inSwitcher`, NOT something this field creates; it is left visible
+   *     here rather than fixed, because the switcher is not this change's subject and silently
+   *     flipping `inSwitcher` would remove two entries an operator may be relying on the presence
+   *     of. The footer simply does not offer them.
+   *   - **`account` is false** for the reason its own row already explains at length: nothing in
+   *     the estate serves it. Measured `404 text/plain`.
+   *
+   * A new surface must state this. It is not optional precisely because the failure mode is a row
+   * added without thinking about it and then advertised estate-wide by a footer that assumed.
+   */
+  readonly servesUi: boolean
   readonly inSwitcher: boolean
   /** Hidden from the switcher unless the viewer holds the `admin` role. */
   readonly adminOnly?: boolean
@@ -186,6 +220,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◈',
     markId: 'mark-foresight',
     blurb: 'Stake on what happens next, settled on chain',
+    servesUi: true,
     inSwitcher: true,
   },
   {
@@ -199,6 +234,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '●',
     markId: 'mark-network',
     blurb: 'The chain, its explorer and the faucet',
+    servesUi: true,
     inSwitcher: true,
   },
   {
@@ -212,6 +248,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◐',
     markId: 'mark-trade',
     blurb: 'Test the idea before you fund it',
+    servesUi: true,
     inSwitcher: true,
   },
   {
@@ -225,6 +262,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '✦',
     markId: 'mark-create',
     blurb: 'Launch a token, cross-chain',
+    servesUi: true,
     inSwitcher: true,
   },
   {
@@ -238,6 +276,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◇',
     markId: 'mark-market',
     blurb: 'Discover, list, offer, settle',
+    servesUi: true,
     inSwitcher: true,
   },
   {
@@ -251,6 +290,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▲',
     markId: 'mark-worlds',
     blurb: 'Ninety Days After, and what follows it',
+    servesUi: true,
     inSwitcher: true,
   },
 
@@ -284,6 +324,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▣',
     markId: null,
     blurb: 'Operator console, every action audited',
+    servesUi: true,
     inSwitcher: true,
     adminOnly: true,
   },
@@ -327,6 +368,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◈',
     markId: null,
     blurb: 'Foresight operator panel, folding into Admin',
+    servesUi: true,
     inSwitcher: false,
     adminOnly: true,
   },
@@ -341,6 +383,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '✷',
     markId: null,
     blurb: 'Logs & errors',
+    servesUi: false,
     inSwitcher: true,
     adminOnly: true,
   },
@@ -358,6 +401,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◉',
     markId: null,
     blurb: 'Status & uptime',
+    servesUi: false,
     inSwitcher: true,
     adminOnly: true,
   },
@@ -374,6 +418,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: 'mark-hub',
     blurb: 'Dashboard, portfolio, wallet, activity',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -417,6 +462,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◇',
     markId: null,
     blurb: 'One account, every surface',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -430,6 +476,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: 'mark-cloudsforge',
     blurb: 'One platform, five products',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -450,6 +497,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◈',
     markId: null,
     blurb: 'Balances, deposits and withdrawals',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -466,6 +514,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◍',
     markId: null,
     blurb: 'Test EMBER, rate limited',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -481,6 +530,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '⌗',
     markId: null,
     blurb: 'Projects, keys, webhooks and docs',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -505,6 +555,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: null,
     blurb: 'A monster-collecting RPG, played through Forge Worlds',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -527,6 +578,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: null,
     blurb: 'A sky-island strategy MMO, played through Forge Worlds',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -572,6 +624,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◆',
     markId: null,
     blurb: 'A world you build in a browser tab, played through Forge Worlds',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -587,6 +640,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◎',
     markId: null,
     blurb: 'Public status, no account needed',
+    servesUi: true,
     inSwitcher: false,
   },
 
@@ -615,6 +669,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▦',
     markId: null,
     blurb: 'Blocks, transactions and addresses',
+    servesUi: true,
     inSwitcher: false,
   },
   {
@@ -628,6 +683,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◇',
     markId: null,
     blurb: 'Accounts & SSO',
+    servesUi: false,
     inSwitcher: false,
   },
   {
@@ -649,6 +705,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◇',
     markId: null,
     blurb: 'One account, everything',
+    servesUi: false,
     inSwitcher: false,
   },
   {
@@ -665,6 +722,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▤',
     markId: null,
     blurb: 'The public v1 surface',
+    servesUi: false,
     inSwitcher: false,
   },
   {
@@ -678,6 +736,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▤',
     markId: null,
     blurb: 'The game platform API',
+    servesUi: false,
     inSwitcher: false,
   },
   {
@@ -693,6 +752,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▤',
     markId: null,
     blurb: 'Payments & the Shard economy',
+    servesUi: false,
     inSwitcher: false,
   },
   {
@@ -706,6 +766,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▩',
     markId: null,
     blurb: 'Custodial key service',
+    servesUi: false,
     inSwitcher: false,
   },
 ]
@@ -727,6 +788,40 @@ export const PRODUCTS: readonly CloudsForgeSurface[] = SURFACES.filter((s) => s.
 
 /** Everything the switcher may show, in order: the six products, then the operator tools. */
 export const SWITCHER_SURFACES: readonly CloudsForgeSurface[] = SURFACES.filter((s) => s.inSwitcher)
+
+/**
+ * Every surface a person can actually open. The footer's whole link list is a partition of this.
+ *
+ * `signin` is the ONE exclusion, and it is stated here rather than buried in the footer so the
+ * rule stays readable: signing in is a state transition the account menu in the bar already owns,
+ * and "Sign in to CloudsForge" sitting in the footer of a page a signed-in reader is looking at is
+ * simply wrong. Nothing else is filtered — an entry is in this list because the registry says the
+ * address answers, not because somebody chose it.
+ */
+export const FOOTER_SURFACES: readonly CloudsForgeSurface[] = SURFACES.filter(
+  (s) => s.servesUi && s.key !== 'signin',
+)
+
+/**
+ * The footer's columns: a partition of {@link FOOTER_SURFACES} by `kind`, in registry order.
+ *
+ * Three groups because `kind` already has three values and they already mean the right thing —
+ * "something you chose", "a way into the platform", "a tool or a title". No fourth heading, no
+ * per-surface placement field, and therefore nothing to keep in step: a new registry row lands in
+ * a column by virtue of what it IS.
+ *
+ * `adminOnly` is NOT filtered here — the renderer does that, because it is the only party that
+ * knows who is looking. See `CloudsForgeFooter`.
+ */
+export const FOOTER_GROUPS: readonly {
+  readonly kind: SurfaceKind
+  readonly title: string
+  readonly surfaces: readonly CloudsForgeSurface[]
+}[] = [
+  { kind: 'product', title: 'Products', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'product') },
+  { kind: 'surface', title: 'Platform', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'surface') },
+  { kind: 'service', title: 'More', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'service') },
+]
 
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
 export const KNOWN_SUBS: ReadonlySet<string> = new Set(

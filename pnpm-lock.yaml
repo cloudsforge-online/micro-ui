@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
+      playwright-core:
+        specifier: ^1.62.0
+        version: 1.62.0
       tsx:
         specifier: ^4.19.2
         version: 4.23.1
@@ -215,6 +218,11 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  playwright-core@1.62.0:
+    resolution: {integrity: sha512-nsNRyq0r2zsG8AcRHWknc9QRA5XCueC7gWMrs+Gx2tlZn9hcl8zudfh00lhJPY1DE7NmZ6bDsT9g2yey8mXljA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   react-dom@19.2.8:
     resolution: {integrity: sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ==}
     peerDependencies:
@@ -365,6 +373,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  playwright-core@1.62.0: {}
 
   react-dom@19.2.8(react@19.2.8):
     dependencies:
