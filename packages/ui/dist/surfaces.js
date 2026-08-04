@@ -218,50 +218,34 @@ export const SURFACES = [
         inSwitcher: true,
         adminOnly: true,
     },
-    {
-        // The Foresight operator panel. It is here for the same reason `emberkin` is, and it is the
-        // last surface in the estate that was missing: **a hostname absent from this registry is
-        // absent from `KNOWN_SUBS`, so `cloudsforgeHosts()` cannot strip it when deriving the apex,
-        // and every address that bundle composes gains a level.** Served at `foresight-admin.<apex>`
-        // it resolved sign-out to `https://hub.foresight-admin.<apex>/account/logout` — a 404 — and
-        // identity, billing and telemetry the same way, so the console could not deliver a single
-        // telemetry sample. `lantern.foresight-admin.<apex>` is served by nothing.
-        //
-        // Sign-out was only the loudest symptom, which is why the fix is this row and not a gateway
-        // rewrite: rewriting the one URL would have hidden a 404 and left the other three composing
-        // hostnames that do not exist. Recorded from both ends before it was fixed —
-        // `deploy/compose/docker-compose.estate.yml` beside the container, and
-        // `foresight-admin-web/src/lib/hosts.ts`, which carried the diagnosis in its header while
-        // deliberately refusing to shim it locally.
-        //
-        // **`inSwitcher` is false and that is not an oversight.** 19-new-products.md §2.2 folds this
-        // console into `admin-web` at P13 — "kept as its own small surface for now". The row exists so
-        // the apex derives correctly today; it is not a claim that this deserves a permanent hostname.
-        // When the fold happens this entry goes, and the gateway route with it.
-        key: 'foresight-admin',
-        name: 'Foresight Admin',
-        verb: null,
-        kind: 'service',
-        subdomain: 'foresight-admin',
-        // 5185, from `foresight-admin-web/vite.config.ts:44`. Unlike `admin`, `foresight`, `emberkin`
-        // and the rest, this number is NOT the port of a service behind the hostname, because there is
-        // no such service: the console calls Foresight's API (`API_SURFACE = 'foresight'`,
-        // `foresight-admin-web/src/lib/hosts.ts:33`), which resolves through the `foresight` row and
-        // its 4021. So nothing ever resolves this surface as an API target, and the honest value is
-        // the address at which the surface itself answers under `pnpm dev`.
-        //
-        // That places it in the category `surfaces.test.ts` already names: entries whose registry port
-        // "really is an allocation", which is why it is deliberately absent from that test's BOUND map
-        // rather than pinned to a service file that does not exist.
-        devPort: 5185,
-        accent: '#4f7fc2',
-        glyph: '◈',
-        markId: null,
-        blurb: 'Foresight operator panel, folding into Admin',
-        servesUi: true,
-        inSwitcher: false,
-        adminOnly: true,
-    },
+    /* ── `foresight-admin` was a row here, and the P13 fold removed it ──────────────────────────
+     *
+     * The Foresight operator panel is now a SECTION inside the operator console — `admin-web`'s
+     * `/foresight`, declared in that repository's `src/lib/routes.ts` — rather than a bundle on a
+     * hostname of its own. `foresight-admin.<apex>` is served by nothing and resolves to nothing.
+     *
+     * ── Why this row existed at all, since deleting it undoes a real fix ────────────────────────
+     *
+     * It was added because a hostname ABSENT from this registry is absent from `KNOWN_SUBS`, so
+     * `cloudsforgeHosts()` could not strip it when deriving the apex, and every address that bundle
+     * composed gained a level: sign-out resolved to `https://hub.foresight-admin.<apex>/account/
+     * logout`, a 404, and identity, billing and telemetry went the same way. The row fixed that by
+     * making the subdomain known.
+     *
+     * Deleting it is safe for exactly one reason, and it is worth stating so that nobody restores
+     * the row to be careful: **there is no longer a bundle served at that name.** The fix was needed
+     * because something ANSWERED there; nothing does now. `admin.<apex>` is a known subdomain, so
+     * the folded screens derive the apex correctly through the `admin` row.
+     *
+     * Its own comment predicted this: "`inSwitcher` is false and that is not an oversight …
+     * 19-new-products.md §2.2 folds this console into `admin-web` at P13 … When the fold happens
+     * this entry goes, and the gateway route with it." Both went, in the same change:
+     * `deploy/gateway/dynamic/estate-web.yml` lost `cf-web-foresight-admin`, `policy.yml` lost the
+     * CORS origin, `docker-compose.estate.yml` lost the container and `cloudflared/gen.py` lost two
+     * tunnel hostnames. `deploy/scripts/surface-routes.py` is what makes that simultaneity
+     * mandatory: check 2 fails on a router for a host no row declares, and check 5 fails on a CORS
+     * origin no surface serves — so this deletion could not have landed alone.
+     * ─────────────────────────────────────────────────────────────────────────────────────────── */
     {
         key: 'lantern',
         name: 'Lantern',
