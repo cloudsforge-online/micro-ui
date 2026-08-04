@@ -19,7 +19,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, it } from 'node:test'
@@ -307,7 +307,7 @@ describe('the legal links are declared as non-surfaces and resolve on the site h
     }
   })
 
-  it('names no path that the marketing site does not route', () => {
+  it('names no path that the marketing site does not route, and calls it what the site calls it', async () => {
     /*
      * The one place in this footer where drift is possible: `@cloudsforge/ui` cannot import from a
      * consumer, so these four strings are a restatement of `site/src/lib/routes.ts`. When a
@@ -316,22 +316,61 @@ describe('the legal links are declared as non-surfaces and resolve on the site h
      * It does NOT skip when the checkout is absent — the assertion above still runs, and this one
      * asserts the two paths are at least well-formed, because "not run" reading as "passed" is the
      * defect this estate keeps paying for.
+     *
+     * ── WHY THIS EXECUTES THE ROUTE TABLE RATHER THAN SCANNING ITS SOURCE TEXT ────────────────
+     *
+     * It used to `readFileSync` that file and look for the literal `summary: 'Terms of service —`.
+     * **That assertion was red on `main` while both sides were correct.** micro-site lengthened the
+     * terms summary (`a88c8d9`), Prettier wrapped the value onto its own line, and a scan for
+     * `summary: '` immediately followed by the label stopped matching across the newline. It failed
+     * saying "micro-site renamed /terms" about a file that had renamed nothing, on every run, for
+     * everyone — and a check that is red on unchanged code is one people learn to scroll past, which
+     * costs more than the label it guards.
+     *
+     * So the coupling is asserted against the DATA now. `src/lib/routes.ts` imports nothing, and
+     * says in its own header that this is deliberate "so the test that reads it does not have to
+     * boot a browser to find out what the routes are" — so it is simply executed. A reformatting
+     * cannot fail this; a rename still does, in either direction.
      */
     for (const l of FOOTER_LEGAL_LINKS) assert.match(l.path, /^\/[a-z-]+$/)
 
     const routes = join(HERE, '../../../../site/src/lib/routes.ts')
     if (!existsSync(routes)) return
-    const src = readFileSync(routes, 'utf8')
+    const site = (await import(pathToFileURL(routes).href)) as {
+      ROUTES: readonly { path: string; summary: string }[]
+      LEGAL_PATHS: readonly string[]
+    }
+
     for (const l of FOOTER_LEGAL_LINKS) {
+      const route = site.ROUTES.find((r) => r.path === l.path.slice(1))
       assert.ok(
-        src.includes(`path: '${l.path.slice(1)}'`),
+        route,
         `micro-site no longer routes ${l.path} — the footer links a 404 from every surface`,
       )
-      assert.ok(
-        src.includes(`summary: '${l.label} —`),
+      /*
+       * A legal route carries no nav `label` — that is what keeps it out of the header — so the
+       * site's own footer takes its link text from the clause of the summary before the em dash
+       * (`site/src/components/shell.tsx:153`). That clause IS the site's name for the page, so it
+       * is the thing this label has to agree with: one page must not be "Terms of service" on
+       * sixteen surfaces and something else on the surface that serves it.
+       */
+      assert.equal(
+        route.summary.split(' — ')[0],
+        l.label,
         `micro-site renamed ${l.path}; the footer still calls it "${l.label}"`,
       )
     }
+
+    /*
+     * The other direction, which the source scan could not see at all. This footer is the only one
+     * fifteen surfaces have, so a legal page ADDED to the site is a page nothing outside the site
+     * links — the same defect as a dead link, pointing the other way.
+     */
+    assert.deepEqual(
+      FOOTER_LEGAL_LINKS.map((l) => l.path.slice(1)).sort(),
+      [...site.LEGAL_PATHS].sort(),
+      'micro-site and the shared footer disagree about which pages are the legal ones',
+    )
   })
 })
 
