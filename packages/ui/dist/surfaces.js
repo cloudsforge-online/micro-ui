@@ -639,7 +639,7 @@ export const SURFACES = [
         accent: CLOUDSFORGE_EMBER,
         glyph: '▤',
         markId: null,
-        blurb: 'Payments & the Shard economy',
+        blurb: 'Payments, balances and settlement',
         servesUi: false,
         inSwitcher: false,
     },
