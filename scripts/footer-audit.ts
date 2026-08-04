@@ -525,7 +525,20 @@ async function main(): Promise<void> {
     const r = await checkSurface(page, s, opts, offered, 'signed-out')
     await page.close()
     lines.push(r.line)
-    if (r.gated) gated.push(s)
+    /*
+     * A REDIRECT IS ONE WAY TO BE GATED, NOT THE DEFINITION OF IT. `checkSurface` can only set
+     * `gated` by watching the origin change, so `lantern` and `beacon` — which present an in-page
+     * sign-in panel and never leave their own origin — were never added here, never signed into,
+     * and so the two assertions below that need an operator session silently never ran for them.
+     * They were the surfaces most worth checking: both are `adminOnly`.
+     *
+     * The registry is asked instead of the DOM. Sniffing for a sign-in control would misclassify
+     * all sixteen, because the shared bar shows one on every signed-out surface. And `adminOnly`
+     * is the very property those assertions are about, so reading it here is the same question
+     * asked once rather than two questions that can disagree. Surfaces gated by redirect but not
+     * `adminOnly` — emberkin, aetherholm — stay classified exactly as they were.
+     */
+    if (r.gated || s.adminOnly === true) gated.push(s)
     if (r.problems.length > 0) failures.push(`${s.key}: ${r.problems.join('; ')}`)
   }
 
@@ -545,9 +558,10 @@ async function main(): Promise<void> {
     if (failed !== null) {
       await browser.close()
       cannotRun(
-        `${gated.length} surfaces (${gated.map((s) => s.key).join(', ')}) redirect a signed-out ` +
-          `visitor to sign-in, and this run could not sign in — ${failed}. Their footers are ` +
-          'therefore unproven. Set CF_FOOTER_IDENTIFIER / CF_FOOTER_PASSWORD / CF_FOOTER_HANDLE.',
+        `${gated.length} surfaces (${gated.map((s) => s.key).join(', ')}) require an operator ` +
+          `session — by redirecting a stranger to sign-in, or by being adminOnly — and this run ` +
+          `could not sign in — ${failed}. Their footers are therefore unproven. ` +
+          'Set CF_FOOTER_IDENTIFIER / CF_FOOTER_PASSWORD / CF_FOOTER_HANDLE.',
       )
     }
     for (const s of gated) {
