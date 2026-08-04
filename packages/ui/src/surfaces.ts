@@ -40,6 +40,8 @@ export type SurfaceKey =
   | 'worlds-api'
   | 'pay'
   | 'keyvault'
+  | 'rpc'
+  | 'p2p'
 
 /**
  * What a surface *is*, which decides where it may appear.
@@ -819,6 +821,112 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '▩',
     markId: null,
     blurb: 'Custodial key service',
+    servesUi: false,
+    inSwitcher: false,
+  },
+
+  /* --- the chain's own two ports -------------------------------------
+   *
+   * THE FIRST TWO ROWS WHOSE SERVICE IS NOT A CLOUDSFORGE SERVICE. Both are Hearth — the frozen
+   * upstream node this estate follows rather than owns — and neither serves a page, an API in the
+   * `/v1` house style, or anything a person opens. So the question of whether they belong in a
+   * registry of SURFACES was a real one, and it is answered by what this file already is rather
+   * than by taste.
+   *
+   * ── WHY THEY ARE HERE ──────────────────────────────────────────────────────────────────────
+   *
+   * The declaration above these rows says it: "Every addressable CloudsForge surface, INCLUDING
+   * THE ONES WITH NO UI OF THEIR OWN." Six such rows already exist — nimbus, account, api,
+   * worlds-api, pay, keyvault — and every one of them is a hostname the estate publishes and no
+   * person browses. `servesUi: false` is the field that carries exactly this distinction, and it
+   * was introduced (see its own documentation above) so that a footer never links an address that
+   * answers no HTML. These two set it false and are correctly invisible everywhere it matters:
+   * FOOTER_SURFACES filters on it, SWITCHER_SURFACES filters on `inSwitcher`, and
+   * `scripts/surface-routes.py`'s CORS check requires an allowlist entry only for a surface a
+   * BROWSER loads a page from.
+   *
+   * The mechanical consequence is the one that decided it. `deploy/scripts/surface-routes.py`
+   * check 2 fails on a gateway router matching a host no registry row declares — "dead
+   * configuration (or the registry is missing a row, which is how foresight-admin was fixed)" —
+   * and `rpc.<apex>` now has a router, because the owner's instruction was that RPC go behind
+   * Traefik like everything else. The two honest ways to satisfy that check are a registry row or
+   * an exemption list; an exemption would be the fifth hand-maintained copy of a hostname list in
+   * an estate that has paid for four already. So: a row.
+   *
+   * The second consequence is a deletion. `deploy/cloudflared/gen.py` used to carry `RPC_PORT` and
+   * an `rpc=True` flag that appended one hand-written ingress rule after the derived ones — the
+   * single hostname in the whole tunnel that was not read from this file. With these rows it is
+   * derived like every other, and that special case is gone.
+   *
+   * ── KNOWN_SUBS GAINS `rpc` AND `p2p`, AND THAT IS SAFE ─────────────────────────────────────
+   *
+   * Nothing is served at either address, so no bundle ever calls `cloudsforgeHosts()` with
+   * `window.location.hostname` beginning `rpc.` or `p2p.` and no apex is ever derived from one.
+   * `deploy/scripts/check-apex-prefix.py` guards the one case that would matter — a subdomain
+   * colliding with an environment's apex prefix — and neither of these is `testnet`.
+   * ------------------------------------------------------------------ */
+  {
+    // The Ethereum JSON-RPC endpoint of the EMBER chain: what MetaMask, Hardhat, Foundry and an
+    // exchange point at. Port 8545 and path `/`, settled in `hearth/node/src/params.js:309-327`
+    // (`DEFAULT_JSONRPC_PORT`), which also records why it cannot move: the number is published in
+    // `ethereum-lists/chains` and cached in every user's saved networks.
+    //
+    // NOT 8645, and this is the one confusion worth spelling out beside the number. Hearth serves
+    // TWO protocols on TWO ports — 8645 is the REST API plus the legacy `{method:'getinfo'}`
+    // JSON-RPC and SSE (`hearth/node/src/rpc.js:46`), 8545 is Ethereum JSON-RPC 2.0
+    // (`hearth/node/src/jsonrpc/server.js:317`). Only the second is the one a wallet speaks, so
+    // only the second is published. 8546 is deliberately unpublished and unused: `params.js:328`
+    // reserves it for the paired WebSocket `eth_subscribe` convention, which Hearth does not
+    // implement.
+    //
+    // `servesUi: false` is measured rather than reasoned: the endpoint answers `405` with
+    // `allow: POST,OPTIONS` to a GET (`jsonrpc/server.js:277-279`), so a browser opening this
+    // address is told, correctly, that there is no page here.
+    key: 'rpc',
+    name: 'EMBER JSON-RPC',
+    verb: null,
+    kind: 'service',
+    subdomain: 'rpc',
+    devPort: 8545,
+    // Forge Network's red. The chain is that product's subject, and a title wears its product's
+    // colour rather than claiming one — the rule the three Worlds titles above follow. It is not a
+    // switcher entry, so it never has to separate from a neighbour.
+    accent: '#d6412f',
+    glyph: '▤',
+    markId: null,
+    blurb: 'The EMBER chain, Ethereum JSON-RPC',
+    servesUi: false,
+    inSwitcher: false,
+  },
+  {
+    // EMBER peer gossip, over WebSocket, so that P2P can cross a Cloudflare Tunnel at all.
+    //
+    // THE HOSTNAME EXISTS BECAUSE THE TRANSPORT DOES NOT WORK OTHERWISE. Hearth's peer transport
+    // is raw TCP on 8646 (`hearth/node/src/params.js:307`, `DEFAULT_P2P_PORT`), and a tunnel
+    // carries HTTP: there is no ingress rule that can publish a TCP socket to the internet through
+    // it. A WebSocket is HTTP until the 101, which is why it is the transport that fits.
+    //
+    // 8648 AND `/p2p` ARE A CONTRACT, NOT A CHOICE. Hearth serves the WebSocket transport on
+    // container port 8648 under `HEARTH_P2P_WS` at path `/p2p`; this row and
+    // `deploy/gateway/dynamic/estate-web.yml`'s `cf-api-p2p` are the estate's half of that
+    // agreement. 8647 and 8649 are already taken on the host by miner1's and miner2's REST ports
+    // (`hearth/docker-compose.testnet.yml`), and 8646 is the TCP transport this one parallels
+    // rather than replaces.
+    //
+    // `servesUi: false`: a WebSocket endpoint answers a plain GET with a 400 or a 426, never a
+    // page. Nothing in the estate resolves this key from a browser at all — it is here so the
+    // hostname is DECLARED, which is what makes its gateway router legitimate and its tunnel
+    // ingress rule derived rather than hand-written.
+    key: 'p2p',
+    name: 'EMBER P2P',
+    verb: null,
+    kind: 'service',
+    subdomain: 'p2p',
+    devPort: 8648,
+    accent: '#d6412f',
+    glyph: '▤',
+    markId: null,
+    blurb: 'EMBER peer gossip, over WebSocket',
     servesUi: false,
     inSwitcher: false,
   },
