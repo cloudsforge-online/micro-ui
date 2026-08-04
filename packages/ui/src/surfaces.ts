@@ -98,14 +98,20 @@ export interface CloudsForgeSurface {
    *
    * TWO RESULTS ARE WORTH NAMING, because they are not what the registry reads like:
    *
-   *   - **`lantern` and `beacon` are `inSwitcher: true` and serve no page.** Both answered
-   *     `404 application/json` on their own hostname. deploy/gateway/dynamic/estate-web.yml:432
-   *     says so in its own words — "no bundle is served at `beacon.<apex>`" — and routes the whole
-   *     host to the API. So the operator switcher offers two entries that cannot open. That is a
-   *     pre-existing defect in `inSwitcher`, NOT something this field creates; it is left visible
-   *     here rather than fixed, because the switcher is not this change's subject and silently
-   *     flipping `inSwitcher` would remove two entries an operator may be relying on the presence
-   *     of. The footer simply does not offer them.
+   *   - **`lantern` and `beacon` were the two `inSwitcher: true` rows that served no page, AND
+   *     THEY NOW SERVE ONE.** Both answered `404 application/json` on their own hostname when
+   *     this field was introduced, because the gateway routed the whole host to the API and said
+   *     so in its own words — "no bundle is served at `beacon.<apex>`". The switcher therefore
+   *     offered every operator two entries that could not open. That was recorded here as a
+   *     pre-existing defect in `inSwitcher` rather than fixed, because the fix was not a registry
+   *     edit: it was two frontends that did not exist. `micro-lantern-web` and `micro-beacon-web`
+   *     were built, deployed, and given routers beside their services, and both rows were flipped
+   *     to `true` ON THE MEASUREMENT and not before — quoted in full beside each one below.
+   *
+   *     THE ORDER IS THE POINT AND IS WORTH KEEPING. An earlier attempt flipped these two while
+   *     the routers were still absent, and the footer suite caught it: setting this field before
+   *     the address answers is a claim about the future, and the footer reads it to decide what to
+   *     link, so a premature `true` puts a dead link on every surface in the estate.
    *   - **`account` is false** for the reason its own row already explains at length: nothing in
    *     the estate serves it. Measured `404 text/plain`.
    *
@@ -383,7 +389,31 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '✷',
     markId: null,
     blurb: 'Logs & errors',
-    servesUi: false,
+    // ── FLIPPED, AFTER THE PAGE ANSWERED AND NOT BEFORE ──────────────────────────────────────
+    //
+    // `micro-lantern-web` now serves this hostname, sharing it with `micro-lantern` — the gateway
+    // splits them by path (deploy/gateway/dynamic/estate-web.yml, `cf-web-lantern` at priority
+    // 500 and `cf-api-lantern` at 600). Measured through the estate gateway on 2026-08-04, by the
+    // rule this field's own documentation states, with `--cacert` and no `-k`:
+    //
+    //   $ curl -o /dev/null -w '%{http_code} %{content_type}' --cacert deploy/gateway/certs/ca.crt \
+    //       https://lantern.cloudsforge.localtest.me/
+    //   200 text/html
+    //
+    // AND THE OTHER DIRECTION, WHICH IS WHY A 200 ALONE WOULD NOT HAVE JUSTIFIED THIS. A bundle
+    // router matching the whole host would answer `/v1` with index.html — a 200 carrying HTML,
+    // the failure this estate has been bitten by repeatedly — so both halves were driven:
+    //
+    //   /v1/issues     401 application/json    (the service, refusing an anonymous read)
+    //   /otlp/v1/logs  404 application/json    ("no route for GET /otlp/v1/logs" — lantern's words)
+    //   /ingest/client 404 application/json    (same; POST to it answers 202)
+    //   /no-such-page  404 text/html           (the bundle's honest 404, not a 200 shell)
+    //
+    // Then signed in as an operator through the real hand-off in headless Chromium, because
+    // signed-out is a sign-in panel BY DESIGN here (`adminOnly`) and a 200 for that panel would
+    // not have been evidence: the console rendered the account chip and "Open issues … Lantern
+    // answered with an empty list", read live from `GET /v1/issues` on this same origin.
+    servesUi: true,
     inSwitcher: true,
     adminOnly: true,
   },
@@ -401,7 +431,30 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '◉',
     markId: null,
     blurb: 'Status & uptime',
-    servesUi: false,
+    // ── FLIPPED, ON THE SAME EVIDENCE AND BY THE SAME RULE ───────────────────────────────────
+    //
+    // `micro-beacon-web` shares `beacon.<apex>` with `micro-beacon`, and here that is not a
+    // preference: Beacon sends no `access-control-*` header anywhere in its source and 404s a
+    // preflight, so a console on any other hostname could not read it at all. The gateway splits
+    // the host — `cf-web-beacon` at 500, `cf-api-beacon` at 600 over `/v1`, `/api`, `/metrics`,
+    // `/livez` and `/readyz`. Measured on 2026-08-04:
+    //
+    //   $ curl -o /dev/null -w '%{http_code} %{content_type}' --cacert deploy/gateway/certs/ca.crt \
+    //       https://beacon.cloudsforge.localtest.me/
+    //   200 text/html
+    //
+    //   /v1/gate            401 application/json   (the service, refusing an anonymous read)
+    //   /api/status/public  200 application/json   (still the public projection, unchanged)
+    //   /no-such-page       404 text/html          (the bundle's honest 404)
+    //
+    // Then signed in as an operator: the console rendered the release gate and, on `/journeys`,
+    // Beacon's own live journey list from `GET /v1/journeys` — same origin, no failed request.
+    //
+    // NOTE FOR THE READER OF `status`: this changes nothing there. `status.<apex>` still serves
+    // `micro-status-web` and still reads `/api/status/public` on its own hostname through
+    // `cf-api-status-public`. Two different surfaces read the same service; only this one is
+    // `adminOnly`.
+    servesUi: true,
     inSwitcher: true,
     adminOnly: true,
   },

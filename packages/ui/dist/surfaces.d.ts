@@ -74,14 +74,20 @@ export interface CloudsForgeSurface {
      *
      * TWO RESULTS ARE WORTH NAMING, because they are not what the registry reads like:
      *
-     *   - **`lantern` and `beacon` are `inSwitcher: true` and serve no page.** Both answered
-     *     `404 application/json` on their own hostname. deploy/gateway/dynamic/estate-web.yml:432
-     *     says so in its own words — "no bundle is served at `beacon.<apex>`" — and routes the whole
-     *     host to the API. So the operator switcher offers two entries that cannot open. That is a
-     *     pre-existing defect in `inSwitcher`, NOT something this field creates; it is left visible
-     *     here rather than fixed, because the switcher is not this change's subject and silently
-     *     flipping `inSwitcher` would remove two entries an operator may be relying on the presence
-     *     of. The footer simply does not offer them.
+     *   - **`lantern` and `beacon` were the two `inSwitcher: true` rows that served no page, AND
+     *     THEY NOW SERVE ONE.** Both answered `404 application/json` on their own hostname when
+     *     this field was introduced, because the gateway routed the whole host to the API and said
+     *     so in its own words — "no bundle is served at `beacon.<apex>`". The switcher therefore
+     *     offered every operator two entries that could not open. That was recorded here as a
+     *     pre-existing defect in `inSwitcher` rather than fixed, because the fix was not a registry
+     *     edit: it was two frontends that did not exist. `micro-lantern-web` and `micro-beacon-web`
+     *     were built, deployed, and given routers beside their services, and both rows were flipped
+     *     to `true` ON THE MEASUREMENT and not before — quoted in full beside each one below.
+     *
+     *     THE ORDER IS THE POINT AND IS WORTH KEEPING. An earlier attempt flipped these two while
+     *     the routers were still absent, and the footer suite caught it: setting this field before
+     *     the address answers is a claim about the future, and the footer reads it to decide what to
+     *     link, so a premature `true` puts a dead link on every surface in the estate.
      *   - **`account` is false** for the reason its own row already explains at length: nothing in
      *     the estate serves it. Measured `404 text/plain`.
      *

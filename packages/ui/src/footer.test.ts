@@ -171,17 +171,55 @@ describe('the footer never offers an address that does not answer', () => {
     }
   })
 
-  it('omits beacon and lantern even though the switcher offers them', () => {
+  it('offers beacon and lantern to an operator, now that both answer', () => {
     /*
-     * Named, because it is the counter-intuitive case and a future reader will otherwise "fix" it.
-     * Both are `inSwitcher: true`, both answer 404 on their own hostname (measured through the
-     * gateway — see the `servesUi` note in surfaces.ts). The switcher's entries are a pre-existing
-     * defect this change does not touch; the footer simply does not repeat it.
+     * ── THIS TEST USED TO ASSERT THE OPPOSITE, AND THE INVERSION IS THE RECORD ────────────────
+     *
+     * It was called "omits beacon and lantern even though the switcher offers them", and it
+     * pinned `servesUi: false` on both with the message "now serves a page — offer it". That was
+     * correct while it was true: the switcher offered two entries that answered
+     * `404 application/json`, and the footer declined to repeat a defect it could not fix.
+     *
+     * **It is no longer true.** `micro-lantern-web` and `micro-beacon-web` are deployed and routed
+     * beside their services, both hostnames were measured at `200 text/html` through the gateway
+     * with `--cacert` and no `-k`, and `servesUi` was flipped on that measurement — the evidence
+     * is quoted beside each row in surfaces.ts. So the test is INVERTED rather than deleted: the
+     * claim it makes is now the stronger one, that the footer offers exactly what answers.
+     *
+     * That this file went red on the flip is the mechanism working. An earlier attempt set the
+     * flag before the routers existed and was stopped here, which is the whole reason this pairing
+     * is worth keeping pinned in both directions rather than loosened to "whatever the registry
+     * says".
+     *
+     * Both are `adminOnly`, so the audience assertions below are what make "offered" safe: an
+     * operator sees them, a player and a signed-out reader do not. Those live in the `adminOnly`
+     * suite at the foot of this file and pick these two up automatically, because that suite
+     * filters on `adminOnly && servesUi`.
      */
     for (const key of ['beacon', 'lantern'] as const) {
-      assert.equal(surface(key).inSwitcher, true, `${key} is no longer in the switcher`)
-      assert.equal(surface(key).servesUi, false, `${key} now serves a page — offer it`)
-      assert.ok(!anchors(OPERATOR).some((a) => a.text === surface(key).name))
+      const s = surface(key)
+      assert.equal(s.inSwitcher, true, `${key} is no longer in the switcher`)
+      assert.equal(
+        s.servesUi,
+        true,
+        `${key} no longer serves a page. If its bundle or its gateway router has been withdrawn, ` +
+          'this test inverts back — but only on a measurement, never on a reading of the registry.',
+      )
+      assert.ok(
+        FOOTER_SURFACES.some((f) => f.key === key),
+        `${key} serves a page and is not in FOOTER_SURFACES`,
+      )
+      const shown = anchors(OPERATOR)
+      assert.ok(
+        shown.some((a) => a.text === s.name && a.href === cloudsforgeHosts()[key]),
+        `${key} answers on its own hostname and the operator footer does not link it`,
+      )
+      // The other half, and the one a bare "is it listed" check would miss: these are operator
+      // tools, so a reader with no account must not be told they exist at all.
+      assert.ok(
+        !anchors(SIGNED_OUT).some((a) => a.text === s.name),
+        `${key} is an adminOnly console and is advertised to a signed-out reader`,
+      )
     }
   })
 
