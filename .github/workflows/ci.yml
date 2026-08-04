@@ -21,14 +21,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # A single checkout at the workspace root, so the action reads the packageManager field
-      # (pnpm@11.9.0) itself — no version to drift here.
+        with: { path: ui }
+
+      # ────────────────────────────────────────────────────────────────────────────────────────
+      # NOT A BUILD INPUT. Nothing here imports micro-site and the package does not change if it
+      # is absent. It is checked out so that ONE assertion in `packages/ui/src/footer.test.ts` can
+      # run at all: the footer links `/terms` and `/privacy` on the marketing site, this package
+      # cannot import from a consumer, and those two strings are therefore a restatement of
+      # `site/src/lib/routes.ts` that has to be checked against it.
+      #
+      # UNTIL NOW IT NEVER RAN HERE. The assertion is guarded by `existsSync`, this job checked out
+      # only itself, so the guard was false on every CI run and the cross-repo half returned early
+      # — green, having checked nothing. It went red only in a local tree with micro-site beside
+      # it, which is the worst arrangement of the two: the estate-wide claim was verified nowhere
+      # anybody was looking, and the noise landed on whoever had the full checkout.
+      #
+      # The sibling layout is what the test's relative path expects (`../../../../site`), which is
+      # also the layout every checkout on a developer's machine already has.
+      #
+      # micro-site is public, so the token is not required — it is passed anyway, with a fallback,
+      # because a repository flipping to private should not turn this into a silent 404 at the
+      # checkout step. Same reasoning, and the same wiring, as micro-site's own CI uses for the
+      # three repositories its claims register cites.
+      # ────────────────────────────────────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-site
+          path: site
+          token: ${{ secrets.ESTATE_READ_TOKEN || github.token }}
+
+      # The checkout is at `ui/` rather than the workspace root now, so the two actions that look
+      # for a manifest have to be told where it is — otherwise `pnpm/action-setup` finds no
+      # packageManager field and setup-node caches against a lockfile that is not there.
       - uses: pnpm/action-setup@v4
+        with: { package_json_file: ui/package.json }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
+        working-directory: ui
       - run: pnpm typecheck
+        working-directory: ui
       - run: pnpm test
+        working-directory: ui
 
   hygiene:
     uses: cloudsforge-online/micro-org/.github/workflows/secret-hygiene.yml@main

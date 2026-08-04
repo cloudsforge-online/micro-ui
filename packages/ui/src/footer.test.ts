@@ -335,7 +335,25 @@ describe('the legal links are declared as non-surfaces and resolve on the site h
     for (const l of FOOTER_LEGAL_LINKS) assert.match(l.path, /^\/[a-z-]+$/)
 
     const routes = join(HERE, '../../../../site/src/lib/routes.ts')
-    if (!existsSync(routes)) return
+    /*
+     * OPTIONAL IN A CLONE, MANDATORY IN CI. `git clone micro-ui && pnpm test` must work — this is
+     * a publishable library and requiring a checkout of one of its CONSUMERS to run its own suite
+     * would invert the dependency. But "the input was absent, so it passed" is the exact shape of
+     * gate this estate keeps finding switched off in its own pipelines, and this assertion sat in
+     * that state on every CI run until `.github/workflows/ci.yml` was given the sibling checkout.
+     *
+     * So the skip is allowed exactly where a human can see it and not where a green tick stands in
+     * for a check. If CI stops providing micro-site, this fails and says so.
+     */
+    if (!existsSync(routes)) {
+      assert.ok(
+        !process.env['CI'],
+        `micro-site is not checked out beside this repository, so the footer's legal links were ` +
+          `not checked against the routes they name. CI must check it out — see the sibling ` +
+          `checkout step in .github/workflows/ci.yml.`,
+      )
+      return
+    }
     const site = (await import(pathToFileURL(routes).href)) as {
       ROUTES: readonly { path: string; summary: string }[]
       LEGAL_PATHS: readonly string[]
