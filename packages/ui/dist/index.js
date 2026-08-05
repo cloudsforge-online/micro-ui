@@ -14,8 +14,8 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  * Chart primitives live in ./charts.tsx, published as `@cloudsforge/ui/charts`.
  */
 import { Fragment, useEffect, useId, useRef, useState, } from 'react';
-import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, surface, } from "./surfaces.js";
-export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, KNOWN_SUBS, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
+import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
+export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
 /**
  * Resolve every surface's base URL through `origin`, which differs only in whether it produces a
  * localhost port or an apex subdomain. A surface with a `basePath` — the wallet inside Hub, the
@@ -37,6 +37,44 @@ const LOCAL_HOSTS = hostsFrom((s) => `http://localhost:${s.devPort}`);
  *   subdomain prefix. An unknown prefix is left alone: a preview deployment at
  *   `pr-42.example.dev` is its own apex, and guessing otherwise would send its sign-in redirect
  *   somewhere that does not exist.
+ * - `hub-testnet.cloudsforge.online` (or the bare `testnet.cloudsforge.online`) → the matching
+ *   `https://<sub>-testnet.cloudsforge.online` siblings. See below.
+ *
+ * ── THE ENVIRONMENT IS PART OF THE FIRST LABEL, AND THAT IS THE WHOLE OF THIS FUNCTION ────────
+ *
+ * Two environments share the apex `cloudsforge.online`. They are told apart INSIDE the first
+ * label, by a suffix:
+ *
+ *     mainnet   hub.cloudsforge.online          -> apex cloudsforge.online, env ''
+ *     testnet   hub-testnet.cloudsforge.online  -> apex cloudsforge.online, env 'testnet'
+ *               testnet.cloudsforge.online      -> apex cloudsforge.online, env 'testnet'
+ *                                                  (the apex surface: no subdomain to suffix)
+ *
+ * Testnet used to be an apex PREFIX — `hub.testnet.cloudsforge.online` — and that shape needed no
+ * code here, because stripping `hub.` left `testnet.cloudsforge.online` and every sibling composed
+ * under it. It was also unreachable: Cloudflare's Universal SSL is `*.cloudsforge.online`, a
+ * wildcard matches one label, and every two-label testnet hostname therefore failed the TLS
+ * handshake at the edge before reaching this estate. Advanced Certificate Manager would cover it
+ * and is not bought. So the names moved, and the model had to move with them.
+ *
+ * ── WHY THE ORDER MATTERED, WRITTEN DOWN SO IT IS NOT UNDONE ──────────────────────────────────
+ *
+ * This function changed BEFORE the hostnames did. Reverse the two and the estate spends the gap
+ * in its worst possible state: `hub-testnet.cloudsforge.online` is not a known subdomain, so the
+ * old code left it whole and composed `trade.hub-testnet.cloudsforge.online` for every sibling —
+ * addresses that resolve to nothing. And the obvious repair, adding the suffixed names to
+ * `KNOWN_SUBS`, is worse than the defect: the first label would then be STRIPPED, the apex would
+ * come out as `cloudsforge.online`, and every link, every sign-in redirect and every API base on
+ * every testnet page would point at MAINNET. Nothing errors. Every page loads. The balances on
+ * the other side are real. `src/hosts.test.ts` asserts over every registry key in both
+ * directions precisely so that neither shape can come back.
+ *
+ * ── THE OLD TWO-LABEL SHAPE STILL RESOLVES, DELIBERATELY ──────────────────────────────────────
+ *
+ * `hub.testnet.cloudsforge.online` still derives the apex `testnet.cloudsforge.online` through
+ * the `KNOWN_SUBS` branch below, exactly as it always did. Nothing was taken away — so a bundle
+ * built after this change and served on an old hostname is correct, and the tunnel and the
+ * gateway can move at their own pace instead of at the same instant as a deploy.
  */
 export function cloudsforgeHosts() {
     const host = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -45,6 +83,13 @@ export function cloudsforgeHosts() {
     }
     const parts = host.split('.');
     const first = parts[0] ?? '';
+    // `parts.length > 2` on both branches: a two-label hostname IS an apex, and there is no first
+    // label to spend on a subdomain or an environment without inventing one.
+    const env = parts.length > 2 ? splitEnvLabel(first) : null;
+    if (env) {
+        const apex = parts.slice(1).join('.');
+        return hostsFrom((s) => `https://${envLabel(s.subdomain, env.env)}.${apex}`);
+    }
     const apex = parts.length > 2 && KNOWN_SUBS.has(first) ? parts.slice(1).join('.') : host;
     return hostsFrom((s) => `https://${s.subdomain ? s.subdomain + '.' : ''}${apex}`);
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { accountUrl, cloudsforgeHosts, resolveProducts } from './index.tsx'
+import { SURFACES } from './surfaces.ts'
 
 /**
  * There is no DOM here, and there does not need to be one.
@@ -94,6 +95,121 @@ describe('cloudsforgeHosts', () => {
     atHostname('cloudsforge.online')
     assert.equal(cloudsforgeHosts().account, 'https://account.cloudsforge.online')
     assert.equal(cloudsforgeHosts().signin, 'https://hub.cloudsforge.online/account')
+  })
+})
+
+/* ===================== the environment is a SUFFIX ==================== */
+
+/**
+ * Testnet's hostnames are `hub-testnet.cloudsforge.online`, not `hub.testnet.cloudsforge.online`.
+ *
+ * ── WHY THE SHAPE CHANGED, WHICH IS NOT A PREFERENCE ──────────────────────────────────────────
+ *
+ * Cloudflare's Universal SSL certificate is `*.cloudsforge.online` plus the apex, and a wildcard
+ * matches exactly ONE label. `hub.testnet.cloudsforge.online` is two labels deep, so it fails the
+ * TLS handshake at Cloudflare's edge before a request ever reaches this estate — testnet was
+ * CONFIGURED and UNREACHABLE. Covering it needs Advanced Certificate Manager, which is paid.
+ * `hub-testnet.cloudsforge.online` is one label and is already covered.
+ *
+ * ── THE MODEL THIS FILE PINS ──────────────────────────────────────────────────────────────────
+ *
+ * The environment used to be a PREFIX ON THE APEX and is now a SUFFIX ON THE SUBDOMAIN:
+ *
+ *     mainnet   hub.cloudsforge.online            apex cloudsforge.online, no env label
+ *     testnet   hub-testnet.cloudsforge.online    apex cloudsforge.online, env label `testnet`
+ *
+ * Both environments now share one apex, so "strip the first label to find the apex" is no longer
+ * enough to keep them apart: the first label carries the environment as well as the surface.
+ *
+ * ── AND THIS IS WHY THE TEST IS WRITTEN AS A UNIVERSAL RATHER THAN A LIST ─────────────────────
+ *
+ * The failure being guarded is SILENT. A testnet page that resolves a mainnet sibling produces no
+ * error, no failed request and a correct-looking page — with real balances on the other side of
+ * it. Asserting a handful of named keys would leave every unasserted key free to leak, and the
+ * registry gains rows. So the assertion is over EVERY key in the registry, in both directions:
+ *
+ *   * no resolved address may be a mainnet address (the leak), and
+ *   * every resolved address must be the exact testnet address (an address one level too deep
+ *     resolves nothing, which is the `foresight-admin` defect recorded in surfaces.ts:350-353,
+ *     and it is the failure a naive rename actually produces).
+ */
+describe('a testnet page resolves testnet siblings and NOTHING on mainnet', () => {
+  /** `hub` -> `hub-testnet.cloudsforge.online`; the apex surface -> `testnet.cloudsforge.online`. */
+  function testnetHost(sub: string): string {
+    return `${sub ? `${sub}-testnet` : 'testnet'}.cloudsforge.online`
+  }
+
+  function mainnetHost(sub: string): string {
+    return `${sub ? `${sub}.` : ''}cloudsforge.online`
+  }
+
+  /** Every registry key, resolved at `hostname`, as {key: hostname-of-the-resolved-URL}. */
+  function resolvedHostnames(hostname: string): Record<string, string> {
+    atHostname(hostname)
+    return Object.fromEntries(
+      Object.entries(cloudsforgeHosts()).map(([key, url]) => [key, new URL(url).hostname]),
+    )
+  }
+
+  for (const page of ['hub-testnet.cloudsforge.online', 'testnet.cloudsforge.online']) {
+    it(`resolves no mainnet hostname from ${page}`, () => {
+      const mainnet = new Set(SURFACES.map((s) => mainnetHost(s.subdomain)))
+      const leaked = Object.entries(resolvedHostnames(page))
+        .filter(([, host]) => mainnet.has(host))
+        .map(([key, host]) => `${key} -> ${host}`)
+      assert.deepEqual(leaked, [], 'a testnet page must resolve no mainnet address')
+    })
+
+    it(`resolves the exact testnet hostname for every registry key from ${page}`, () => {
+      const resolved = resolvedHostnames(page)
+      const wrong = SURFACES.filter((s) => resolved[s.key] !== testnetHost(s.subdomain)).map(
+        (s) => `${s.key}: ${resolved[s.key]} (expected ${testnetHost(s.subdomain)})`,
+      )
+      assert.deepEqual(wrong, [])
+    })
+  }
+
+  it('keeps the bare testnet apex as testnet, and never lets it become mainnet', () => {
+    // The single worst outcome in this whole migration, named so it cannot be reintroduced: the
+    // testnet front page resolving every link, every sign-in redirect and every API base to the
+    // live estate. `deploy/scripts/check-apex-prefix.py` is the mechanical guard; this is the
+    // behavioural one.
+    atHostname('testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().site, 'https://testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().hub, 'https://hub-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().nimbus, 'https://nimbus-testnet.cloudsforge.online')
+    assert.equal(accountUrl(), 'https://hub-testnet.cloudsforge.online/account')
+  })
+
+  it('carries the environment through a subdomain that already contains a hyphen', () => {
+    // `worlds-api` is the one registry subdomain with a hyphen in it, so it is the one that
+    // decides whether the environment is split off the FIRST hyphen or the LAST. Splitting on the
+    // first would read the surface as `worlds` on an environment called `api-testnet`.
+    atHostname('worlds-api-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts()['worlds-api'], 'https://worlds-api-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().hub, 'https://hub-testnet.cloudsforge.online')
+  })
+
+  it('leaves mainnet exactly as it was', () => {
+    // The regression direction. Mainnet is live and public; nothing above may touch it.
+    for (const page of ['cloudsforge.online', 'hub.cloudsforge.online', 'worlds-api.cloudsforge.online']) {
+      const resolved = resolvedHostnames(page)
+      const wrong = SURFACES.filter((s) => resolved[s.key] !== mainnetHost(s.subdomain)).map(
+        (s) => `at ${page}, ${s.key}: ${resolved[s.key]} (expected ${mainnetHost(s.subdomain)})`,
+      )
+      assert.deepEqual(wrong, [])
+    }
+  })
+
+  it('does not mistake an ordinary hyphenated hostname for an environment', () => {
+    // `pr-42` ends in `-42`, not in an environment label, so it stays its own apex — the preview
+    // deployment property the case above this one depends on.
+    atHostname('pr-42.previews.example.dev')
+    assert.equal(cloudsforgeHosts().trade, 'https://trade.pr-42.previews.example.dev')
+    // And a hyphenated label whose tail IS an environment but whose head is not a registry
+    // subdomain is not an environment either: guessing would invent a surface.
+    atHostname('marketing-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().trade, 'https://trade.marketing-testnet.cloudsforge.online')
   })
 })
 

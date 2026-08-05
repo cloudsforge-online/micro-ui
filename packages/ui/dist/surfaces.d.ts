@@ -211,3 +211,78 @@ export declare const FOOTER_GROUPS: readonly {
 }[];
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
 export declare const KNOWN_SUBS: ReadonlySet<string>;
+/**
+ * The labels that name an ENVIRONMENT rather than a surface.
+ *
+ * ── THE ENVIRONMENT IS A SUFFIX ON THE SUBDOMAIN, NOT A PREFIX ON THE APEX ────────────────────
+ *
+ * Every environment shares one apex and distinguishes itself inside the FIRST LABEL:
+ *
+ *     mainnet   hub.cloudsforge.online              no label — the unadorned form
+ *     testnet   hub-testnet.cloudsforge.online      label `testnet`, suffixed to `hub`
+ *               testnet.cloudsforge.online          the apex surface, where there is no
+ *                                                   subdomain to suffix, so the label stands alone
+ *
+ * It used to be the other way round — `hub.testnet.cloudsforge.online`, an apex of
+ * `testnet.cloudsforge.online` — and that shape was CONFIGURED AND UNREACHABLE. Cloudflare's
+ * Universal SSL certificate is `*.cloudsforge.online` plus the apex, a wildcard matches exactly
+ * one label, and so every two-label testnet hostname failed the TLS handshake at Cloudflare's
+ * edge before a request reached this estate at all. Covering it needs Advanced Certificate
+ * Manager, which is paid and is not bought. One label is covered by the certificate that already
+ * exists, which is the whole of the reason.
+ *
+ * ── WHY THE SET IS LARGER THAN THE ONE ENVIRONMENT THAT EXISTS ────────────────────────────────
+ *
+ * `testnet` is deployed. The other four are reserved, and reserving them costs nothing today
+ * while each is a word somebody will eventually want for an environment. They are listed HERE,
+ * once, rather than in the check that guards them: `deploy/scripts/check-apex-prefix.py` reads
+ * this export by running this module, so the estate has one list instead of two that can drift —
+ * which is the failure this whole file exists to end.
+ *
+ * ── WHAT A LABEL IN THIS SET FORBIDS ──────────────────────────────────────────────────────────
+ *
+ * Two things, and `check-apex-prefix.py` fails on either:
+ *
+ *   1. No surface may take one of these as its `subdomain`. A surface called `testnet` would make
+ *      `testnet.cloudsforge.online` ambiguous — the mainnet surface, or the testnet apex page?
+ *      `cloudsforgeHosts()` reads it as the second, so the first would silently resolve every
+ *      link on that page to a testnet address.
+ *   2. No surface's `subdomain` may END WITH `-<label>`. A surface called `hub-testnet` would
+ *      make `hub-testnet.cloudsforge.online` ambiguous in the same way, and this one resolves the
+ *      OTHER direction: a page on the mainnet surface `hub-testnet` would compose every sibling
+ *      address on testnet.
+ */
+export declare const ENV_LABELS: ReadonlySet<string>;
+/**
+ * Split a browser hostname's first label into `{subdomain, env}`, or `null` when it names no
+ * environment at all.
+ *
+ * ── THE SPLIT IS ON THE LAST HYPHEN, AND `worlds-api` IS WHY ──────────────────────────────────
+ *
+ * `worlds-api-testnet` must read as the surface `worlds-api` on `testnet`, not as the surface
+ * `worlds` on an environment called `api-testnet`. `worlds-api` is the one registry subdomain
+ * with a hyphen in it today, so it is the case that decides the rule; splitting on the first
+ * hyphen would be correct for every other row and wrong for that one.
+ *
+ * ── BOTH HALVES ARE CHECKED, AND NEITHER CHECK IS REDUNDANT ───────────────────────────────────
+ *
+ * The tail must be a known environment label and the head must be a known registry subdomain.
+ * Requiring only the tail would read `marketing-testnet.cloudsforge.online` — a hostname this
+ * estate does not own and might one day be handed — as testnet's `marketing` surface, and
+ * resolve every sibling link on it into this estate. Requiring only the head would read
+ * `hub-2024` as `hub` on an environment called `2024`. An unrecognised shape is left alone and
+ * treated as its own apex, which is the same refusal-to-guess that keeps preview deployments
+ * working (see `cloudsforgeHosts`).
+ */
+export declare function splitEnvLabel(label: string): {
+    subdomain: string;
+    env: string;
+} | null;
+/**
+ * The first label a surface is served under in `env`. An empty `env` is the unadorned form.
+ *
+ * One function, so that "what is a surface called on an environment" has exactly one definition
+ * and `splitEnvLabel` above is its inverse. The apex surface (`subdomain: ''`) collapses to the
+ * bare label rather than producing `-testnet`, which is not a legal DNS label.
+ */
+export declare function envLabel(subdomain: string, env: string): string;
