@@ -35,7 +35,67 @@ import {
   type SwitcherKey,
 } from './surfaces.ts'
 
+import {
+  analyticsAllowedHere,
+  analyticsId,
+  denyConsent,
+  grantConsent,
+  onConsentChange,
+  readConsent,
+  type ConsentDecision,
+} from './consent.ts'
+
 export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface }
+
+/**
+ * The four cross-cutting concerns, re-exported from the root so a surface adopts them with one
+ * import rather than four. Each has its own subpath as well (`@cloudsforge/ui/seo`,
+ * `/sitemap`, `/consent`) for the callers that are not React — a build script generating a
+ * sitemap has no business pulling in a rendering library.
+ */
+export {
+  ANALYTICS_META_NAME,
+  CONSENT_EVENT,
+  CONSENT_STORAGE_KEY,
+  analyticsAllowedHere,
+  analyticsId,
+  clearConsent,
+  deleteAnalyticsCookies,
+  denyConsent,
+  grantConsent,
+  initAnalytics,
+  initConsentDefaults,
+  onConsentChange,
+  readConsent,
+  revokeConsent,
+  writeConsent,
+  type ConsentDecision,
+} from './consent.ts'
+export {
+  COMPANY_LINE,
+  DEFAULT_OG_IMAGE,
+  HTML_LANG,
+  INDEXABLE_SURFACES,
+  SITE_NAME,
+  applyHead,
+  canonicalHref,
+  descriptionFor,
+  metaTags,
+  normalisePath,
+  robotsDirective,
+  surfaceMeta,
+  type MetaTag,
+  type PageMetaInput,
+  type SurfaceMeta,
+  type TagKind,
+} from './seo.ts'
+export {
+  SITEMAP_SURFACES,
+  robotsTxt,
+  sitemapUrls,
+  sitemapXml,
+  type SitemapUrl,
+} from './sitemap.ts'
 export {
   FOOTER_GROUPS,
   FOOTER_SURFACES,
@@ -947,6 +1007,230 @@ export function CloudsForgeBar({
           onSignOut={onSignOut}
           {...(accountHref === undefined ? {} : { accountHref })}
         />
+      </div>
+    </div>
+  )
+}
+
+/* ============================ SkipLink ============================ */
+
+export interface SkipLinkProps {
+  /**
+   * The `id` of the element focus should land on. Defaults to `main`, which is also the id
+   * {@link MAIN_ID} names — use that constant on the `<main>` so the two cannot disagree.
+   */
+  targetId?: string | undefined
+  /** The visible text. Defaults to "Skip to content". */
+  children?: ReactNode | undefined
+}
+
+/**
+ * The id the skip link points at, and the id a surface must put on its `<main>`.
+ *
+ * Named rather than typed twice: a skip link whose target does not exist is a link that moves the
+ * address bar and nothing else, and it is invisible to everything except a person using it.
+ */
+export const MAIN_ID = 'cf-main'
+
+/**
+ * Skip to content — the first focusable element on the page.
+ *
+ * ── Why this is in the shared package ─────────────────────────────────────────────────────────
+ *
+ * `site` had one. The other sixteen surfaces did not, so a keyboard or screen-reader reader
+ * reached the content of Forge Hub, Forge Market or the operator console by tabbing past the logo,
+ * the product switcher and the account menu — on every single navigation. WCAG 2.2 SC 2.4.1
+ * (Bypass Blocks, level A) is the criterion, and the shared bar is precisely the "block of content
+ * repeated on multiple pages" it is about. The bar is shared, so its bypass has to be.
+ *
+ * ── The two details that make it actually work ────────────────────────────────────────────────
+ *
+ * `tabIndex={-1}` belongs on the TARGET, not here — a `<main>` is not focusable by default, so in
+ * Chrome and Safari the fragment scrolls the page and leaves focus on the link, and the next Tab
+ * goes back to the second item in the bar. {@link MainRegion} sets it; a surface using its own
+ * `<main>` must set it too.
+ *
+ * The rendered element is a real `<a href="#…">` so it works with JavaScript disabled and appears
+ * in the accessibility tree as a link rather than as a button that moves focus.
+ */
+export function SkipLink({ targetId = MAIN_ID, children }: SkipLinkProps) {
+  return (
+    <a className="cf-skip" href={`#${targetId}`}>
+      {children ?? 'Skip to content'}
+    </a>
+  )
+}
+
+export interface MainRegionProps {
+  id?: string | undefined
+  className?: string | undefined
+  children: ReactNode
+}
+
+/**
+ * The `<main>` landmark, focusable, so {@link SkipLink} actually moves focus into it.
+ *
+ * Optional — a surface with its own `<main>` keeps it and adds `id={MAIN_ID} tabIndex={-1}`. This
+ * exists so that the common case cannot get the two attributes wrong, and so that "every surface
+ * has exactly one `main` landmark" is something a browser test can assert by name.
+ */
+export function MainRegion({ id = MAIN_ID, className, children }: MainRegionProps) {
+  return (
+    <main id={id} tabIndex={-1} {...(className === undefined ? {} : { className })}>
+      {children}
+    </main>
+  )
+}
+
+/* ============================ StatusPill ========================== */
+
+export type StatusLevel = 'good' | 'warn' | 'critical' | 'neutral'
+
+export interface StatusPillProps {
+  level: StatusLevel
+  /** The word. Never optional — it is the accessible content, not a caption. */
+  children: ReactNode
+  /** Overrides the default glyph. Always `aria-hidden`; the word carries the meaning. */
+  glyph?: string | undefined
+  /**
+   * Announce changes to assistive technology as they happen. Set it on a pill whose level changes
+   * without a navigation — a probe going red, a withdrawal settling — and leave it off for a pill
+   * that merely describes a row in a table, where twelve live regions would be twelve
+   * interruptions.
+   */
+  live?: boolean | undefined
+  className?: string | undefined
+}
+
+/** Glyph per level. Colour is never the only channel; this is the second, and the word is the third. */
+const STATUS_GLYPHS: Record<StatusLevel, string> = {
+  good: '●',
+  warn: '▲',
+  critical: '■',
+  neutral: '○',
+}
+
+/**
+ * A state, encoded three ways.
+ *
+ * The estate shows balances, probe verdicts, dispute states and settlement outcomes, and before
+ * this it showed them as coloured text. `tokens.css` has said since it was written that "every
+ * status mark ships icon + label + colour, because the status page is the one surface a
+ * colourblind reader reads under stress" — and there was no primitive that made that true, so it
+ * was true wherever somebody remembered.
+ *
+ * Here it is structural: the word is `children` and cannot be omitted, the glyph is supplied and
+ * `aria-hidden`, and the colour comes from the severity tokens, which carry a text-safe step for
+ * each level (see tokens.css — `--cf-critical` measures 3.38:1 and two surfaces were already
+ * setting text in it).
+ */
+export function StatusPill({ level, children, glyph, live, className }: StatusPillProps) {
+  const cls = ['cf-status', level === 'neutral' ? '' : `cf-status--${level}`, className ?? '']
+    .filter(Boolean)
+    .join(' ')
+  return (
+    <span
+      className={cls}
+      {...(live ? { role: 'status', 'aria-live': 'polite' as const } : {})}
+    >
+      <span className="cf-status__glyph" aria-hidden="true">
+        {glyph ?? STATUS_GLYPHS[level]}
+      </span>
+      {children}
+    </span>
+  )
+}
+
+/* =========================== CookieBanner ========================= */
+
+export interface CookieBannerProps {
+  /**
+   * Where "how we use cookies" goes. Defaults to the privacy notice on the marketing site, which
+   * is the page that actually describes the processing.
+   */
+  privacyHref?: string | undefined
+  /** Called after either button, with the decision. For a surface that wants to react to it. */
+  onDecide?: ((decision: ConsentDecision) => void) | undefined
+}
+
+/**
+ * The consent banner, and the only thing in this estate that may cause Google Analytics to load.
+ *
+ * ── What it does, in order ────────────────────────────────────────────────────────────────────
+ *
+ * It renders nothing at all until it knows the answer is `null` — that is, until the reader has
+ * genuinely not been asked. It renders nothing on a surface with no measurement ID in its shell,
+ * and nothing on localhost, because there is nothing to consent TO in either case and a banner
+ * asking permission for something that will not happen is worse than no banner.
+ *
+ * Accept calls `grantConsent`, which is the one call site that injects the tag. Reject calls
+ * `denyConsent`, which records the refusal and deletes any GA cookie already present. Neither
+ * button is styled as the primary one; see `.cf-consent__choice` in ui.css for why that is a
+ * compliance requirement rather than a preference.
+ *
+ * ── Accessibility ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `role="dialog"` with `aria-modal={false}` and a `aria-labelledby`: it is a dialog, and it is
+ * deliberately NOT modal. A modal consent banner is a focus trap on a page a reader may have
+ * arrived at to read something, and trapping them there until they answer is the coercion the
+ * regulation is about. They can ignore it, read the page, and answer later.
+ *
+ * It is rendered LAST in the shell so it is last in the tab order, for the same reason.
+ */
+export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
+  const [decision, setDecision] = useState<ConsentDecision | null | undefined>(undefined)
+  const titleId = useId()
+  const [id, setId] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Read in an effect rather than in render: `localStorage` and `document.head` are not
+    // available during a server render, and reading them in the render body is what makes a
+    // component that hydrates to a different tree than it rendered.
+    setDecision(readConsent())
+    setId(analyticsAllowedHere() ? analyticsId() : null)
+    return onConsentChange(setDecision)
+  }, [])
+
+  // `undefined` is "have not looked yet" and must not flash a banner at a reader who already
+  // answered. `null` is "looked, and they have not been asked".
+  if (decision !== null || id === null) return null
+
+  const decide = (next: ConsentDecision): void => {
+    if (next === 'granted') grantConsent(id)
+    else denyConsent()
+    setDecision(next)
+    onDecide?.(next)
+  }
+
+  const privacy = privacyHref ?? `${cloudsforgeHosts().site}/privacy`
+
+  return (
+    <div className="cf-consent" role="dialog" aria-modal="false" aria-labelledby={titleId}>
+      <div className="cf-consent__inner">
+        <p className="cf-consent__copy">
+          <strong className="cf-consent__title" id={titleId}>
+            Analytics on CloudsForge
+          </strong>
+          We would like to count page views with Google Analytics, which sets a cookie in your
+          browser. Nothing is loaded and no cookie is set unless you say yes, and you can change
+          your mind at any time.{' '}
+          <a className="cf-consent__link" href={privacy}>
+            How we use cookies
+          </a>
+        </p>
+        <div className="cf-consent__actions">
+          {/*
+            Two buttons, one class, no modifier. The order puts Reject first because a reader
+            scanning left to right meets the refusal before the acceptance, which is the opposite
+            of the pattern regulators have fined for.
+          */}
+          <button type="button" className="cf-consent__choice" onClick={() => decide('denied')}>
+            Reject
+          </button>
+          <button type="button" className="cf-consent__choice" onClick={() => decide('granted')}>
+            Accept
+          </button>
+        </div>
       </div>
     </div>
   )

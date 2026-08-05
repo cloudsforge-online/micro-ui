@@ -182,23 +182,69 @@ function stripComments(css: string): string {
 interface Rule {
   readonly selectors: readonly string[]
   readonly declarations: ReadonlyArray<readonly [property: string, value: string]>
+  /** The `@media` condition this rule sits inside, or `null` for a top-level rule. */
+  readonly media: string | null
 }
 
 /**
- * Every top-level rule in a stylesheet, in source order.
+ * Split a stylesheet into its top-level text and its `@media` blocks.
  *
- * Deliberately not a general CSS parser: it skips at-rules with a block (`@keyframes`, `@media`)
- * rather than descending into them, and asserts it found a plausible number of rules. Neither
- * stylesheet in this package puts a custom property or a `color` inside an at-rule, and the
- * assertion in `describe('the parser')` fails if that ever stops being true.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE PARSER USED TO CLAIM IT SKIPPED AT-RULES, AND IT DID NOT.
+ *
+ * The version of this file that shipped said: "it skips at-rules with a block (`@keyframes`,
+ * `@media`) rather than descending into them", and guarded that with `prelude.startsWith('@')`.
+ * That guard cannot fire, because the prelude is matched by `[^{}@]+` — the `@` is never IN the
+ * prelude, it is the character immediately before it. `@media (max-width: 560px) {` therefore does
+ * not match at that position at all; the regex advances and matches the rules INSIDE the block,
+ * one at a time, as though each were top-level.
+ *
+ * It was harmless for exactly as long as no `@media` block in this package declared a colour: the
+ * two that existed set `display` and `transition`. The light scheme puts forty-eight custom
+ * properties inside `@media (prefers-color-scheme: light)`, and under the old parser every one of
+ * them would have been applied to EVERY scope — the dark sweep would have measured the light
+ * palette, reported it passing on grounds it never lands on, and reported nothing at all about
+ * the palette it was supposed to be checking.
+ *
+ * So the blocks are extracted here, by brace matching rather than by regex, and each rule inside
+ * one carries its condition. `describe('the parser')` asserts that the extraction actually found
+ * the light block and that its rules do NOT leak into the dark scope.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
-function parseRules(css: string): Rule[] {
+function splitMedia(css: string): { top: string; blocks: { condition: string; body: string }[] } {
+  const blocks: { condition: string; body: string }[] = []
+  let top = ''
+  let i = 0
+  while (i < css.length) {
+    const at = css.indexOf('@media', i)
+    if (at === -1) {
+      top += css.slice(i)
+      break
+    }
+    top += css.slice(i, at)
+    const open = css.indexOf('{', at)
+    assert.ok(open !== -1, 'an @media with no block')
+    const condition = css.slice(at + '@media'.length, open).trim()
+    let depth = 1
+    let j = open + 1
+    for (; j < css.length && depth > 0; j += 1) {
+      if (css[j] === '{') depth += 1
+      else if (css[j] === '}') depth -= 1
+    }
+    blocks.push({ condition, body: css.slice(open + 1, j - 1) })
+    i = j
+  }
+  return { top, blocks }
+}
+
+/** Every rule in one block of CSS, in source order, tagged with the media condition around it. */
+function parseBlock(css: string, media: string | null): Rule[] {
   const rules: Rule[] = []
   const re = /([^{}@]+)\{([^{}]*)\}/g
   let match: RegExpExecArray | null
   while ((match = re.exec(css)) !== null) {
     const prelude = (match[1] ?? '').trim()
-    if (prelude === '' || prelude.startsWith('@') || prelude.includes('}')) continue
+    if (prelude === '' || prelude.includes('}')) continue
     const declarations: Array<readonly [string, string]> = []
     for (const raw of (match[2] ?? '').split(';')) {
       const at = raw.indexOf(':')
@@ -207,16 +253,43 @@ function parseRules(css: string): Rule[] {
       const value = raw.slice(at + 1).trim()
       if (property !== '' && value !== '') declarations.push([property, value] as const)
     }
-    rules.push({ selectors: prelude.split(',').map((s) => s.trim()), declarations })
+    rules.push({ selectors: prelude.split(',').map((s) => s.trim()), declarations, media })
   }
   return rules
 }
 
-/** The element the token cascade is being resolved for: `<html>`, wearing its two attributes. */
+/**
+ * Every rule in a stylesheet, in source order, top-level ones first and then each media block's.
+ *
+ * Source order across the two is not preserved and does not need to be: the only media block that
+ * declares anything colour-bearing is scoped to `[data-cf-scheme='auto']`, which the three
+ * attribute values are mutually exclusive with — so no media rule and no top-level rule ever
+ * compete for the same declaration on the same element. `describe('the light scheme')` asserts
+ * that property rather than assuming it.
+ */
+function parseRules(css: string): Rule[] {
+  const { top, blocks } = splitMedia(css)
+  // `@font-face` and `@keyframes` survive `splitMedia` and are matched by the regex with their
+  // `@` stripped, yielding preludes of `font-face` and `keyframes cf-pop-in`. Neither is a
+  // selector `selectorMatches` recognises and neither declares a custom property or a `color`, so
+  // both fall through harmlessly — but the assertion in `describe('the parser')` pins that.
+  const out = parseBlock(top, null)
+  for (const block of blocks) out.push(...parseBlock(block.body, block.condition))
+  return out
+}
+
+/** The element the token cascade is being resolved for: `<html>`, wearing its three attributes. */
 interface Scope {
   readonly substrate: 'warm' | 'cool'
   /** `null` for the default (no `data-cf-product`), which falls through to the company ember. */
   readonly product: string | null
+  /**
+   * The value of `data-cf-scheme`, or `null` for the attribute being absent — which is the state
+   * every surface in the estate is in today, and which must keep resolving to the dark palette.
+   */
+  readonly scheme?: 'auto' | 'light' | 'dark' | null
+  /** What the reader's operating system says, which only matters when the attribute is `auto`. */
+  readonly prefersLight?: boolean
   /** The one class scope the system declares: `.cf-dark`, for chrome inside a light host. */
   readonly dark?: boolean
 }
@@ -231,6 +304,19 @@ function selectorMatches(selector: string, scope: Scope): boolean {
   if (s === '.cf-dark') return scope.dark === true
   const product = /^\[data-cf-product='([a-z-]+)'\]$/.exec(s)
   if (product) return product[1] === scope.product
+  const scheme = /^\[data-cf-scheme='(auto|light|dark)'\]$/.exec(s)
+  if (scheme) return scheme[1] === (scope.scheme ?? null)
+  return false
+}
+
+/** Does this rule's surrounding `@media` condition hold for this scope? */
+function mediaMatches(media: string | null, scope: Scope): boolean {
+  if (media === null) return true
+  if (media === '(prefers-color-scheme: light)') return scope.prefersLight === true
+  if (media === '(prefers-color-scheme: dark)') return scope.prefersLight !== true
+  // Anything else — a width query, reduced motion — is not a scope this file models. Such a block
+  // is asserted to declare nothing colour-bearing in `describe('the parser')`, so refusing to
+  // apply it here cannot hide a pair; it would surface as a red test there instead.
   return false
 }
 
@@ -245,6 +331,7 @@ function selectorMatches(selector: string, scope: Scope): boolean {
 function declaredTokens(scope: Scope): Map<string, string> {
   const out = new Map<string, string>()
   for (const rule of parseRules(TOKENS_CSS)) {
+    if (!mediaMatches(rule.media, scope)) continue
     if (!rule.selectors.some((s) => selectorMatches(s, scope))) continue
     for (const [property, value] of rule.declarations) {
       if (property.startsWith('--')) out.set(property, value)
@@ -483,6 +570,47 @@ function tokensReached(
 
 const SUBSTRATES = ['warm', 'cool'] as const
 
+/**
+ * The two SCHEMES, and why the dark one is modelled as the attribute being ABSENT.
+ *
+ * `data-cf-scheme` is an opt-in. Every surface in the estate today sets neither it nor anything
+ * else, and the palette they were built and reviewed against is the one that resolves when it is
+ * missing — so that is the state worth measuring, rather than `[data-cf-scheme='dark']`, which
+ * nothing sets yet. The two are asserted to be identical in `describe('the light scheme')`, which
+ * is what makes measuring one of them sufficient.
+ */
+const SCHEMES = [
+  { scheme: null, prefersLight: false, label: 'dark' },
+  { scheme: 'light', prefersLight: false, label: 'light' },
+] as const
+
+interface TestScope {
+  readonly substrate: 'warm' | 'cool'
+  readonly scheme: 'auto' | 'light' | 'dark' | null
+  readonly prefersLight: boolean
+  readonly label: string
+}
+
+/** Every substrate crossed with every scheme: four palettes, where there used to be two. */
+const SCOPES: readonly TestScope[] = SUBSTRATES.flatMap((substrate) =>
+  SCHEMES.map((s) => ({
+    substrate,
+    scheme: s.scheme,
+    prefersLight: s.prefersLight,
+    label: `${substrate}/${s.label}`,
+  })),
+)
+
+/** The token map for one scope and one product. */
+function scopeTokens(scope: TestScope, product: string | null): Map<string, string> {
+  return declaredTokens({
+    substrate: scope.substrate,
+    product,
+    scheme: scope.scheme,
+    prefersLight: scope.prefersLight,
+  })
+}
+
 /** Every `data-cf-product` value `tokens.css` declares a block for, plus the default. */
 const PRODUCTS: ReadonlyArray<string | null> = [
   null,
@@ -563,8 +691,49 @@ describe('the stylesheets were actually read', () => {
     // A regex that matched nothing would turn every loop below into a loop over nothing, and this
     // file would read as a guarantee while measuring none. This is the failure mode that let a
     // registry parser in this estate read exactly one entry and report the set was consistent.
-    assert.ok(parseRules(TOKENS_CSS).length >= 15, `tokens.css parsed to ${parseRules(TOKENS_CSS).length} rules`)
+    assert.ok(parseRules(TOKENS_CSS).length >= 20, `tokens.css parsed to ${parseRules(TOKENS_CSS).length} rules`)
     assert.ok(parseRules(UI_CSS).length >= 60, `ui.css parsed to ${parseRules(UI_CSS).length} rules`)
+  })
+
+  it('extracts the @media blocks instead of reading their contents as top-level rules', () => {
+    /*
+     * The guard on the parser defect described above `splitMedia`. Three things, and each fails
+     * differently:
+     *
+     *   1. The blocks are found at all. A `splitMedia` that returned nothing would make every
+     *      light-scheme assertion in this file a loop over an empty map.
+     *   2. The light block's declarations do NOT reach a dark scope. This is the actual bug the
+     *      old parser had, and it is asserted by measurement rather than by inspection.
+     *   3. No block this file does not model declares anything colour-bearing. `mediaMatches`
+     *      returns false for a width query, so a `color` inside one would be silently unmeasured;
+     *      this says so loudly instead.
+     */
+    const tokenBlocks = splitMedia(TOKENS_CSS).blocks
+    assert.ok(tokenBlocks.length >= 1, 'no @media block was extracted from tokens.css')
+    assert.ok(
+      tokenBlocks.some((b) => b.condition === '(prefers-color-scheme: light)'),
+      `tokens.css declares no light media block: ${tokenBlocks.map((b) => b.condition).join(' | ')}`,
+    )
+
+    const dark = declaredTokens({ substrate: 'warm', product: null })
+    assert.equal(
+      toHex(resolveColour('var(--cf-bg)', dark)),
+      toHex(resolveColour('var(--cf-ash-900)', dark)),
+      'the light block leaked into the dark scope — the media extraction is not working',
+    )
+
+    for (const { condition, body } of [...tokenBlocks, ...splitMedia(UI_CSS).blocks]) {
+      if (condition.startsWith('(prefers-color-scheme')) continue
+      for (const rule of parseBlock(body, condition)) {
+        for (const [property] of rule.declarations) {
+          assert.ok(
+            property !== 'color' && property !== 'background' && !property.startsWith('--'),
+            `@media ${condition} declares ${property}, which this file does not resolve — either ` +
+              'model the condition in `mediaMatches` or move the declaration out of the block',
+          )
+        }
+      }
+    }
   })
 
   it('resolves the two substrates to DIFFERENT answers', () => {
@@ -632,11 +801,11 @@ describe('the stylesheets were actually read', () => {
 /* ═══════════════════════════════════ the bar this file sets ══════════════════════════════════ */
 
 describe('every text pair this package ships clears WCAG AA', () => {
-  for (const substrate of SUBSTRATES) {
-    it(`on the ${substrate} substrate, for every product accent`, () => {
+  for (const scope of SCOPES) {
+    it(`on ${scope.label}, for every product accent`, () => {
       const failures: string[] = []
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
+        const tokens = scopeTokens(scope, product)
         for (const painted of paintedText()) {
           const floor = DECORATED.has(painted.className) ? NON_TEXT_AA : TEXT_AA
           const ink = resolveColour(painted.value, tokens)
@@ -646,7 +815,7 @@ describe('every text pair this package ships clears WCAG AA', () => {
             failures.push(
               `  ${painted.selector} { color: ${painted.value} } = ${toHex(ink)} on ${toHex(ground)} ` +
                 `= ${ratio.toFixed(2)}:1, below ${floor}:1 ` +
-                `[substrate=${substrate}, product=${product ?? 'default'}]`,
+                `[${scope.label}, product=${product ?? 'default'}]`,
             )
           }
         }
@@ -672,8 +841,8 @@ describe('every text pair this package ships clears WCAG AA', () => {
       assert.ok(rules.length > 0, `ui.css no longer paints .${entry.className} — delete the exemption`)
 
       let worst = Number.POSITIVE_INFINITY
-      for (const substrate of SUBSTRATES) {
-        const tokens = declaredTokens({ substrate, product: null })
+      for (const scope of SCOPES) {
+        const tokens = scopeTokens(scope, null)
         for (const rule of rules) {
           const ink = resolveColour(rule.value, tokens)
           for (const ground of groundsFor(rule.className, tokens)) worst = Math.min(worst, contrast(ink, ground))
@@ -694,8 +863,9 @@ describe('every text pair this package ships clears WCAG AA', () => {
      * violation in three repositories, and a sweep that silently stopped covering it would let the
      * same defect back in under a passing suite.
      */
-    for (const substrate of SUBSTRATES) {
-      const tokens = declaredTokens({ substrate, product: null })
+    for (const scope of SCOPES) {
+      const { substrate } = scope
+      const tokens = scopeTokens(scope, null)
       const mute = resolveColour('var(--cf-fg-mute)', tokens)
       for (const surface of ['--cf-bg', '--cf-bg-raised', '--cf-bg-sunken', '--cf-surface-solid']) {
         const ground = over(resolveColour(`var(${surface})`, tokens), resolveColour('var(--cf-bg)', tokens))
@@ -729,15 +899,27 @@ describe('every text pair this package ships clears WCAG AA', () => {
      * 10 L* is roughly the point at which two greys read as two deliberate steps rather than as one
      * colour drawn twice. Both substrates now sit around 15.5, which is the warm ramp's own figure.
      */
-    for (const substrate of SUBSTRATES) {
-      const tokens = declaredTokens({ substrate, product: null })
+    for (const scope of SCOPES) {
+      const tokens = scopeTokens(scope, null)
       const steps = (['--cf-fg', '--cf-fg-dim', '--cf-fg-mute'] as const).map((t) =>
         lightness(resolveColour(`var(${t})`, tokens)),
       )
-      for (let i = 1; i < steps.length; i += 1) {
-        const gap = (steps[i - 1] as number) - (steps[i] as number)
-        assert.ok(gap >= 10, `${substrate}: text step ${i} is only ${gap.toFixed(1)} L* below step ${i - 1}`)
+      // The LADDER runs the other way in a light scheme — the primary text step is the darkest
+      // there and the lightest here — so what is asserted is the size of each gap and that every
+      // gap runs the SAME way. Asserting a sign would have made the light palette fail for being
+      // a light palette; dropping the sign entirely would have let a ramp that goes up, down and
+      // up again pass with three large gaps and no hierarchy at all.
+      const gaps = steps.slice(1).map((v, i) => (steps[i] as number) - v)
+      for (const [i, gap] of gaps.entries()) {
+        assert.ok(
+          Math.abs(gap) >= 10,
+          `${scope.label}: text step ${i + 1} is only ${Math.abs(gap).toFixed(1)} L* from step ${i}`,
+        )
       }
+      assert.ok(
+        gaps.every((g) => g > 0) || gaps.every((g) => g < 0),
+        `${scope.label}: the three text steps are not monotonic — ${steps.map((v) => v.toFixed(1)).join(' / ')}`,
+      )
     }
   })
 })
@@ -754,13 +936,13 @@ describe('the chart palette clears the non-text floor on every substrate', () =>
   const SERIES = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `--cf-viz-${n}`)
   const ROLES = ['--cf-viz-good', '--cf-viz-warn', '--cf-viz-crit', '--cf-viz-gain', '--cf-viz-loss']
 
-  for (const substrate of SUBSTRATES) {
-    it(`on the ${substrate} substrate`, () => {
-      const tokens = declaredTokens({ substrate, product: null })
+  for (const scope of SCOPES) {
+    it(`on ${scope.label}`, () => {
+      const tokens = scopeTokens(scope, null)
       const surface = resolveColour('var(--cf-viz-surface)', tokens)
       for (const token of [...SERIES, ...ROLES]) {
         const ratio = contrast(resolveColour(`var(${token})`, tokens), surface)
-        assert.ok(ratio >= NON_TEXT_AA, `${token} on --cf-viz-surface (${substrate}) is ${ratio.toFixed(2)}:1`)
+        assert.ok(ratio >= NON_TEXT_AA, `${token} on --cf-viz-surface (${scope.label}) is ${ratio.toFixed(2)}:1`)
       }
     })
   }
@@ -779,23 +961,33 @@ describe('the chart palette clears the non-text floor on every substrate', () =>
      * 3:1 the ramp has been retuned and this comment, and chart-palette.md, are out of date.
      */
     const steps = [100, 200, 300, 400, 500, 600, 700].map((n) => `--cf-viz-seq-${n}`)
-    for (const substrate of SUBSTRATES) {
-      const tokens = declaredTokens({ substrate, product: null })
+    for (const scope of SCOPES) {
+      const tokens = scopeTokens(scope, null)
       const surface = resolveColour('var(--cf-viz-surface)', tokens)
       const ls = steps.map((t) => lightness(resolveColour(`var(${t})`, tokens)))
-      for (let i = 1; i < ls.length; i += 1) {
-        const gap = (ls[i] as number) - (ls[i - 1] as number)
-        assert.ok(gap >= 4, `${steps[i]} is only ${gap.toFixed(1)} L* above ${steps[i - 1]}`)
+      // The ramp CLIMBS on a dark panel and DESCENDS on a light one — 100 is the step nearest the
+      // page in both, because "near zero" has to be the step that recedes into the surface. So the
+      // assertion is on the size of each step and on the ramp being monotonic, not on its sign.
+      const gaps = ls.slice(1).map((v, i) => v - (ls[i] as number))
+      for (const [i, gap] of gaps.entries()) {
+        assert.ok(
+          Math.abs(gap) >= 4,
+          `${scope.label}: ${steps[i + 1]} is only ${Math.abs(gap).toFixed(1)} L* from ${steps[i]}`,
+        )
       }
-      const dark = contrast(resolveColour(`var(${steps[0]})`, tokens), surface)
       assert.ok(
-        dark < NON_TEXT_AA,
-        `${steps[0]} now measures ${dark.toFixed(2)}:1 on the ${substrate} panel — the ramp has ` +
-          'been retuned, and the "near zero is visible, not invisible" note in tokens.css and the ' +
-          'light-end figure in chart-palette.md both need re-deriving',
+        gaps.every((g) => g > 0) || gaps.every((g) => g < 0),
+        `${scope.label}: the sequential ramp is not monotonic`,
       )
-      const light = contrast(resolveColour(`var(${steps.at(-1)})`, tokens), surface)
-      assert.ok(light >= NON_TEXT_AA, `${steps.at(-1)} on the ${substrate} panel is ${light.toFixed(2)}:1`)
+      const nearZero = contrast(resolveColour(`var(${steps[0]})`, tokens), surface)
+      assert.ok(
+        nearZero < NON_TEXT_AA,
+        `${steps[0]} now measures ${nearZero.toFixed(2)}:1 on the ${scope.label} panel — the ramp ` +
+          'has been retuned, and the "near zero is visible, not invisible" note in tokens.css and ' +
+          'the light-end figure in chart-palette.md both need re-deriving',
+      )
+      const far = contrast(resolveColour(`var(${steps.at(-1)})`, tokens), surface)
+      assert.ok(far >= NON_TEXT_AA, `${steps.at(-1)} on the ${scope.label} panel is ${far.toFixed(2)}:1`)
     }
   })
 })
@@ -803,25 +995,27 @@ describe('the chart palette clears the non-text floor on every substrate', () =>
 /* ══════════════════════════════════ ink on a filled control ══════════════════════════════════ */
 
 describe('the label on a filled control is legible against its fill', () => {
-  it('ember ink on ember, in both of its states', () => {
-    const tokens = declaredTokens({ substrate: 'warm', product: null })
-    const ink = resolveColour('var(--cf-ember-ink)', tokens)
-    for (const fill of ['--cf-ember', '--cf-ember-hover']) {
-      const ratio = contrast(ink, resolveColour(`var(${fill})`, tokens))
-      assert.ok(ratio >= TEXT_AA, `--cf-ember-ink on ${fill} is ${ratio.toFixed(2)}:1`)
+  it('ember ink on ember, in both of its states, in both schemes', () => {
+    for (const scope of SCOPES) {
+      const tokens = scopeTokens(scope, null)
+      const ink = resolveColour('var(--cf-ember-ink)', tokens)
+      for (const fill of ['--cf-ember', '--cf-ember-hover']) {
+        const ratio = contrast(ink, resolveColour(`var(${fill})`, tokens))
+        assert.ok(ratio >= TEXT_AA, `--cf-ember-ink on ${fill} (${scope.label}) is ${ratio.toFixed(2)}:1`)
+      }
     }
   })
 
   it('each product accent ink on its own accent, in both of its states', () => {
-    for (const substrate of SUBSTRATES) {
+    for (const scope of SCOPES) {
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
+        const tokens = scopeTokens(scope, product)
         const ink = resolveColour('var(--cf-accent-ink)', tokens)
         for (const fill of ['--cf-accent', '--cf-accent-hover']) {
           const ratio = contrast(ink, resolveColour(`var(${fill})`, tokens))
           assert.ok(
             ratio >= TEXT_AA,
-            `--cf-accent-ink on ${fill} for product=${product ?? 'default'} (${substrate}) is ` +
+            `--cf-accent-ink on ${fill} for product=${product ?? 'default'} (${scope.label}) is ` +
               `${ratio.toFixed(2)}:1`,
           )
         }
@@ -829,7 +1023,7 @@ describe('the label on a filled control is legible against its fill', () => {
     }
   })
 
-  it('never lets the avatar fill go darker than the accent its ink is defined against', () => {
+  it('keeps the avatar ink legible against EVERY stop of the fill, not just against the accent', () => {
     /*
      * The rule that makes the assertion above sufficient rather than merely true.
      *
@@ -837,23 +1031,36 @@ describe('the label on a filled control is legible against its fill', () => {
      * in this package that sets type in it, and it used to draw a gradient that darkened the
      * accent by 45% across the disc — so the ink was measured on a ground it was never chosen for
      * and landed between 2.17:1 and 3.87:1 depending on the product. Asserting the ink alone would
-     * not have caught that; asserting the fill's DARKEST point is what makes the pair closed.
+     * not have caught that; asserting the whole fill is what makes the pair closed.
+     *
+     * ── WHY THIS IS NO LONGER A LUMINANCE ORDERING ────────────────────────────────────────────
+     *
+     * It used to assert "no stop is darker than --cf-accent", which was a proxy for the real
+     * requirement and was true only in a dark scheme, where the hover step is LIGHTER than the
+     * accent. In a light scheme a hover DARKENS — that is what a hover means on a light page — so
+     * the proxy would have failed for being a light theme while the thing it stood for held
+     * perfectly well (the ink inverts to near-white with it, and clears 4.9:1 on every product).
+     *
+     * So the requirement is asserted directly: the ink clears the text floor on every stop. That
+     * is strictly stronger than the ordering — it would have caught the original defect too, and
+     * it catches a gradient whose ends are both on the accent's side but too close to the ink.
      *
      * Read out of `ui.css`, so re-darkening the gradient fails here rather than in a browser.
      */
-    for (const substrate of SUBSTRATES) {
+    for (const scope of SCOPES) {
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
-        const accent = luminance(resolveColour('var(--cf-accent)', tokens))
+        const tokens = scopeTokens(scope, product)
+        const ink = resolveColour('var(--cf-accent-ink)', tokens)
         const declared = BACKGROUNDS.get('cf-account__avatar')?.[0]
         assert.ok(declared, '.cf-account__avatar no longer declares a background')
         const stops = gradientStops(declared, tokens)
         assert.ok(stops.length >= 2, `.cf-account__avatar is no longer a gradient: ${declared}`)
         for (const stop of stops) {
+          const ratio = contrast(ink, stop)
           assert.ok(
-            luminance(stop) >= accent - 1e-9,
-            `.cf-account__avatar has a stop at ${toHex(stop)}, darker than --cf-accent, for ` +
-              `product=${product ?? 'default'} (${substrate}) — --cf-accent-ink is not valid there`,
+            ratio >= TEXT_AA,
+            `.cf-account__avatar: --cf-accent-ink ${toHex(ink)} on the stop ${toHex(stop)} is ` +
+              `${ratio.toFixed(2)}:1 for product=${product ?? 'default'} (${scope.label})`,
           )
         }
       }
@@ -935,11 +1142,19 @@ describe('an accent used as text', () => {
      */
     const warm = declaredTokens({ substrate: 'warm', product: null })
     const cool = declaredTokens({ substrate: 'cool', product: null })
+    const warmLight = declaredTokens({ substrate: 'warm', product: null, scheme: 'light' })
+    const coolLight = declaredTokens({ substrate: 'cool', product: null, scheme: 'light' })
     const row = (t: ReadonlyMap<string, string>): string =>
       toHex(over(resolveColour('var(--cf-surface-hover)', t), resolveColour('var(--cf-bg-raised)', t)))
     assert.equal(row(warm), '#211e1c')
     assert.equal(row(cool), '#21292d')
-    // And the lightest thing this package sets text on: the current menu item, --cf-fg at 8%.
+    // The same wash the other way up. In a light scheme the hover is the ink at 6%, so a hovered
+    // row is DARKER than the panel and the tightest ground moves to the panel itself — which is
+    // why every light-scheme colour in tokens.css is derived against #f7fafa and not against one
+    // of these.
+    assert.equal(row(warmLight), '#ede9e3')
+    assert.equal(row(coolLight), '#e9eced')
+    // And the extreme this package sets text on: the current menu item, --cf-fg at 8%.
     const current = (t: ReadonlyMap<string, string>): string =>
       toHex(
         over(
@@ -949,32 +1164,40 @@ describe('an accent used as text', () => {
       )
     assert.equal(current(warm), '#252220')
     assert.equal(current(cool), '#252d31')
+    assert.equal(current(warmLight), '#e9e5de')
+    assert.equal(current(coolLight), '#e5e8e8')
   })
 
   it('sweeps a useful number of grounds, so a pass here cannot be a pass over nothing', () => {
-    for (const substrate of SUBSTRATES) {
-      const grounds = textGrounds(declaredTokens({ substrate, product: null }))
-      assert.ok(grounds.size >= 4, `only ${grounds.size} distinct text grounds on ${substrate}`)
-      // The tightest one has to be in the set, or the sweep is measuring the easy surfaces.
+    const TIGHTEST: Record<string, string> = {
+      'warm/dark': '#252220',
+      'cool/dark': '#252d31',
+      'warm/light': '#e9e5de',
+      'cool/light': '#e5e8e8',
+    }
+    for (const scope of SCOPES) {
+      const grounds = textGrounds(scopeTokens(scope, null))
+      assert.ok(grounds.size >= 4, `only ${grounds.size} distinct text grounds on ${scope.label}`)
+      // The extreme one has to be in the set, or the sweep is measuring the easy surfaces.
       assert.ok(
-        grounds.has(substrate === 'warm' ? '#252220' : '#252d31'),
-        `the current-menu-item ground is not in the ${substrate} sweep: ${[...grounds.keys()].join(' ')}`,
+        grounds.has(TIGHTEST[scope.label] ?? ''),
+        `the current-menu-item ground is not in the ${scope.label} sweep: ${[...grounds.keys()].join(' ')}`,
       )
     }
   })
 
   it('clears the 4.5:1 TEXT floor for every product, on every ground, on both substrates', () => {
     const failures: string[] = []
-    for (const substrate of SUBSTRATES) {
+    for (const scope of SCOPES) {
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
+        const tokens = scopeTokens(scope, product)
         const ink = resolveColour('var(--cf-accent-text)', tokens)
         for (const ground of textGrounds(tokens).values()) {
           const ratio = contrast(over(ink, ground), ground)
           if (ratio >= TEXT_AA) continue
           failures.push(
             `  --cf-accent-text ${toHex(ink)} on ${toHex(ground)} = ${ratio.toFixed(2)}:1 ` +
-              `[substrate=${substrate}, product=${product ?? 'default'}]`,
+              `[${scope.label}, product=${product ?? 'default'}]`,
           )
         }
       }
@@ -986,9 +1209,9 @@ describe('an accent used as text', () => {
     // The job the accent keeps. Splitting the token is not a deprecation, and a retune of the text
     // step must not be allowed to quietly break the border, outline and rule the accent still is.
     const failures: string[] = []
-    for (const substrate of SUBSTRATES) {
+    for (const scope of SCOPES) {
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
+        const tokens = scopeTokens(scope, product)
         for (const name of ['--cf-accent', '--cf-accent-hover']) {
           const mark = resolveColour(`var(${name})`, tokens)
           for (const ground of textGrounds(tokens).values()) {
@@ -996,7 +1219,7 @@ describe('an accent used as text', () => {
             if (ratio >= NON_TEXT_AA) continue
             failures.push(
               `  ${name} ${toHex(mark)} on ${toHex(ground)} = ${ratio.toFixed(2)}:1 ` +
-                `[substrate=${substrate}, product=${product ?? 'default'}]`,
+                `[${scope.label}, product=${product ?? 'default'}]`,
             )
           }
         }
@@ -1022,7 +1245,29 @@ describe('an accent used as text', () => {
      */
     const tokens = declaredTokens({ substrate: 'cool', product: null })
     const sanctioned = new Set(['--cf-accent-text', '--cf-ember-text'])
-    const forbidden = new Set(['--cf-accent', '--cf-accent-hover', '--cf-ember', '--cf-ember-hover'])
+    /*
+     * The RAW per-scheme names are forbidden too, and they have to be.
+     *
+     * The scheme fork split every accent into `--cf-accent-dark` / `--cf-accent-light` with the
+     * public `--cf-accent` mapped onto whichever applies. A rule spelled `var(--cf-accent-dark)`
+     * is the identical defect this whole section is about — a 3:1 colour used as text — and a
+     * forbidden set naming only the public token would have waved it through while reporting that
+     * the rule was still enforced. That is the shape of guard this file exists to stop shipping.
+     */
+    const forbidden = new Set([
+      '--cf-accent',
+      '--cf-accent-hover',
+      '--cf-accent-dark',
+      '--cf-accent-hover-dark',
+      '--cf-accent-light',
+      '--cf-accent-hover-light',
+      '--cf-ember',
+      '--cf-ember-hover',
+      '--cf-ember-dark',
+      '--cf-ember-hover-dark',
+      '--cf-ember-light',
+      '--cf-ember-hover-light',
+    ])
     const offenders = paintedText()
       .filter((p) => !LOGOTYPE.includes(p.className))
       .filter((p) => [...tokensReached(p.value, tokens, sanctioned)].some((t) => forbidden.has(t)))
@@ -1105,12 +1350,12 @@ describe('an accent used as text', () => {
         mx === c.r ? ((c.g - c.b) / (mx - mn)) % 6 : mx === c.g ? (c.b - c.r) / (mx - mn) + 2 : (c.r - c.g) / (mx - mn) + 4
       return (h * 60 + 360) % 360
     }
-    for (const substrate of SUBSTRATES) {
+    for (const scope of SCOPES) {
       for (const product of PRODUCTS) {
-        const tokens = declaredTokens({ substrate, product })
+        const tokens = scopeTokens(scope, product)
         const accent = resolveColour('var(--cf-accent)', tokens)
         const text = resolveColour('var(--cf-accent-text)', tokens)
-        const where = `product=${product ?? 'default'} (${substrate})`
+        const where = `product=${product ?? 'default'} (${scope.label})`
         assert.ok(
           luminance(text) >= luminance(accent) - 1e-9,
           `--cf-accent-text ${toHex(text)} is DARKER than --cf-accent ${toHex(accent)} for ${where}`,
@@ -1146,8 +1391,8 @@ describe('an accent used as text', () => {
 
     const worstFor = (product: string | null, token: string): number => {
       let worst = Number.POSITIVE_INFINITY
-      for (const substrate of SUBSTRATES) {
-        const tokens = declaredTokens({ substrate, product })
+      for (const scope of SCOPES) {
+        const tokens = scopeTokens(scope, product)
         const ink = resolveColour(`var(${token})`, tokens)
         for (const ground of textGrounds(tokens).values()) worst = Math.min(worst, contrast(ink, ground))
       }
@@ -1178,6 +1423,21 @@ describe('an accent used as text', () => {
 /* ═════════════════════════════════════════ the dark scope ════════════════════════════════════ */
 
 describe('the .cf-dark scope', () => {
+  /** The eleven tokens this scope restates from the substrate. Shared by both assertions below. */
+  const semantic = [
+    '--cf-bg',
+    '--cf-bg-raised',
+    '--cf-bg-sunken',
+    '--cf-fg',
+    '--cf-fg-dim',
+    '--cf-fg-mute',
+    '--cf-line',
+    '--cf-line-strong',
+    '--cf-surface',
+    '--cf-surface-solid',
+    '--cf-surface-hover',
+  ]
+
   it('re-asserts the same semantic layer it would have inherited, on both substrates', () => {
     /*
      * `.cf-dark` exists so CloudsForge chrome survives inside a light host, and it works by
@@ -1186,19 +1446,6 @@ describe('the .cf-dark scope', () => {
      * a token retuned in one place and not the other is a red test rather than a chrome that
      * disagrees with the page it sits on.
      */
-    const semantic = [
-      '--cf-bg',
-      '--cf-bg-raised',
-      '--cf-bg-sunken',
-      '--cf-fg',
-      '--cf-fg-dim',
-      '--cf-fg-mute',
-      '--cf-line',
-      '--cf-line-strong',
-      '--cf-surface',
-      '--cf-surface-solid',
-      '--cf-surface-hover',
-    ]
     for (const substrate of SUBSTRATES) {
       const plain = declaredTokens({ substrate, product: null })
       const dark = declaredTokens({ substrate, product: null, dark: true })
@@ -1208,6 +1455,136 @@ describe('the .cf-dark scope', () => {
           toHex(resolveColour(`var(${token})`, plain)),
           `${token} differs inside .cf-dark on the ${substrate} substrate`,
         )
+      }
+    }
+  })
+
+  it('pins the DARK palette inside a light page — which is the whole point of it', () => {
+    /*
+     * The assertion above only proves `.cf-dark` agrees with the scheme it is already in. The job
+     * this scope exists for is the other one: the shared bar is `.cf-dark` and must read as one
+     * strip across every surface, so on a LIGHT page it has to resolve to the dark values rather
+     * than to the page's.
+     *
+     * Every token that changes with the scheme is checked, not just the semantic eleven. The
+     * accent and ember families were added to that scope for exactly this reason: without them a
+     * light page put a dark focus ring and a dark product dot inside a dark bar, which is a
+     * failure that is invisible in the only scheme this estate has rendered so far.
+     */
+    const withScheme = [
+      ...semantic,
+      '--cf-ember',
+      '--cf-ember-hover',
+      '--cf-ember-ink',
+      '--cf-ember-text',
+      '--cf-accent',
+      '--cf-accent-hover',
+      '--cf-accent-ink',
+      '--cf-accent-text',
+    ]
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const darkPage = declaredTokens({ substrate, product })
+        const barOnLight = declaredTokens({ substrate, product, scheme: 'light', dark: true })
+        for (const token of withScheme) {
+          assert.equal(
+            toHex(resolveColour(`var(${token})`, barOnLight)),
+            toHex(resolveColour(`var(${token})`, darkPage)),
+            `${token} inside .cf-dark on a LIGHT ${substrate} page is not the dark value ` +
+              `[product=${product ?? 'default'}]`,
+          )
+        }
+      }
+    }
+  })
+})
+
+/* ═══════════════════════════════════════ the light scheme ════════════════════════════════════ */
+
+describe('the light scheme', () => {
+  /** Every custom property tokens.css declares anywhere, so no comparison is over a short list. */
+  function allTokenNames(): string[] {
+    const names = new Set<string>()
+    for (const rule of parseRules(TOKENS_CSS)) {
+      for (const [property] of rule.declarations) if (property.startsWith('--')) names.add(property)
+    }
+    return [...names].sort()
+  }
+
+  it('resolves to a DIFFERENT palette than the dark one, or nothing below is measuring anything', () => {
+    for (const substrate of SUBSTRATES) {
+      const dark = declaredTokens({ substrate, product: null })
+      const light = declaredTokens({ substrate, product: null, scheme: 'light' })
+      for (const token of ['--cf-bg', '--cf-bg-raised', '--cf-fg', '--cf-fg-mute', '--cf-accent']) {
+        assert.notEqual(
+          toHex(resolveColour(`var(${token})`, dark)),
+          toHex(resolveColour(`var(${token})`, light)),
+          `${token} is identical in both schemes on ${substrate} — the light block is not applying`,
+        )
+      }
+    }
+  })
+
+  it('gives `auto` under a light OS exactly the palette `light` gives', () => {
+    /*
+     * The light values are written out twice — once for `[data-cf-scheme='light']` and once inside
+     * `@media (prefers-color-scheme: light)` for `[data-cf-scheme='auto']` — because a media query
+     * cannot share a rule with a plain selector. Two copies of forty-eight declarations is exactly
+     * the kind of duplication this estate keeps discovering has drifted, so it is asserted rather
+     * than trusted: every token in the file, on every substrate and every product.
+     */
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const forced = declaredTokens({ substrate, product, scheme: 'light' })
+        const auto = declaredTokens({ substrate, product, scheme: 'auto', prefersLight: true })
+        for (const token of allTokenNames()) {
+          assert.equal(
+            auto.get(token),
+            forced.get(token),
+            `${token} differs between scheme=light and scheme=auto under a light OS ` +
+              `[${substrate}, ${product ?? 'default'}]`,
+          )
+        }
+      }
+    }
+  })
+
+  it('lets an explicit choice beat the operating system in BOTH directions', () => {
+    for (const substrate of SUBSTRATES) {
+      const plainDark = declaredTokens({ substrate, product: null })
+      // A reader whose OS prefers light, on a surface that forces dark.
+      const forcedDark = declaredTokens({ substrate, product: null, scheme: 'dark', prefersLight: true })
+      // A reader whose OS prefers dark, on a surface that forces light.
+      const forcedLight = declaredTokens({ substrate, product: null, scheme: 'light', prefersLight: false })
+      const light = declaredTokens({ substrate, product: null, scheme: 'light' })
+      for (const token of allTokenNames()) {
+        assert.equal(forcedDark.get(token), plainDark.get(token), `${token}: scheme=dark did not win`)
+        assert.equal(forcedLight.get(token), light.get(token), `${token}: scheme=light did not win`)
+      }
+    }
+  })
+
+  it('leaves a surface that sets no attribute on exactly the palette it has always had', () => {
+    /*
+     * THE ASSERTION THAT MAKES THIS CHANGE SAFE FOR THE FIFTEEN FRONTENDS IT DOES NOT TOUCH.
+     *
+     * The light scheme is an opt-in. A surface that declares no `data-cf-scheme` must resolve to
+     * the same palette it did before it existed — including for a reader whose operating system
+     * prefers light, which is the case that a `:root`-is-light arrangement would have silently
+     * flipped. Every token, every substrate, every product.
+     */
+    for (const substrate of SUBSTRATES) {
+      for (const product of PRODUCTS) {
+        const absent = declaredTokens({ substrate, product })
+        const absentOnLightOs = declaredTokens({ substrate, product, prefersLight: true })
+        for (const token of allTokenNames()) {
+          assert.equal(
+            absentOnLightOs.get(token),
+            absent.get(token),
+            `${token} changed for a surface that sets no data-cf-scheme, on a light OS ` +
+              `[${substrate}, ${product ?? 'default'}]`,
+          )
+        }
       }
     }
   })

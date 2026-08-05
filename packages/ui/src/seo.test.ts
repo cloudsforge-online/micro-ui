@@ -1,0 +1,174 @@
+/**
+ * The SEO layer, asserted against the registry rather than against a fixture.
+ *
+ * The point of `seo.ts` is that no surface's title, description or robots directive is typed
+ * anywhere — all three are read off `surfaces.ts`. So the assertions here are mostly SHAPE
+ * assertions over EVERY surface at once, which is the only kind that keeps working when a
+ * seventeenth surface is added by somebody who never opens this file.
+ */
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { SURFACES, surface } from './surfaces.ts'
+import {
+  COMPANY_LINE,
+  HTML_LANG,
+  INDEXABLE_SURFACES,
+  canonicalHref,
+  descriptionFor,
+  metaTags,
+  normalisePath,
+  robotsDirective,
+  surfaceMeta,
+} from './seo.ts'
+
+describe('a canonical path', () => {
+  it('collapses the trailing slash that would otherwise split a page in two', () => {
+    assert.equal(normalisePath('/products/'), '/products')
+    assert.equal(normalisePath('/products'), '/products')
+    assert.equal(normalisePath('/'), '/')
+    assert.equal(normalisePath(''), '/')
+    // The root is the one path that KEEPS its slash: '' is not an address.
+    assert.equal(normalisePath('///'), '/')
+  })
+
+  it('accepts a path that forgot its leading slash rather than emitting a relative canonical', () => {
+    assert.equal(normalisePath('about'), '/about')
+  })
+})
+
+describe('every surface gets usable metadata', () => {
+  it('titles every surface with its registry name, and never doubles it', () => {
+    for (const s of SURFACES) {
+      assert.equal(surfaceMeta(s.key).title, s.name)
+      assert.equal(surfaceMeta(s.key, { title: 'Activity' }).title, `Activity — ${s.name}`)
+      // The front door is the case a naive suffix gets wrong: `metaFor('/')` on `site` would read
+      // "CloudsForge — CloudsForge".
+      assert.equal(surfaceMeta(s.key, { title: s.name }).title, s.name)
+    }
+  })
+
+  it('gives every surface a description long enough to be one', () => {
+    /*
+     * A registry blurb is one clause, because its real job is a line in a 264px menu. Search
+     * engines discard a description under about 50 characters and rewrite it from the page, which
+     * is the same as having none. This is the assertion that the composition in `descriptionFor`
+     * actually solves that, for every surface rather than for the ones somebody checked.
+     */
+    for (const s of SURFACES) {
+      const description = surfaceMeta(s.key).description
+      assert.ok(
+        description.length >= 50 && description.length <= 320,
+        `${s.key}: description is ${description.length} characters — "${description}"`,
+      )
+      assert.ok(description.includes(COMPANY_LINE), `${s.key}: description lost the company line`)
+      // One full stop after the blurb, never two: several blurbs already end in one.
+      assert.doesNotMatch(description, /\.\./, `${s.key}: doubled full stop — "${description}"`)
+    }
+  })
+
+  it('lets a page replace the description entirely, because a route knows more than a registry', () => {
+    const meta = surfaceMeta('hub', { description: 'Your balances, right now.' })
+    assert.equal(meta.description, 'Your balances, right now.')
+  })
+})
+
+describe('what a crawler is told', () => {
+  it('refuses to index anything that serves no page', () => {
+    for (const s of SURFACES) {
+      if (s.servesUi) continue
+      assert.equal(robotsDirective(s), 'noindex, nofollow', `${s.key} is servesUi:false`)
+    }
+    // And the set is not empty, or the loop above proves nothing.
+    assert.ok(SURFACES.some((s) => !s.servesUi), 'no servesUi:false surface in the registry')
+  })
+
+  it('refuses to index the operator consoles, by name', () => {
+    /*
+     * Named as well as swept. `admin`, `lantern` and `beacon` serve a real, well-formed page — a
+     * sign-in panel in front of an operator console — so the sweep above does not cover them and a
+     * naive "index anything that serves HTML" rule would publish all three to search. This is the
+     * single largest thing the estate's SEO position was missing, and it is worth failing loudly
+     * if the `adminOnly` branch is ever dropped.
+     */
+    for (const key of ['admin', 'lantern', 'beacon'] as const) {
+      const s = surface(key)
+      assert.equal(s.servesUi, true, `${key} no longer serves a page — this test needs rethinking`)
+      assert.equal(robotsDirective(s), 'noindex, nofollow', `${key} is indexable`)
+      assert.equal(surfaceMeta(key).robots, 'noindex, nofollow')
+    }
+  })
+
+  it('invites a crawler to the surfaces a person is meant to find', () => {
+    for (const key of ['site', 'hub', 'trade', 'market', 'status'] as const) {
+      assert.match(surfaceMeta(key).robots, /^index, follow/, `${key} is not indexable`)
+    }
+    assert.ok(INDEXABLE_SURFACES.length >= 10, `only ${INDEXABLE_SURFACES.length} indexable surfaces`)
+    assert.ok(
+      !INDEXABLE_SURFACES.some((s) => s.adminOnly === true || !s.servesUi),
+      'INDEXABLE_SURFACES contains an operator surface or one that serves nothing',
+    )
+  })
+})
+
+describe('the tags themselves', () => {
+  const meta = surfaceMeta('trade', { title: 'Markets', path: '/markets' })
+
+  it('makes every URL absolute against the origin it was served from, and names no host', () => {
+    const tags = metaTags(meta, 'https://trade.cloudsforge.online')
+    const url = tags.find((t) => t.key === 'og:url')
+    const image = tags.find((t) => t.key === 'og:image')
+    assert.equal(url?.content, 'https://trade.cloudsforge.online/markets')
+    assert.match(image?.content ?? '', /^https:\/\/trade\.cloudsforge\.online\//)
+    assert.equal(canonicalHref(meta, 'https://trade.cloudsforge.online'), 'https://trade.cloudsforge.online/markets')
+  })
+
+  it('emits relative URLs for an empty origin rather than inventing one', () => {
+    // The prerender and test case. A module that guessed a hostname here is a module that bakes an
+    // environment into an artefact, which is the one thing this estate's bundles may not do.
+    const tags = metaTags(meta, '')
+    assert.equal(tags.find((t) => t.key === 'og:url')?.content, '/markets')
+    assert.equal(canonicalHref(meta, ''), '/markets')
+  })
+
+  it('carries every tag a link preview actually reads', () => {
+    const keys = metaTags(meta, '').map((t) => t.key)
+    for (const required of [
+      'description',
+      'robots',
+      'og:type',
+      'og:site_name',
+      'og:title',
+      'og:description',
+      'og:url',
+      'og:image',
+      'twitter:card',
+      'twitter:title',
+      'twitter:description',
+    ]) {
+      assert.ok(keys.includes(required), `no ${required} tag`)
+    }
+    // Open Graph is `property`, Twitter and the standards are `name`. Getting that backwards is
+    // the classic silent failure: the tag is present, well-formed and ignored.
+    for (const tag of metaTags(meta, '')) {
+      const expected = tag.key.startsWith('og:') ? 'property' : 'name'
+      assert.equal(tag.kind, expected, `${tag.key} is a ${tag.kind}, should be a ${expected}`)
+    }
+  })
+
+  it('states the locale in the form Open Graph asks for, not the form the html attribute uses', () => {
+    // `og:locale` is `en_GB` with an underscore; `<html lang>` is `en-GB` with a hyphen. They are
+    // the same fact in two spellings and this is the one place both are produced.
+    assert.equal(HTML_LANG, 'en-GB')
+    assert.equal(metaTags(meta, '').find((t) => t.key === 'og:locale')?.content, 'en_GB')
+    assert.equal(meta.lang, 'en-GB')
+  })
+})
+
+describe('descriptionFor', () => {
+  it('does not add a second full stop to a blurb that already has one', () => {
+    assert.equal(
+      descriptionFor({ ...surface('hub'), blurb: 'Already a sentence.' }),
+      `Already a sentence. ${COMPANY_LINE}`,
+    )
+  })
+})

@@ -37,7 +37,7 @@
  */
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -185,8 +185,16 @@ describe('the committed build is the build of these sources', () => {
     buildError = `${stdout?.toString() ?? ''}${stderr?.toString() ?? ''}`.trim() || String(e)
   }
 
-  const compiled = buildError === '' ? readdirSync(out).sort() : []
-  const committed = readdirSync(DIST).sort()
+  // FILES only. `dist/fonts/` is a directory of woff2 the build copies alongside the stylesheets;
+  // including it here would make the set comparison below report a phantom emitted file, and
+  // filtering it BY NAME would mean a second directory added tomorrow silently escapes every
+  // assertion in this block. Directories are compared separately, below.
+  const files = (dir: string): string[] =>
+    readdirSync(dir)
+      .filter((f) => statSync(join(dir, f)).isFile())
+      .sort()
+  const compiled = buildError === '' ? files(out) : []
+  const committed = files(DIST)
 
   it('compiles at all — this is where CI runs the build', () => {
     assert.equal(buildError, '', `tsc -p tsconfig.build.json failed:\n${buildError}`)
@@ -215,11 +223,39 @@ describe('the committed build is the build of these sources', () => {
     )
   })
 
+  it('carries every typeface in src, byte for byte, and no other', () => {
+    /*
+     * The fonts are BYTES, not compiler output, and they reach a consumer the same way the
+     * stylesheets do: `dist/` is what every `exports` entry names and what every Dockerfile copies.
+     * A woff2 edited in `src/fonts` and not rebuilt is exactly the staleness this file exists to
+     * catch, and it is the one kind that would otherwise be invisible — a stale font does not fail
+     * to parse, it renders the previous design.
+     *
+     * Derived from what is IN src/fonts rather than from a list, so a fourth face is covered the
+     * day it is added instead of the day somebody remembers this file.
+     */
+    const wanted = files(join(SRC, 'fonts'))
+    assert.ok(wanted.length >= 2, `src/fonts holds ${wanted.length} files`)
+    assert.deepEqual(files(join(DIST, 'fonts')), wanted, 'dist/fonts differs from src/fonts — run pnpm build')
+    const drifted = wanted.filter(
+      (f) =>
+        !readFileSync(join(SRC, 'fonts', f)).equals(readFileSync(join(DIST, 'fonts', f))),
+    )
+    assert.deepEqual(drifted, [], 'a typeface in dist/ differs from src/ — run pnpm build')
+    // Every face the stylesheet asks for must be one of these files, or the page silently renders
+    // in the fallback and the whole self-hosting argument in tokens.css is decorative.
+    const css = readFileSync(join(SRC, 'tokens.css'), 'utf8')
+    const referenced = [...css.matchAll(/url\('\.\/fonts\/([^']+)'\)/g)].map((m) => m[1] ?? '')
+    assert.ok(referenced.length >= 2, `tokens.css references ${referenced.length} font files`)
+    const missing = referenced.filter((f) => !wanted.includes(f))
+    assert.deepEqual(missing, [], 'tokens.css @font-face names a file that is not in src/fonts')
+  })
+
   it('carries every stylesheet in src, byte for byte, and no other', () => {
     // The build script copies the stylesheets rather than compiling them, so they are compared
     // separately. Derived from what is IN src rather than from a list here, so a third stylesheet
     // is covered the day it is added instead of the day somebody remembers this file.
-    const wanted = readdirSync(SRC).filter((f) => f.endsWith('.css')).sort()
+    const wanted = files(SRC).filter((f) => f.endsWith('.css')).sort()
     assert.ok(wanted.length >= 2, `src has ${wanted.length} stylesheets`)
     assert.deepEqual(committed.filter((f) => f.endsWith('.css')), wanted)
     const drifted = wanted.filter(

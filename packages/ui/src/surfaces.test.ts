@@ -301,6 +301,26 @@ describe('the registry and the stylesheet agree', () => {
   // are exactly the failures a type checker cannot see.
   const TOKENS = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8')
 
+  it('every product declares a LIGHT accent as well as a dark one', () => {
+    /*
+     * The other half of the scheme fork, and the failure it prevents is the one this file already
+     * has a test for one scheme up: `[data-product='foresight']` matched nothing and the product
+     * silently wore the company ember.
+     *
+     * `--cf-accent-light` has a fallback in the light block (`var(--cf-accent-light,
+     * var(--cf-ember-light))`), which is exactly the kind of silent fallthrough that produces a
+     * product wearing the wrong colour and looking fine. The fallback exists so a page with no
+     * product attribute still resolves; it must never be what a declared product lands on.
+     */
+    for (const p of PRODUCTS) {
+      const block = new RegExp(
+        `\\[data-cf-product=['"]${p.key}['"]\\][^{]*\\{[^}]*--cf-accent-light:\\s*#[0-9a-f]{6}`,
+        'i',
+      )
+      assert.match(TOKENS, block, `${p.key}'s rule declares no --cf-accent-light`)
+    }
+  })
+
   it('every product has an accent rule, spelled data-cf-product', () => {
     // Foresight was added as `[data-product='foresight']` — missing the `cf-` prefix every other
     // product carries. The rule matched nothing, so the accent silently fell back to the company
@@ -322,12 +342,21 @@ describe('the registry and the stylesheet agree', () => {
   it('every product accent rule declares the hue the registry records', () => {
     // The rule existing is not enough — it has to carry the same value, or the registry and the
     // stylesheet disagree about what colour a product is.
+    //
+    // The token is `--cf-accent-dark`, not `--cf-accent`, since the scheme fork: the product
+    // blocks declare the RAW per-scheme values and the public `--cf-accent` is mapped onto
+    // whichever scheme applies, once, after every product block. The registry's `accent` field is
+    // the DARK one — it is the value the switcher, the marks and every chart were validated with —
+    // so this is still the same assertion about the same colour, spelled at the name that now
+    // carries it. A test left matching `--cf-accent:` would have gone green again the moment
+    // somebody added an unrelated `--cf-accent:` line to the file, which is why it is anchored to
+    // the exact token rather than loosened.
     for (const p of PRODUCTS) {
       const block = new RegExp(
-        `\\[data-cf-product=['"]${p.key}['"]\\][^{]*\\{[^}]*--cf-accent:\\s*${p.accent}`,
+        `\\[data-cf-product=['"]${p.key}['"]\\][^{]*\\{[^}]*--cf-accent-dark:\\s*${p.accent}`,
         'i',
       )
-      assert.match(TOKENS, block, `${p.key}'s rule does not set --cf-accent: ${p.accent}`)
+      assert.match(TOKENS, block, `${p.key}'s rule does not set --cf-accent-dark: ${p.accent}`)
     }
   })
 

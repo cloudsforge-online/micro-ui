@@ -10,21 +10,153 @@
  * colliding with that app's own tokens (Tailwind @theme, etc.).
  *
  * Three layers, and an app should only ever touch the third:
- *   1. the SUBSTRATE — the raw ash/bone ramps, tintable per product
- *      (see `data-cf-substrate` below);
- *   2. the ACCENT — one hue per product (see `data-cf-product` below);
+ *   1. the SUBSTRATE — the raw ash/bone ramps (dark) and kiln/char ramps
+ *      (light), tintable per product (see `data-cf-substrate` below);
+ *   2. the ACCENT — one hue per product, per scheme (see `data-cf-product`
+ *      and `data-cf-scheme` below);
  *   3. the SEMANTIC layer — --cf-bg/--cf-fg/--cf-line/--cf-accent, derived
  *      from the two above. This is what stylesheets reference.
  *
- * The substrate, type scale, space scale, radii, shadows and motion are
- * carried forward from @cloudsforge/ui 0.6 unchanged. The accents are not:
- * see "Per-product accents" below.
+ * THREE ATTRIBUTES ON <html>, ALL OPTIONAL, ALL SET STATICALLY:
+ *
+ *     data-cf-product    which accent          (default: company ember)
+ *     data-cf-substrate  warm | cool           (default: warm)
+ *     data-cf-scheme     auto | light | dark   (default: dark)
+ *
+ * ── WHAT CHANGED IN 1.1, AND WHAT DID NOT ─────────────────────────────
+ *
+ * KEPT, because it was argued rather than defaulted: the ember identity
+ * and its three sanctioned uses; the six CVD-validated product accents and
+ * their switcher order; the ash/bone substrates and the `cool` quench; the
+ * `--cf-accent` / `--cf-accent-text` split and every derivation behind it;
+ * the space scale; the motion tokens.
+ *
+ * REPLACED: the typefaces, which were NAMED AND NEVER LOADED (Inter,
+ * JetBrains Mono) — see the block below. The type scale, which put body
+ * copy at 13px. The duplicated severity set, which shipped two greens
+ * meaning one thing.
+ *
+ * ADDED: a light scheme at token level, so the theme is a property of the
+ * design system rather than of whichever surface got round to writing one;
+ * a severity scale with text-safe steps; and the SEO, consent and skip-link
+ * primitives that live beside this file in seo.ts, consent.ts and index.tsx.
  *
  * Specification: docs/ecosystem/assets/design-system.md and
  * docs/ecosystem/assets/chart-palette.md. Every colour value in this file was
- * produced by the palette validator against the real panel surface #141110,
- * not chosen by eye.
+ * produced by the palette validator or by the derivations recorded beside it,
+ * not chosen by eye — and `src/contrast.test.ts` re-measures every one of them
+ * on every substrate, every scheme and every product accent on each run.
  * ------------------------------------------------------------------ */
+
+/* ================================================================== *
+ * THE TYPEFACES, SELF-HOSTED
+ *
+ * Three faces, three jobs, no fourth. All three are SIL OFL 1.1 and all
+ * three ship as bytes in this package (src/fonts, copied to dist/fonts by
+ * `pnpm build`). See src/fonts/NOTICE.md for versions, sources and the
+ * licence text.
+ *
+ * ── WHY THEY ARE HOSTED HERE AND NOT LINKED ───────────────────────────
+ *
+ * A <link> to a font CDN is a third-party request on every page of a
+ * platform that custodies other people's money: it leaks the reader's IP
+ * and Referer to a party they never consented to, which is the same
+ * GDPR problem as the analytics tag (see consent.ts), and a German court
+ * has already found exactly that against Google Fonts. It is also a
+ * single point of failure that fails SILENTLY — the page renders in the
+ * fallback and nobody notices for a month.
+ *
+ * A data: URI is the other tempting shortcut and is worse: it cannot be
+ * cached across pages, it inflates the stylesheet every surface loads
+ * first, and it blocks first paint on bytes no reader needs yet.
+ *
+ * ── WHY THESE THREE ───────────────────────────────────────────────────
+ *
+ * The system used to name 'Inter' and 'JetBrains Mono' and LOAD NEITHER,
+ * so every surface in the estate has been rendering in the reader's
+ * system UI face while a stylesheet claimed otherwise. `--cf-font-display`
+ * already named 'Bricolage Grotesque' — a decision that was taken and
+ * never carried out. It is kept and made real rather than re-litigated.
+ *
+ *   DISPLAY  Bricolage Grotesque. A grotesque with an OPTICAL SIZE axis,
+ *            so a 44px page title and a 16px eyebrow are drawn as two
+ *            different shapes rather than one shape at two sizes. Its
+ *            width axis lets a headline set tight without a second file.
+ *   BODY     Archivo. The same grotesque skeleton at a lower temperature:
+ *            tall x-height, closed apertures, and numerals that hold their
+ *            width — which is what a screen made mostly of dense operator
+ *            tables needs. It replaces Inter.
+ *   DATA     Spline Sans Mono. Disambiguated 0/O and 1/l/I, which matters
+ *            when the string on screen is an address somebody is about to
+ *            send money to. It replaces JetBrains Mono.
+ *
+ * Each is ONE variable file per unicode range, so the whole system costs
+ * two requests for body copy and nothing at all for the display face until
+ * a rule actually asks for it (@font-face is lazy — a dashboard that sets
+ * no display type never downloads Bricolage).
+ * ================================================================== */
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('./fonts/bricolage-grotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('./fonts/bricolage-grotesque-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/spline-sans-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/spline-sans-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
 
 :root {
   /* --- Company chrome, never a product accent ---------------------- *
@@ -32,11 +164,31 @@
    * top seam and Forge Hub. Hub is the container the user is already inside,
    * so it never has to be told apart from anything in a list.
    * ----------------------------------------------------------------- */
-  --cf-ember: #e8622c;
-  --cf-ember-hover: #ff7b41;
-  --cf-ember-ink: #1a0f08; /* readable text laid on top of ember fills */
-  --cf-ember-text: #f4672f; /* ember SET AS TEXT — see "Accent as text" below */
-  --cf-ember-glow: rgba(232, 98, 44, 0.28);
+  --cf-ember-dark: #e8622c;
+  --cf-ember-hover-dark: #ff7b41;
+  --cf-ember-ink-dark: #1a0f08; /* readable text laid on top of ember fills */
+  --cf-ember-text-dark: #f4672f; /* ember SET AS TEXT — see "Accent as text" below */
+  --cf-ember-glow-dark: rgba(232, 98, 44, 0.28);
+
+  /* The public names, mapped onto the dark family. They are what every
+     stylesheet references; the `-dark` and `-light` raws exist so that the
+     light scheme can remap them and `.cf-dark` can map them BACK, which is
+     the whole mechanism that keeps the bar company-coloured on a light page. */
+  --cf-ember: var(--cf-ember-dark);
+  --cf-ember-hover: var(--cf-ember-hover-dark);
+  --cf-ember-ink: var(--cf-ember-ink-dark);
+  --cf-ember-text: var(--cf-ember-text-dark);
+  --cf-ember-glow: var(--cf-ember-glow-dark);
+
+  /* Ember on a light ground. #e8622c measures 3.22:1 on the light panel —
+     under the text floor and only just over the mark floor — so the
+     company colour forks by SCHEME exactly as the product accents do
+     below. Derived in linear light from #e8622c, so the hue is the same
+     ember one step down rather than a second orange. */
+  --cf-ember-light: #913a18; /* 5.49:1 on the tightest light ground */
+  --cf-ember-hover-light: #732c11; /* 7.38:1 */
+  --cf-ember-ink-light: #fdfbf7; /* 7.20:1 on the fill above */
+  --cf-ember-glow-light: rgba(145, 58, 24, 0.22);
 
   /* --- Radius ------------------------------------------------------- */
   --cf-radius-sm: 4px;
@@ -55,30 +207,80 @@
   /* --- Layout metrics ---------------------------------------------- *
    * Fixed chrome dimensions, deliberately in px: they are hairlines and
    * rails, not text, and must not grow with the root font size.
+   *
+   * --cf-bar-h moved 46px -> 54px WITH the type scale below, not
+   * independently. The bar's controls are set in --cf-text-sm, which grew
+   * from 11.8px to 14px; a rail sized for the old number would have
+   * clipped the new one on every surface in the estate at once.
    * ------------------------------------------------------------------ */
   --cf-max-w: 1200px;
-  --cf-bar-h: 46px;
+  --cf-bar-h: 54px;
+  /* The one-column reading measure. 68ch of Archivo at --cf-text-lg is
+     roughly 72 characters, which is the band prose stops being scanned
+     and starts being read. Named here because four surfaces had each
+     picked their own number. */
+  --cf-measure: 68ch;
 
-  /* --- Typography (system-safe stacks; no font loading required) ---- */
-  --cf-font-sans: 'Inter', system-ui, ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --cf-font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  /* --- Typography --------------------------------------------------- *
+   * Three families, three jobs. The @font-face blocks at the head of this
+   * file are what make them real; the fallbacks after each are what a
+   * reader sees for the ~30ms before the woff2 lands, and are ordered so
+   * that fallback has approximately the right proportions rather than
+   * approximately the right vibe.
+   * ------------------------------------------------------------------ */
+  --cf-font-display: 'Bricolage Grotesque', 'Archivo', system-ui, ui-sans-serif, sans-serif;
+  --cf-font-sans: 'Archivo', system-ui, ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cf-font-mono: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 
   /* --- Type scale --------------------------------------------------- *
-   * A ~1.1 ratio through the UI range, widening into the display sizes
-   * where the jumps need to read as jumps. In rem, so a reader who raises
-   * their browser's base size gets larger text everywhere. Comments are
-   * the computed px at the 16px default — read them as a sanity check,
+   * ══════════════════════════════════════════════════════════════════
+   * THE SCALE WAS REBUILT AROUND A 16px BODY. THE OLD ONE WAS NOT.
+   *
+   * `--cf-text-md` was 0.82rem — 13.1px — and it is the token behind menu
+   * items, table cells, form inputs, footer links and the note paragraph:
+   * that is to say, behind most of the words in the estate. `--cf-text-lg`
+   * was 14.7px and was commented "body". Both are below the 16px that
+   * browsers default to and that every reading-comfort guideline lands on,
+   * and the effect compounds with the two smallest steps: 9.9px and 10.9px
+   * are sizes at which a low-vision reader is not reading, they are
+   * guessing.
+   *
+   * WCAG has no minimum font size, which is exactly why this is a design
+   * decision that has to be made rather than a rule that can be complied
+   * with. It is made here: 1rem is body, nothing in the system is set
+   * below 0.6875rem, and the two smallest steps are reserved for the
+   * uppercase mono eyebrows where the letterforms are 30% larger than
+   * their nominal size.
+   *
+   * The ratio is ~1.125 through the UI range — small enough that adjacent
+   * steps read as the same voice — and widens to ~1.3 across the display
+   * sizes, where a jump has to read as a jump. In rem throughout, so a
+   * reader who raises their browser's base size gets larger text
+   * everywhere rather than in the half of the system somebody remembered.
+   * The px comments are the computed size at a 16px root: a sanity check,
    * not a promise.
+   * ══════════════════════════════════════════════════════════════════ */
+  --cf-text-2xs: 0.6875rem; /* 11px — uppercase mono eyebrows, avatar initials */
+  --cf-text-xs: 0.8125rem; /*  13px — the secondary line under a menu item */
+  --cf-text-sm: 0.875rem; /*   14px — buttons, handles, mono chrome */
+  --cf-text-md: 1rem; /*        16px — BODY. menu items, cells, inputs, links */
+  --cf-text-lg: 1.125rem; /*    18px — long-form body, the wordmark */
+  --cf-text-xl: 1.3125rem; /*   21px — section headings */
+  --cf-text-2xl: 1.5rem; /*     24px */
+  --cf-text-3xl: 2rem; /*       32px — stat-tile values */
+  --cf-text-4xl: 2.75rem; /*    44px — page titles */
+  --cf-text-5xl: 3.75rem; /*    60px — the editorial size. `site` only. */
+
+  /* --- Leading and tracking ---------------------------------------- *
+   * Named because they were being typed. `line-height: 1.4` appeared in
+   * one rule, `1.55` in another and `1.15` in a third, all meaning "the
+   * tight one", "the reading one" and "the heading one".
    * ------------------------------------------------------------------ */
-  --cf-text-2xs: 0.62rem; /* 9.92px  — avatar initials, eyebrow labels */
-  --cf-text-xs: 0.68rem; /*  10.88px — secondary line under a menu item */
-  --cf-text-sm: 0.74rem; /*  11.84px — buttons, handles, mono chrome */
-  --cf-text-md: 0.82rem; /*  13.12px — menu items, dense body */
-  --cf-text-lg: 0.92rem; /*  14.72px — the wordmark, body */
-  --cf-text-xl: 1.05rem; /*  16.8px */
-  --cf-text-2xl: 1.25rem; /* 20px */
-  --cf-text-3xl: 1.6rem; /*  25.6px */
-  --cf-text-4xl: 2.1rem; /*  33.6px */
+  --cf-leading-tight: 1.15; /* display type and single-line controls */
+  --cf-leading-snug: 1.35; /*  dense UI: menu items, table cells */
+  --cf-leading: 1.6; /*        prose */
+  --cf-tracking-tight: -0.015em; /* display sizes, which set loose by default */
+  --cf-tracking-wide: 0.16em; /*   the uppercase mono eyebrow */
 
   /* --- Spacing scale ------------------------------------------------ *
    * Every gap, pad and inset in the system. Also rem: padding around text
@@ -100,18 +302,93 @@
   --cf-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
   --cf-speed: 160ms;
 
-  /* --- Status, chrome ----------------------------------------------- *
-   * Sage stays as it is. It is doing brand work in the bar, and it never
-   * sits beside amber there. The CHART green is a step greener
-   * (--cf-viz-good) because in a chart the two do sit side by side, and at
-   * #93a97c the good-to-warning pair measures normal-vision dE 14.9, under
-   * the floor of 15.
-   * ------------------------------------------------------------------ */
-  --cf-success: #93a97c;
+  /* --- SEVERITY: a scale, and NOT the accent ------------------------ *
+   * ══════════════════════════════════════════════════════════════════
+   * This platform shows balances, service health and dispute states. "Is
+   * this good, is this a warning, is this on fire" is a DIFFERENT question
+   * from "which product am I on", and answering both with one colour
+   * channel is how a reader ends up reading Lantern's amber chrome as a
+   * warning. So severity has its own tokens, its own text steps and its
+   * own rules, and no product accent is ever one of them.
+   *
+   * ── THE DUPLICATE THAT WAS COLLAPSED ──────────────────────────────
+   *
+   * There were TWO severity sets in this file and they disagreed:
+   *
+   *     --cf-success  #93a97c        --cf-viz-good  #7fae5c
+   *     --cf-warn     #f4a63c        --cf-viz-warn  #f4a63c
+   *     --cf-danger   #d2543a        --cf-viz-crit  #d2543a
+   *
+   * The first was documented as "sage stays as it is … it never sits
+   * beside amber" — true of the bar, and false of every consumer, because
+   * `--cf-success` and `--cf-warn` are in the same stylesheets in the same
+   * tables. Two greens meaning one thing is not a nuance, it is a bug
+   * nobody has been able to see because the tokens are declared 200 lines
+   * apart. One set now, and the chart roles below alias it.
+   *
+   * ── EACH LEVEL HAS A TEXT STEP, FOR THE REASON --cf-accent-text DOES ─
+   *
+   * `--cf-critical` is #d2543a and measures 3.38:1 on the tightest ground
+   * this system composes text on. Two surfaces set `color:` in it —
+   * `worlds-web/src/styles.css:238,619,824,934` and
+   * `market-web/src/styles.css:824` — so the word "failed", on the two
+   * screens where it matters most, has been below the AA floor since it
+   * shipped. This is the same defect `--cf-accent-text` was invented for,
+   * one token family over, and it gets the same fix: a step derived from
+   * the same colour in LINEAR LIGHT (chromaticity preserved) until it
+   * clears 4.5:1 on that ground.
+   *
+   * `--cf-danger` and `--cf-success` survive as ALIASES so nothing in the
+   * estate breaks, and they alias the TEXT steps deliberately: every
+   * existing use of `--cf-danger` as `color:` becomes AA-compliant without
+   * either of those repositories being touched, and every existing use of
+   * it as a border keeps clearing the 3:1 non-text floor it needs.
+   *
+   * ── COLOUR IS NEVER THE ONLY CHANNEL ──────────────────────────────
+   *
+   * `.cf-status` in ui.css ships glyph + word + colour for all three. This
+   * rule was already stated for the chart roles; it applies here for the
+   * same reason and is now enforceable, because there is a primitive to
+   * enforce it in.
+   * ══════════════════════════════════════════════════════════════════ */
+  --cf-good: #7fae5c;
+  --cf-good-text: #7fae5c; /* 5.41:1 on the tightest ground — clears unaided */
+  --cf-good-ink: #0e1608; /* text laid ON a good fill */
   --cf-warn: #f4a63c;
-  --cf-danger: #d2543a;
+  --cf-warn-text: #f4a63c; /* 6.91:1 — clears unaided */
+  --cf-warn-ink: #1c1204;
+  --cf-critical: #d2543a;
+  --cf-critical-text: #f86546; /* 4.63:1 — #d2543a is 3.38:1, the defect above */
+  --cf-critical-ink: #1a0603;
 
-  --cf-font-display: 'Bricolage Grotesque', 'Oswald', var(--cf-font-sans);
+  /* The washes and edges the status pill is drawn from. Derived, so a
+     retuned severity colour retunes its own pill.
+   *
+   * THE WASH MIXES INTO THE PANEL, NOT INTO TRANSPARENCY, AND THAT IS THE
+   * FIX FOR A REAL FAILURE. Written the obvious way — the level at 12%
+   * over `transparent` — the pill's ground is the level composited over
+   * whatever is behind it, which on a light page DARKENS as the level gets
+   * deeper. The text is that same level. So the two move together and the
+   * pair closes on itself: `contrast.test.ts` measured
+   * `.cf-status--good` at 4.03:1 and `.cf-status--critical` at 3.71:1 on a
+   * light page, and no amount of darkening the text would have fixed it,
+   * because darkening the text darkened the ground with it.
+   *
+   * Mixed into --cf-bg-raised the ground is a TINT of the panel: it moves
+   * with the scheme, it stays on the panel's side of the ramp, and it does
+   * not chase the ink. The edge stays an alpha, because a border is never
+   * measured against anything and an alpha edge sits correctly on whatever
+   * the pill happens to be laid on. */
+  --cf-good-wash: color-mix(in srgb, var(--cf-good) 12%, var(--cf-bg-raised));
+  --cf-good-edge: color-mix(in srgb, var(--cf-good) 45%, transparent);
+  --cf-warn-wash: color-mix(in srgb, var(--cf-warn) 12%, var(--cf-bg-raised));
+  --cf-warn-edge: color-mix(in srgb, var(--cf-warn) 45%, transparent);
+  --cf-critical-wash: color-mix(in srgb, var(--cf-critical) 12%, var(--cf-bg-raised));
+  --cf-critical-edge: color-mix(in srgb, var(--cf-critical) 45%, transparent);
+
+  /* The names the estate already uses. Kept, pointed at the text steps. */
+  --cf-success: var(--cf-good-text);
+  --cf-danger: var(--cf-critical-text);
 }
 
 /* --- The substrate ------------------------------------------------- *
@@ -134,6 +411,29 @@
   --cf-bone: #ece5d6;
   --cf-bone-dim: #b7ae9b;
   --cf-khaki: #8e866f;
+
+  /* --- The light counterpart: KILN and CHAR --------------------------
+   * The same substrate seen the other way up — the inside of a kiln
+   * rather than the ash outside it. It is a THIRD ramp rather than an
+   * inversion of the two above, because inverting a ramp is what produces
+   * the grey-on-grey light mode every dark-first system ships: the darks
+   * carry almost no chroma (by design — a chromatic near-black is mud),
+   * so flipping them yields a neutral white and the theme reads as
+   * defaulted.
+   *
+   * These are measured, not picked. Every step carries a deliberate hue
+   * bias toward the accent: the warm page #f3ece1 is 33 degrees, the
+   * warm ink #191411 is 22, and the cool ramp is the same construction
+   * pulled to blue-grey. `contrast.test.ts` holds every pair drawn from
+   * them to the same 4.5:1 floor the dark ramp is held to, and to the
+   * same >= 10 L* separation between the three text steps.
+   * ------------------------------------------------------------------ */
+  --cf-kiln-50: #fbf7f0; /* raised: the panel, LIGHTER than the page */
+  --cf-kiln-100: #f3ece1; /* the page */
+  --cf-kiln-200: #e6dccd; /* sunken: wells and inputs */
+  --cf-char: #191411;
+  --cf-char-dim: #4a4137;
+  --cf-char-mute: #695e51;
 }
 
 /* --- Substrate overrides ------------------------------------------- *
@@ -218,6 +518,19 @@
   --cf-bone: #dfe6e4;
   --cf-bone-dim: #abbcbd;
   --cf-khaki: #7d9399;
+
+  /* The quenched kiln. Same construction as the warm ramp above, pulled
+     to blue-grey — and note the light PANEL #f7fafa is the lightest
+     surface anywhere in this system, which makes it the ground every
+     light-scheme colour below is derived against. Anchoring on the warm
+     one would repeat the exact mistake recorded beside --cf-accent-text:
+     a colour validated on one ground and used on another. */
+  --cf-kiln-50: #f7fafa;
+  --cf-kiln-100: #e9edee;
+  --cf-kiln-200: #dbe2e3;
+  --cf-char: #10171a;
+  --cf-char-dim: #3c474b;
+  --cf-char-mute: #576469;
 }
 
 /* --- Semantic layer ------------------------------------------------ *
@@ -435,13 +748,18 @@
  * ------------------------------------------------------------------- */
 
 /* The accent every product overrides. Defaults to the company ember, so a
-   surface that declares nothing still looks like CloudsForge. */
+   surface that declares nothing still looks like CloudsForge.
+
+   These are the RAW per-scheme values. The public `--cf-accent*` names are
+   mapped onto them below, after the product blocks — they have to be, because
+   a mapping declared here would be overridden by a product's own raws rather
+   than reading them. */
 :root {
-  --cf-accent: var(--cf-ember);
-  --cf-accent-hover: var(--cf-ember-hover);
-  --cf-accent-ink: var(--cf-ember-ink);
-  --cf-accent-text: var(--cf-ember-text);
-  --cf-accent-glow: var(--cf-ember-glow);
+  --cf-accent-dark: var(--cf-ember-dark);
+  --cf-accent-hover-dark: var(--cf-ember-hover-dark);
+  --cf-accent-ink-dark: var(--cf-ember-ink-dark);
+  --cf-accent-text-dark: var(--cf-ember-text-dark);
+  --cf-accent-glow-dark: var(--cf-ember-glow-dark);
 }
 
 /* --- Per-product accents ------------------------------------------- *
@@ -496,11 +814,13 @@
 /* Slot 1 — Forge Foresight — signal blue. The empty region of the palette:
  * the others are red, teal, gold, purple and green. */
 [data-cf-product='foresight'] {
-  --cf-accent: #1e89c7;
-  --cf-accent-hover: #3fa0d8;
-  --cf-accent-ink: #04121b;
-  --cf-accent-text: #239be0; /* 4.56:1 — #1e89c7 is 3.64:1, the reported defect */
-  --cf-accent-glow: rgb(30 137 199 / 28%);
+  --cf-accent-dark: #1e89c7;
+  --cf-accent-hover-dark: #3fa0d8;
+  --cf-accent-ink-dark: #04121b;
+  --cf-accent-text-dark: #239be0; /* 4.56:1 — #1e89c7 is 3.64:1, the reported defect */
+  --cf-accent-glow-dark: rgb(30 137 199 / 28%);
+  --cf-accent-light: #146595; /* 4.66:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #0d4f76; /* 6.46:1 */
 }
 
 /* Slot 2 — Forge Network — molten.
@@ -518,58 +838,73 @@
  * on it. There is exactly one accent fill carrying type in this package, and
  * it is the one that was wrong. */
 [data-cf-product='network'] {
-  --cf-accent: #d6412f;
-  --cf-accent-hover: #ef5a45;
-  --cf-accent-ink: #0a0202;
-  --cf-accent-text: #ff5b43; /* 4.55:1 — #d6412f is 3.11:1, the worst in the set */
-  --cf-accent-glow: rgba(214, 65, 47, 0.26);
+  --cf-accent-dark: #d6412f;
+  --cf-accent-hover-dark: #ef5a45;
+  --cf-accent-ink-dark: #0a0202;
+  --cf-accent-text-dark: #ff5b43; /* 4.55:1 — #d6412f is 3.11:1, the worst in the set */
+  --cf-accent-glow-dark: rgba(214, 65, 47, 0.26);
+  --cf-accent-light: #8e281c; /* 6.27:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #701e14; /* 8.22:1 */
 }
 
 /* Slot 3 — Forge Trade — quench */
 [data-cf-product='trade'] {
-  --cf-accent: #2a9e93;
-  --cf-accent-hover: #3fc8bb;
-  --cf-accent-ink: #04201d;
-  --cf-accent-text: #2ca398; /* 4.53:1 — #2a9e93 is 4.28:1 */
-  --cf-accent-glow: rgba(42, 158, 147, 0.26);
+  --cf-accent-dark: #2a9e93;
+  --cf-accent-hover-dark: #3fc8bb;
+  --cf-accent-ink-dark: #04201d;
+  --cf-accent-text-dark: #2ca398; /* 4.53:1 — #2a9e93 is 4.28:1 */
+  --cf-accent-glow-dark: rgba(42, 158, 147, 0.26);
+  --cf-accent-light: #18655e; /* 5.06:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #114f49; /* 6.92:1 */
 }
 
 /* Slot 4 — Forge Create — brass */
 [data-cf-product='create'] {
-  --cf-accent: #b28e1e;
-  --cf-accent-hover: #d4ad35;
-  --cf-accent-ink: #1a1404;
-  --cf-accent-text: var(--cf-accent); /* #b28e1e already clears, at 4.52:1 */
-  --cf-accent-glow: rgba(178, 142, 30, 0.26);
+  --cf-accent-dark: #b28e1e;
+  --cf-accent-hover-dark: #d4ad35;
+  --cf-accent-ink-dark: #1a1404;
+  --cf-accent-text-dark: var(--cf-accent-dark); /* #b28e1e already clears, at 4.52:1 */
+  --cf-accent-glow-dark: rgba(178, 142, 30, 0.26);
+  --cf-accent-light: #513f08; /* 7.50:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #3f3005; /* 9.46:1 */
 }
 
 /* Slot 5 — Forge Market — amethyst */
 [data-cf-product='market'] {
-  --cf-accent: #9b7bf0;
-  --cf-accent-hover: #b79cff;
-  --cf-accent-ink: #120a26;
-  --cf-accent-text: #9f7ef6; /* 4.53:1 — #9b7bf0 is 4.32:1 */
-  --cf-accent-glow: rgba(155, 123, 240, 0.26);
+  --cf-accent-dark: #9b7bf0;
+  --cf-accent-hover-dark: #b79cff;
+  --cf-accent-ink-dark: #120a26;
+  --cf-accent-text-dark: #9f7ef6; /* 4.53:1 — #9b7bf0 is 4.32:1 */
+  --cf-accent-glow-dark: rgba(155, 123, 240, 0.26);
+  --cf-accent-light: #4d3b7a; /* 6.97:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #3c2d60; /* 8.92:1 */
 }
 
 /* Slot 6 — Forge Worlds — moss */
 [data-cf-product='worlds'] {
-  --cf-accent: #6d9a49;
-  --cf-accent-hover: #88b862;
-  --cf-accent-ink: #0d160a;
-  --cf-accent-text: #71a04c; /* 4.56:1 — #6d9a49 is 4.25:1 */
-  --cf-accent-glow: rgba(109, 154, 73, 0.26);
+  --cf-accent-dark: #6d9a49;
+  --cf-accent-hover-dark: #88b862;
+  --cf-accent-ink-dark: #0d160a;
+  --cf-accent-text-dark: #71a04c; /* 4.56:1 — #6d9a49 is 4.25:1 */
+  --cf-accent-glow-dark: rgba(109, 154, 73, 0.26);
+  --cf-accent-light: #3f5b29; /* 5.65:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #30471e; /* 7.57:1 */
 }
 
 /* The container and the front door both wear the company colour. Neither is
    a switcher entry, so neither has to be told apart from a product. */
 [data-cf-product='hub'],
 [data-cf-product='site'] {
-  --cf-accent: var(--cf-ember);
-  --cf-accent-hover: var(--cf-ember-hover);
-  --cf-accent-ink: var(--cf-ember-ink);
-  --cf-accent-text: var(--cf-ember-text);
-  --cf-accent-glow: var(--cf-ember-glow);
+  --cf-accent-dark: var(--cf-ember-dark);
+  --cf-accent-hover-dark: var(--cf-ember-hover-dark);
+  --cf-accent-ink-dark: var(--cf-ember-ink-dark);
+  --cf-accent-text-dark: var(--cf-ember-text-dark);
+  --cf-accent-glow-dark: var(--cf-ember-glow-dark);
+  /* Stated rather than left to the fallback in the light block, on the same
+     rule the note below states for the non-product surfaces: a silent
+     fallthrough is a latent bug even when it lands on the right colour. */
+  --cf-accent-light: var(--cf-ember-light);
+  --cf-accent-hover-light: var(--cf-ember-hover-light);
 }
 
 /* --- Non-product surfaces ------------------------------------------ *
@@ -583,22 +918,26 @@
 
 /* Operator console — clay */
 [data-cf-product='admin'] {
-  --cf-accent: #c2704f;
-  --cf-accent-hover: #db8a68;
-  --cf-accent-ink: #190c06;
-  --cf-accent-text: #d57b57; /* 4.53:1 — #c2704f is 3.82:1 */
-  --cf-accent-glow: rgba(194, 112, 79, 0.26);
+  --cf-accent-dark: #c2704f;
+  --cf-accent-hover-dark: #db8a68;
+  --cf-accent-ink-dark: #190c06;
+  --cf-accent-text-dark: #d57b57; /* 4.53:1 — #c2704f is 3.82:1 */
+  --cf-accent-glow-dark: rgba(194, 112, 79, 0.26);
+  --cf-accent-light: #7b452f; /* 5.66:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #613523; /* 7.58:1 */
 }
 
 /* Logs and errors — amber. Note that Lantern's own UI forces ember for its
    chrome, because amber is also its WARN severity and a surface must not
    wear the colour of one of the states it reports. */
 [data-cf-product='lantern'] {
-  --cf-accent: #f4a63c;
-  --cf-accent-hover: #ffc061;
-  --cf-accent-ink: #1c1204;
-  --cf-accent-text: var(--cf-accent); /* #f4a63c already clears, at 6.91:1 */
-  --cf-accent-glow: rgba(244, 166, 60, 0.26);
+  --cf-accent-dark: #f4a63c;
+  --cf-accent-hover-dark: #ffc061;
+  --cf-accent-ink-dark: #1c1204;
+  --cf-accent-text-dark: var(--cf-accent-dark); /* #f4a63c already clears, at 6.91:1 */
+  --cf-accent-glow-dark: rgba(244, 166, 60, 0.26);
+  --cf-accent-light: #674313; /* 6.48:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #51330d; /* 8.46:1 */
 }
 
 /* Status and uptime — signal. Deliberately the chart `good` step: for a
@@ -606,20 +945,322 @@
    verdict is correct rather than confusing. */
 [data-cf-product='beacon'],
 [data-cf-product='status'] {
-  --cf-accent: #7fae5c;
-  --cf-accent-hover: #9bc978;
-  --cf-accent-ink: #0e1608;
-  --cf-accent-text: var(--cf-accent); /* #7fae5c already clears, at 5.41:1 */
-  --cf-accent-glow: rgba(127, 174, 92, 0.26);
+  --cf-accent-dark: #7fae5c;
+  --cf-accent-hover-dark: #9bc978;
+  --cf-accent-ink-dark: #0e1608;
+  --cf-accent-text-dark: var(--cf-accent-dark); /* #7fae5c already clears, at 5.41:1 */
+  --cf-accent-glow-dark: rgba(127, 174, 92, 0.26);
+  --cf-accent-light: #3d572b; /* 5.96:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #2f4420; /* 7.87:1 */
 }
 
 /* Developer platform — azure. Reached from the footer, not the switcher. */
 [data-cf-product='developers'] {
-  --cf-accent: #4a86e0;
-  --cf-accent-hover: #6ba1f0;
-  --cf-accent-ink: #060f1f;
-  --cf-accent-text: #5293f4; /* 4.56:1 — #4a86e0 is 3.85:1 */
-  --cf-accent-glow: rgba(74, 134, 224, 0.26);
+  --cf-accent-dark: #4a86e0;
+  --cf-accent-hover-dark: #6ba1f0;
+  --cf-accent-ink-dark: #060f1f;
+  --cf-accent-text-dark: #5293f4; /* 4.56:1 — #4a86e0 is 3.85:1 */
+  --cf-accent-glow-dark: rgba(74, 134, 224, 0.26);
+  --cf-accent-light: #2e5895; /* 5.26:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #224476; /* 7.18:1 */
+}
+
+/* --- The public accent names --------------------------------------- *
+ * Declared once, AFTER every product block, so `var(--cf-accent-dark)`
+ * reads whichever product is mounted. Nothing outside this file should
+ * reference the `-dark` or `-light` raws; they exist so that a scheme can
+ * be swapped without a per-product block per scheme, and so that `.cf-dark`
+ * can pin the dark family for chrome that must not follow the page.
+ * `[data-cf-product]` is in the selector list as well as `:root`, and that is what makes a
+ * PER-ELEMENT product scope work. The marketing site puts five products on one page — each card
+ * carrying its own accent while the chrome stays company-coloured — and it did that by setting
+ * `--cf-accent` inline from the registry, which is a hard-coded hex on an element and therefore a
+ * value that cannot follow a scheme. With this line a card sets `data-cf-product="trade"` and gets
+ * Trade's accent for whichever scheme is in force, from the same blocks the root uses.
+ * ------------------------------------------------------------------- */
+:root,
+[data-cf-substrate],
+[data-cf-product] {
+  --cf-accent: var(--cf-accent-dark);
+  --cf-accent-hover: var(--cf-accent-hover-dark);
+  --cf-accent-ink: var(--cf-accent-ink-dark);
+  --cf-accent-text: var(--cf-accent-text-dark);
+  --cf-accent-glow: var(--cf-accent-glow-dark);
+}
+
+/* ═══════════════════════════════════════════════════════════════════ *
+ * THE LIGHT SCHEME
+ *
+ * The system used to be dark only and said so: "The system is dark only
+ * and does not pretend otherwise." That was true of this file and FALSE
+ * of the estate — `site/src/styles.css` already carried a whole light
+ * theme in a `@media (prefers-color-scheme: light)` block, with its own
+ * eleven semantic values, its own accent-lifting rule and its own contrast
+ * suite to hold them. One surface had a light mode; sixteen did not; and
+ * the design system did not know about any of it. That is the same shape
+ * as every other defect recorded in this file — a decision taken in a
+ * consumer because the shared package had no place to put it.
+ *
+ * So it moves here. site's measured values are the seed rather than an
+ * invention: its page/panel/sunken relationship and its 14%/24% hairline
+ * percentages are carried forward, and what is added is the half it could
+ * not do from one repository — the cool substrate's light ramp, the
+ * per-product accents, the chart roles, and a validator that measures all
+ * of it on every scope.
+ *
+ * ── HOW A SURFACE OPTS IN, AND WHY IT IS AN OPT-IN ─────────────────────
+ *
+ * One attribute on <html>, set statically beside the two that are already
+ * there, so the page never paints in one scheme and then changes:
+ *
+ *     <html data-cf-product="site" data-cf-substrate="warm"
+ *           data-cf-scheme="auto">
+ *
+ *   auto   follow the reader's operating system (the media query below)
+ *   light  force light, whatever the system says
+ *   dark   force dark, whatever the system says
+ *   absent DARK — the appearance every surface in this estate was built
+ *          and reviewed against
+ *
+ * THE DEFAULT IS ABSENCE, AND THAT IS DELIBERATE. Making `:root` light
+ * and dark an override would have flipped fifteen frontends this change
+ * is not allowed to touch into a scheme none of their local stylesheets
+ * has ever been rendered in — and several of them hard-code dark
+ * assumptions in their own `si-`/`wt-`/`mk-` layers, which no token here
+ * can reach. An opt-in is the only version of this that cannot break a
+ * surface nobody looked at.
+ *
+ * ── WHY THE THREE VALUES CANNOT FIGHT EACH OTHER ──────────────────────
+ *
+ * The requirement is that an explicit choice beat the operating system in
+ * BOTH directions. It does, and without a specificity contest: the media
+ * query below is scoped to `[data-cf-scheme='auto']`, and the three
+ * attribute values are mutually exclusive, so `light` and `dark` are
+ * never in the same cascade as it. `dark` therefore needs no declarations
+ * at all — it wins by being the value the media query does not match, and
+ * falls through to the defaults above. Source order is irrelevant here,
+ * which means a future edit cannot reorder this into a bug.
+ *
+ * ── EVERY COLOUR BELOW IS DERIVED ─────────────────────────────────────
+ *
+ * Each accent, severity level and chart role is ITS OWN DARK VALUE scaled
+ * in LINEAR LIGHT until it clears its floor against #f7fafa — the cool
+ * light panel, which is the lightest surface anywhere in this system and
+ * therefore the tightest ground light-scheme text lands on. Scaling in
+ * linear light preserves chromaticity exactly, which is what makes the
+ * colour-blindness guarantee transfer rather than needing re-derivation:
+ * measured with `scripts/validate_palette.mjs`, the light categorical set
+ * reports worst-adjacent dE 7.5 and worst-all-pairs dE 1.8 under
+ * deuteranopia — the SAME two figures as the dark set on the dark panel,
+ * to one decimal place.
+ *
+ * The one place the derivation is not uniform is the six product accents,
+ * and it is not uniform on purpose. Pinning all six to one contrast ratio
+ * removes LIGHTNESS as a channel, and the set then separates by hue
+ * alone: pinned at 5:1 they measure all-pairs dE 2.0 under deuteranopia —
+ * Foresight's blue and Market's purple become one colour. Given a
+ * per-hue target (4.6 to 7.4) the same six measure dE 7.2, which is
+ * BETTER than the dark set's documented 5.6. Reproduce:
+ *
+ *   node scripts/validate_palette.mjs \
+ *     "#1978af,#ab3224,#1e7870,#654f0c,#5e4a95,#4c6d32" --surface "#f7fafa"
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* The scheme's own declarations, written once. The `auto` copy inside the
+   media query below must stay byte-identical; `contrast.test.ts` resolves
+   both scopes and fails if any token differs between them. */
+[data-cf-scheme='light'] {
+  color-scheme: light;
+
+  /* --- the semantic layer, from the kiln/char ramps --------------- */
+  --cf-bg: var(--cf-kiln-100);
+  --cf-bg-raised: var(--cf-kiln-50);
+  --cf-bg-sunken: var(--cf-kiln-200);
+  --cf-fg: var(--cf-char);
+  --cf-fg-dim: var(--cf-char-dim);
+  --cf-fg-mute: var(--cf-char-mute);
+
+  /* Hairlines want more of the ink on a light ground than bone wants on a
+     dark one: 10% of a near-black on cream is a line nobody sees. */
+  --cf-line: color-mix(in srgb, var(--cf-char) 14%, transparent);
+  --cf-line-strong: color-mix(in srgb, var(--cf-char) 24%, transparent);
+  --cf-surface: color-mix(in srgb, var(--cf-kiln-50) 82%, transparent);
+  --cf-surface-solid: var(--cf-kiln-50);
+  --cf-surface-hover: color-mix(in srgb, var(--cf-char) 6%, transparent);
+
+  /* Elevation. The dark scheme's shadows are near-black at high opacity,
+     which on cream reads as dirt rather than as depth. */
+  --cf-shadow-sm: 0 1px 0 0 color-mix(in srgb, var(--cf-kiln-50) 70%, transparent) inset;
+  --cf-shadow: 0 16px 40px -26px rgba(41, 29, 20, 0.42);
+  --cf-shadow-lg: 0 26px 60px -30px rgba(41, 29, 20, 0.46);
+
+  /* --- the company colour ----------------------------------------- */
+  --cf-ember: var(--cf-ember-light);
+  --cf-ember-hover: var(--cf-ember-hover-light);
+  --cf-ember-ink: var(--cf-ember-ink-light);
+  --cf-ember-text: var(--cf-ember-light);
+  --cf-ember-glow: var(--cf-ember-glow-light);
+
+  /* --- the product accent ------------------------------------------
+   * Declared AFTER every [data-cf-product] block, at equal specificity,
+   * so this wins for whichever product is mounted. Each product declares
+   * its own two light hexes; everything else here is derived, which is
+   * why ten product blocks gained two lines rather than six.
+   *
+   * --cf-accent-text IS --cf-accent in this scheme, for all eleven. Every
+   * light accent was derived to at least 4.6:1 on the tightest ground —
+   * the text floor — so the fork that the dark scheme needs has nothing
+   * left to do here. That is a property of the derivation, not a claim:
+   * `contrast.test.ts` measures it on every ground on both substrates. */
+  --cf-accent: var(--cf-accent-light, var(--cf-ember-light));
+  --cf-accent-hover: var(--cf-accent-hover-light, var(--cf-ember-hover-light));
+  --cf-accent-ink: var(--cf-ember-ink-light);
+  --cf-accent-text: var(--cf-accent-light, var(--cf-ember-light));
+  --cf-accent-glow: color-mix(in srgb, var(--cf-accent-light, var(--cf-ember-light)) 24%, transparent);
+
+  /* --- severity ----------------------------------------------------
+   * One value per level rather than a mark/text pair: each light step is
+   * its own dark value derived to 4.6:1 against the SUNKEN WELL — the
+   * darkest light surface, and therefore the tightest ground a dark ink
+   * lands on — which clears the text floor and the mark floor at once. The inks invert with the fill. */
+  --cf-good: #4b6935; /*     4.59:1 on the tightest light ground */
+  --cf-good-text: #4b6935;
+  --cf-good-ink: #fdfbf7; /* 6.03:1 on the fill above */
+  --cf-warn: #83571c; /*     4.63:1 */
+  --cf-warn-text: #83571c;
+  --cf-warn-ink: #fdfbf7; /* 6.07:1 */
+  --cf-critical: #a4402b; /* 4.63:1 */
+  --cf-critical-text: #a4402b;
+  --cf-critical-ink: #fdfbf7; /* 6.07:1 */
+
+  /* --- chart roles -------------------------------------------------
+   * Six of the eight categorical series already cleared the 3:1
+   * graphical floor on a light panel and are UNCHANGED, which is worth
+   * more than tidiness: a series colour that means the same thing in both
+   * schemes is one less thing a reader has to relearn. The two that did
+   * not (ember and teal) are nudged by under 2% of luminance. */
+  --cf-viz-1: #e7612c;
+  --cf-viz-2: #299a90;
+  --cf-viz-8: #4f9b40;
+
+  /* All-pairs slots are the unchanged four, so nothing is restated. */
+
+  /* Sequential, rebuilt rather than scaled. Scaling the dark ramp into a
+     light one clips at the gamut edge and collapses the pale steps to 3.5
+     L* apart; this is a fresh ladder from the same deep ember, mixed
+     toward the page, holding 7.3 to 11.5 L* per step. The DIRECTION
+     inverts with the scheme — near-zero is the palest step here, deepest
+     there — and step 100 stays deliberately under the 3:1 floor for the
+     reason recorded above: it encodes "near nothing", and lifting it
+     compresses the step that separates nothing from a little. */
+  --cf-viz-seq-100: #e7dcd5; /* 1.28:1 — deliberately under the floor */
+  --cf-viz-seq-200: #d9c6bc;
+  --cf-viz-seq-300: #c9aea0;
+  --cf-viz-seq-400: #b89582;
+  --cf-viz-seq-500: #a67962;
+  --cf-viz-seq-600: #925b3f;
+  --cf-viz-seq-700: #7c3a18; /* 8.08:1 */
+
+  --cf-viz-good: #6d964f;
+  --cf-viz-warn: #bb7e2c;
+  --cf-viz-gain: #67974b;
+  --cf-viz-loss: #d86b55;
+  --cf-viz-mid: var(--cf-kiln-200);
+  /* --cf-viz-crit stays #d2543a: 3.95:1 on the light panel, unaided. */
+}
+
+/* A product-scoped ELEMENT inside a light page — the marketing site's product cards. The
+   descendant selector is what beats the `[data-cf-product]` entry in the dark mapping above,
+   which is (0,1,0) to this rule's (0,2,0). Without it a card would keep its dark accent on a
+   light page, which is the exact defect the site's own stylesheet used to work around with a
+   second hand-tuned mix. */
+[data-cf-scheme='light'] [data-cf-product] {
+  --cf-accent: var(--cf-accent-light, var(--cf-ember-light));
+  --cf-accent-hover: var(--cf-accent-hover-light, var(--cf-ember-hover-light));
+  --cf-accent-ink: var(--cf-ember-ink-light);
+  --cf-accent-text: var(--cf-accent-light, var(--cf-ember-light));
+  --cf-accent-glow: color-mix(in srgb, var(--cf-accent-light, var(--cf-ember-light)) 24%, transparent);
+}
+
+/* The `auto` copy. Byte-identical to the block above by assertion, not by
+   discipline — see the note there. */
+@media (prefers-color-scheme: light) {
+  [data-cf-scheme='auto'] {
+    color-scheme: light;
+
+    --cf-bg: var(--cf-kiln-100);
+    --cf-bg-raised: var(--cf-kiln-50);
+    --cf-bg-sunken: var(--cf-kiln-200);
+    --cf-fg: var(--cf-char);
+    --cf-fg-dim: var(--cf-char-dim);
+    --cf-fg-mute: var(--cf-char-mute);
+
+    --cf-line: color-mix(in srgb, var(--cf-char) 14%, transparent);
+    --cf-line-strong: color-mix(in srgb, var(--cf-char) 24%, transparent);
+    --cf-surface: color-mix(in srgb, var(--cf-kiln-50) 82%, transparent);
+    --cf-surface-solid: var(--cf-kiln-50);
+    --cf-surface-hover: color-mix(in srgb, var(--cf-char) 6%, transparent);
+
+    --cf-shadow-sm: 0 1px 0 0 color-mix(in srgb, var(--cf-kiln-50) 70%, transparent) inset;
+    --cf-shadow: 0 16px 40px -26px rgba(41, 29, 20, 0.42);
+    --cf-shadow-lg: 0 26px 60px -30px rgba(41, 29, 20, 0.46);
+
+    --cf-ember: var(--cf-ember-light);
+    --cf-ember-hover: var(--cf-ember-hover-light);
+    --cf-ember-ink: var(--cf-ember-ink-light);
+    --cf-ember-text: var(--cf-ember-light);
+    --cf-ember-glow: var(--cf-ember-glow-light);
+
+    --cf-accent: var(--cf-accent-light, var(--cf-ember-light));
+    --cf-accent-hover: var(--cf-accent-hover-light, var(--cf-ember-hover-light));
+    --cf-accent-ink: var(--cf-ember-ink-light);
+    --cf-accent-text: var(--cf-accent-light, var(--cf-ember-light));
+    --cf-accent-glow: color-mix(in srgb, var(--cf-accent-light, var(--cf-ember-light)) 24%, transparent);
+
+    --cf-good: #4b6935;
+    --cf-good-text: #4b6935;
+    --cf-good-ink: #fdfbf7;
+    --cf-warn: #83571c;
+    --cf-warn-text: #83571c;
+    --cf-warn-ink: #fdfbf7;
+    --cf-critical: #a4402b;
+    --cf-critical-text: #a4402b;
+    --cf-critical-ink: #fdfbf7;
+
+    --cf-viz-1: #e7612c;
+    --cf-viz-2: #299a90;
+    --cf-viz-8: #4f9b40;
+
+    --cf-viz-seq-100: #e7dcd5;
+    --cf-viz-seq-200: #d9c6bc;
+    --cf-viz-seq-300: #c9aea0;
+    --cf-viz-seq-400: #b89582;
+    --cf-viz-seq-500: #a67962;
+    --cf-viz-seq-600: #925b3f;
+    --cf-viz-seq-700: #7c3a18;
+
+    --cf-viz-good: #6d964f;
+    --cf-viz-warn: #bb7e2c;
+    --cf-viz-gain: #67974b;
+    --cf-viz-loss: #d86b55;
+    --cf-viz-mid: var(--cf-kiln-200);
+  }
+
+  /* The `auto` copy of the product-scoped rule above. */
+  [data-cf-scheme='auto'] [data-cf-product] {
+    --cf-accent: var(--cf-accent-light, var(--cf-ember-light));
+    --cf-accent-hover: var(--cf-accent-hover-light, var(--cf-ember-hover-light));
+    --cf-accent-ink: var(--cf-ember-ink-light);
+    --cf-accent-text: var(--cf-accent-light, var(--cf-ember-light));
+    --cf-accent-glow: color-mix(in srgb, var(--cf-accent-light, var(--cf-ember-light)) 24%, transparent);
+  }
+}
+
+/* `dark` declares nothing but the colour scheme: it wins by being the one
+   value the media query above cannot match, so every token falls through
+   to the defaults at the top of this file. */
+[data-cf-scheme='dark'] {
+  color-scheme: dark;
 }
 
 /* --- The dark scope ------------------------------------------------ *
@@ -654,6 +1295,39 @@
   --cf-surface: color-mix(in srgb, var(--cf-ash-900) 82%, transparent);
   --cf-surface-solid: var(--cf-ash-850);
   --cf-surface-hover: color-mix(in srgb, var(--cf-bone) 6%, transparent);
+
+  /* --- and now the accent families, which it did NOT used to restate ---
+   *
+   * The note above says this scope "deliberately does NOT restate
+   * --cf-accent", and the reason given was right: pinning a HEX here would
+   * make the shared chrome the one place a product's own accent does not
+   * apply. That reason no longer forbids what is below, because these are
+   * not hexes — they are the per-scheme raws, so the product's own colour
+   * still applies and only the SCHEME is pinned.
+   *
+   * It became necessary the moment a light scheme existed. On a light page
+   * the accent family resolves to the darkened light steps, and this scope
+   * exists precisely because the bar stays dark underneath them: without
+   * these five lines the focus ring inside the bar is a dark outline on a
+   * dark bar, and `.cf-dot` — the 6px mark that says which product you are
+   * on — is a dark dot on a dark ground. Both are failures of the same
+   * kind the rest of this file is about, and neither is visible in the
+   * only scheme the estate has rendered so far.
+   *
+   * Ember goes with it for the same reason: `.cf-logo__mark`,
+   * `.cf-logo__word b` and the bar's top seam are all ember, all inside
+   * this scope, and all sitting on ash whatever the page is doing. */
+  --cf-ember: var(--cf-ember-dark);
+  --cf-ember-hover: var(--cf-ember-hover-dark);
+  --cf-ember-ink: var(--cf-ember-ink-dark);
+  --cf-ember-text: var(--cf-ember-text-dark);
+  --cf-ember-glow: var(--cf-ember-glow-dark);
+
+  --cf-accent: var(--cf-accent-dark);
+  --cf-accent-hover: var(--cf-accent-hover-dark);
+  --cf-accent-ink: var(--cf-accent-ink-dark);
+  --cf-accent-text: var(--cf-accent-text-dark);
+  --cf-accent-glow: var(--cf-accent-glow-dark);
 
   color-scheme: dark;
 }

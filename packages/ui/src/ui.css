@@ -89,9 +89,10 @@
   color: var(--cf-ember);
 }
 .cf-logo__word {
-  font-family: var(--cf-font-sans);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-family: var(--cf-font-display);
+  font-weight: 700;
+  font-stretch: 92%;
+  letter-spacing: var(--cf-tracking-tight);
   line-height: 1;
   font-size: var(--cf-text-lg);
   color: var(--cf-fg);
@@ -118,8 +119,11 @@
   align-items: center;
   gap: var(--cf-space-xs);
   box-sizing: border-box;
-  min-height: 30px;
-  padding: var(--cf-space-2xs) var(--cf-space-md);
+  /* 34px, not 30: the label inside is --cf-text-sm, which the rebuilt type
+     scale moved from 11.8px to 14px. A control sized for the old number
+     clips the new one. */
+  min-height: 34px;
+  padding: var(--cf-space-xs) var(--cf-space-md);
   margin: 0;
   border: 1px solid transparent;
   border-radius: var(--cf-radius-sm);
@@ -191,9 +195,15 @@
   font-family: var(--cf-font-mono);
 }
 
+/* A 1px border-colour change was the ONLY focus indicator these controls
+   had, and WCAG 2.2 SC 2.4.11 asks for an indicator with an area of at
+   least 2px thickness around the control. The border change stays — it is
+   what makes the field read as active — and the ring is what makes it
+   findable. */
 .cf-input:focus-visible,
 .cf-select:focus-visible {
-  outline: none;
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
   border-color: var(--cf-accent);
 }
 
@@ -255,7 +265,7 @@
 .cf-menu {
   position: absolute;
   top: calc(100% + var(--cf-space-xs));
-  min-width: 220px;
+  min-width: 264px;
   padding: var(--cf-space-xs);
   margin: 0;
   list-style: none;
@@ -289,7 +299,7 @@
   font-family: var(--cf-font-mono);
   font-size: var(--cf-text-2xs);
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: var(--cf-tracking-wide);
   text-transform: uppercase;
   color: var(--cf-fg-mute);
 }
@@ -318,8 +328,10 @@
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  /* At least 24px tall, larger than the 18px mark it contains. */
-  min-height: 32px;
+  /* 36px: comfortably larger than the 18px mark it contains, and a touch
+     target that is not a coin toss on a phone. */
+  min-height: 36px;
+  line-height: var(--cf-leading-snug);
   transition: background-color var(--cf-speed) var(--cf-ease);
 }
 .cf-menu__item:hover,
@@ -367,7 +379,7 @@
   font-size: var(--cf-text-sm);
   font-weight: 600;
   color: var(--cf-fg);
-  max-width: 12ch;
+  max-width: 14ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -391,8 +403,8 @@
 .cf-account__avatar {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--cf-accent-hover), var(--cf-accent));
   color: var(--cf-accent-ink);
@@ -625,13 +637,21 @@
 .cf-tile__label {
   font-family: var(--cf-font-mono);
   font-size: var(--cf-text-2xs);
-  letter-spacing: 0.18em;
+  letter-spacing: var(--cf-tracking-wide);
   text-transform: uppercase;
   color: var(--cf-fg-mute);
 }
 .cf-tile__value {
+  /* The display face's second job in this package: the one number the tile
+     exists for. Tabular figures so a column of tiles aligns, and the
+     optical-size axis draws it as a display glyph rather than as body copy
+     scaled up. */
+  font-family: var(--cf-font-display);
+  font-variant-numeric: tabular-nums;
   font-size: var(--cf-text-3xl);
-  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: var(--cf-tracking-tight);
+  line-height: var(--cf-leading-tight);
   color: var(--cf-fg);
 }
 .cf-tile__stamp {
@@ -815,6 +835,200 @@
   color: var(--cf-fg-mute);
 }
 
+/* ======================== the skip link ========================= *
+ * The first focusable thing on every surface, and until now the estate had
+ * exactly one (`site`). Sixteen surfaces made a keyboard or screen-reader
+ * reader tab through the logo, the product switcher's trigger and the
+ * account menu before reaching any content — on every navigation.
+ *
+ * It is NOT `.cf-sr` plus a focus override. `.cf-sr` uses `clip-path`,
+ * which removes the element from the rendered box even when focused unless
+ * every one of its properties is undone; the classic bug is a skip link
+ * that takes focus and shows a 1px sliver. This one is positioned off the
+ * top of the viewport and slides in, so the focused state is an ordinary
+ * visible element with an ordinary focus ring.
+ * ---------------------------------------------------------------- */
+.cf-skip {
+  position: fixed;
+  top: 0;
+  left: var(--cf-space-md);
+  z-index: 100;
+  display: inline-block;
+  padding: var(--cf-space-sm) var(--cf-space-xl);
+  border: 1px solid var(--cf-accent);
+  border-top: 0;
+  border-radius: 0 0 var(--cf-radius) var(--cf-radius);
+  background: var(--cf-accent);
+  color: var(--cf-accent-ink);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  font-weight: 600;
+  text-decoration: none;
+  /* Off the top of the viewport rather than hidden: a transform still
+     leaves the element in the accessibility tree and in the tab order. */
+  transform: translateY(-110%);
+  transition: transform var(--cf-speed) var(--cf-ease);
+}
+.cf-skip:focus,
+.cf-skip:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--cf-fg);
+  outline-offset: 2px;
+}
+
+/* ======================= the severity pill ====================== *
+ * State encoded in FORM as well as in number: a shape, a word, a glyph and
+ * a colour, so a reader who separates none of the hues still gets the
+ * answer. Three levels, matching the severity tokens — see the long note
+ * in tokens.css for why there is one set now instead of two.
+ *
+ * The glyph is supplied by the caller and is `aria-hidden`; the WORD is
+ * the accessible name and is never optional. `<StatusPill>` in index.tsx
+ * is the primitive that makes that impossible to forget.
+ * ---------------------------------------------------------------- */
+.cf-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cf-space-xs);
+  padding: var(--cf-space-3xs) var(--cf-space-sm);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 999px;
+  background: var(--cf-surface-hover);
+  color: var(--cf-fg-dim);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-xs);
+  font-weight: 600;
+  line-height: var(--cf-leading-snug);
+  white-space: nowrap;
+}
+.cf-status__glyph {
+  font-size: var(--cf-text-2xs);
+  line-height: 1;
+}
+.cf-status--good {
+  border-color: var(--cf-good-edge);
+  background: var(--cf-good-wash);
+  color: var(--cf-good-text);
+}
+.cf-status--warn {
+  border-color: var(--cf-warn-edge);
+  background: var(--cf-warn-wash);
+  color: var(--cf-warn-text);
+}
+.cf-status--critical {
+  border-color: var(--cf-critical-edge);
+  background: var(--cf-critical-wash);
+  color: var(--cf-critical-text);
+}
+
+/* ====================== the consent banner ====================== *
+ * The control that decides whether an analytics cookie is ever set. See
+ * consent.ts for the legal reasoning; what matters HERE is that the two
+ * answers are drawn the same.
+ *
+ * `.cf-consent__choice` styles Accept and Reject with ONE rule and no
+ * modifier. That is not tidiness: under GDPR Art. 4(11) consent must be
+ * freely given, and a regulator reads a bright Accept beside a grey
+ * "manage preferences" link as a dark pattern rather than as a choice.
+ * Making the two buttons literally the same class is the cheapest way to
+ * guarantee that no future edit makes one of them louder — there is no
+ * "primary" here to reach for.
+ * ---------------------------------------------------------------- */
+.cf-consent {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 90;
+  background: var(--cf-surface-solid);
+  border-top: 1px solid var(--cf-line-strong);
+  box-shadow: var(--cf-shadow-lg);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+  animation: cf-consent-in var(--cf-speed) var(--cf-ease);
+}
+.cf-consent__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cf-space-lg) var(--cf-space-2xl);
+  max-width: var(--cf-max-w);
+  margin-inline: auto;
+  padding: var(--cf-space-xl);
+}
+.cf-consent__copy {
+  flex: 1 1 24rem;
+  min-width: 0;
+  margin: 0;
+  max-width: var(--cf-measure);
+  font-size: var(--cf-text-md);
+  line-height: var(--cf-leading);
+  color: var(--cf-fg-dim);
+}
+.cf-consent__title {
+  display: block;
+  margin-bottom: var(--cf-space-2xs);
+  font-family: var(--cf-font-display);
+  font-size: var(--cf-text-lg);
+  font-weight: 600;
+  letter-spacing: var(--cf-tracking-tight);
+  color: var(--cf-fg);
+}
+.cf-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-md);
+}
+.cf-consent__choice {
+  flex: 1 1 auto;
+  min-width: 9rem;
+  min-height: 44px; /* the WCAG 2.2 AA target size, not a rounded-up guess */
+  padding: var(--cf-space-sm) var(--cf-space-2xl);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius);
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--cf-speed) var(--cf-ease),
+    background-color var(--cf-speed) var(--cf-ease);
+}
+.cf-consent__choice:hover {
+  border-color: var(--cf-accent);
+  background: var(--cf-surface-hover);
+}
+.cf-consent__link {
+  align-self: center;
+  color: var(--cf-accent-text);
+  font-size: var(--cf-text-sm);
+}
+
+@keyframes cf-consent-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ==================== the focus floor, globally ================= *
+ * `.cf-bar :focus-visible` above covers the chrome. Nothing covered the
+ * HOST APP, and "visible keyboard focus everywhere" is not a property a
+ * component library can assert about pages it does not own — unless it
+ * states a floor.
+ *
+ * `:where()` is what makes that safe. It contributes ZERO specificity, so
+ * any rule an app already has wins outright and this can never fight a
+ * surface's own focus design. What it changes is the DEFAULT: a surface
+ * that has thought about focus keeps its answer, and a surface that has
+ * not gets the accent ring instead of whatever the browser felt like.
+ * ---------------------------------------------------------------- */
+:where(a[href], area, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
+}
+
 /* ===================== responsive niceties ====================== */
 @media (max-width: 560px) {
   .cf-switch__label,
@@ -848,8 +1062,20 @@
   .cf-chart,
   .cf-chart__svg,
   .cf-tile,
-  .cf-foot__link {
+  .cf-foot__link,
+  .cf-skip,
+  .cf-status,
+  .cf-consent,
+  .cf-consent__choice {
     transition: none !important;
     animation: none !important;
+  }
+  /* The skip link's resting position is a transform, so switching the
+     transition off is not enough — without this it would still SLIDE, it
+     would just do it instantly-then-not. It jumps instead. */
+  .cf-skip:focus,
+  .cf-skip:focus-visible {
+    transform: none;
+    top: var(--cf-space-sm);
   }
 }
