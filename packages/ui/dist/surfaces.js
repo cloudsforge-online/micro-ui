@@ -691,6 +691,39 @@ export const SURFACES = [
         servesUi: false,
         inSwitcher: false,
     },
+    {
+        // ── THE ONE HOST IN THIS FILE A BROWSER RENDERS BUT NEVER NAVIGATES TO ─────────────────────
+        //
+        // micro-studio stores creator assets and serves them back as image bytes. Market and Foresight
+        // put those bytes in `<img src>`, cross-origin, so this is a browser-facing origin for
+        // UNTRUSTED USER UPLOADS — the one category of surface where the response headers are the last
+        // line of defence rather than a formality. Uploads are validated by magic bytes, SVG is
+        // rejected outright and EXIF is stripped, and the gateway adds `X-Content-Type-Options:
+        // nosniff` on both entrypoint chains (`cf-security-headers`, attached in
+        // docker-compose.gateway.yml:197 and :266) so a stored file cannot be sniffed into script.
+        //
+        // `servesUi: false` because nothing here is a PAGE. It is not in the switcher and no footer
+        // links it; a person never opens `studio.<apex>` and there is nothing to see if they do.
+        //
+        // devPort is 4015 because that is what the service itself defaults `PORT` to
+        // (`studio/src/env.ts:290`), read rather than allocated. Six rows in this file are numbers
+        // that were picked and then contradicted by the service that binds them — see the note in
+        // `micro-devportal-web`'s hosts.ts, which counts them — and the cheapest way not to be the
+        // seventh is to copy the service's own default. In the compose estate the port is 4000 for
+        // every service, which is what the gateway routes to; this number is for `pnpm dev`.
+        key: 'studio',
+        name: 'CloudsForge Studio',
+        verb: null,
+        kind: 'service',
+        subdomain: 'studio',
+        devPort: 4015,
+        accent: CLOUDSFORGE_EMBER,
+        glyph: '▤',
+        markId: null,
+        blurb: 'Creator asset store — the image bytes Market and Foresight render',
+        servesUi: false,
+        inSwitcher: false,
+    },
     /* --- the chain's own two ports -------------------------------------
      *
      * THE FIRST TWO ROWS WHOSE SERVICE IS NOT A CLOUDSFORGE SERVICE. Both are Hearth — the frozen
