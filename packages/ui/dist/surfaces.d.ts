@@ -17,7 +17,7 @@ export type ProductKey = 'foresight' | 'network' | 'trade' | 'create' | 'market'
 /** Everything that may appear in the product switcher, products plus the operator tools. */
 export type SwitcherKey = ProductKey | 'admin' | 'lantern' | 'beacon';
 /** Every addressable CloudsForge surface, including the ones with no UI of their own. */
-export type SurfaceKey = SwitcherKey | 'hub' | 'signin' | 'site' | 'emberkin' | 'aetherholm' | 'tessera' | 'wallet' | 'faucet' | 'developers' | 'status' | 'explorer' | 'nimbus' | 'account' | 'api' | 'worlds-api' | 'pay' | 'keyvault' | 'rpc' | 'p2p';
+export type SurfaceKey = SwitcherKey | 'hub' | 'signin' | 'site' | 'emberkin' | 'aetherholm' | 'tessera' | 'wallet' | 'faucet' | 'developers' | 'status' | 'explorer' | 'nimbus' | 'account' | 'api' | 'pay' | 'keyvault' | 'rpc' | 'p2p';
 /**
  * What a surface *is*, which decides where it may appear.
  *
@@ -257,12 +257,19 @@ export declare const ENV_LABELS: ReadonlySet<string>;
  * Split a browser hostname's first label into `{subdomain, env}`, or `null` when it names no
  * environment at all.
  *
- * ── THE SPLIT IS ON THE LAST HYPHEN, AND `worlds-api` IS WHY ──────────────────────────────────
+ * ── THE SPLIT IS ON THE LAST HYPHEN, AND NOTHING CURRENTLY EXERCISES THAT ─────────────────────
  *
- * `worlds-api-testnet` must read as the surface `worlds-api` on `testnet`, not as the surface
- * `worlds` on an environment called `api-testnet`. `worlds-api` is the one registry subdomain
- * with a hyphen in it today, so it is the case that decides the rule; splitting on the first
- * hyphen would be correct for every other row and wrong for that one.
+ * `worlds-api` was the one registry subdomain containing a hyphen, and it is the case this rule
+ * was written for: `worlds-api-testnet` had to read as the surface `worlds-api` on `testnet` and
+ * not as the surface `worlds` on an environment called `api-testnet`. That row was deleted when
+ * the hostname was folded into `api.` — CHECKED, not assumed: no `subdomain` in this file now
+ * contains a hyphen, so last-hyphen and first-hyphen splitting agree on every name the estate
+ * serves and no test can tell them apart.
+ *
+ * IT STAYS `lastIndexOf`. The rule is still the correct one — the next hyphenated subdomain
+ * anyone adds gets the right answer with no edit here — and changing it now would be a change
+ * no test could catch, made for appearance, to a function that resolves every sibling link in
+ * every bundle. If you add a hyphenated subdomain, add a case here alongside it.
  *
  * ── BOTH HALVES ARE CHECKED, AND NEITHER CHECK IS REDUNDANT ───────────────────────────────────
  *

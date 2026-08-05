@@ -630,19 +630,24 @@ export const SURFACES = [
     {
         // The public, versioned surface.
         //
-        // ── THIS COMMENT USED TO DESCRIBE THE CONSOLIDATION BACKWARDS. CORRECTED 2026-08-05 ────────
+        // ── THE FOLD WENT `worlds-api` -> `api`, AND EVERY EARLIER NOTE SAID THE REVERSE ───────────
         //
-        // It read: "today `api.` still points at the game API, which is renamed to `worlds-api.`
-        // first. Renaming a public hostname after third parties are on it costs a deprecation cycle."
-        // That plan was not carried out and the OPPOSITE was: the game API was consolidated INTO
-        // `api.`, and `worlds-api.` has no DNS record at all. Measured 2026-08-05 — `worlds-api.
-        // cloudsforge.online` does not resolve, while `api.cloudsforge.online` resolves and serves on
-        // both networks, answering `404 text/plain` on an unmatched path. It spent part of that day
-        // returning 502, from a `cf-api-catchall` router pointing at `http://127.0.0.1:1`; that is
-        // fixed and is not a naming question either way.
+        // A `worlds-api` row sat below this one until 2026-08-05, and this comment used to plan the
+        // split that would have justified it: "today `api.` still points at the game API, which is
+        // renamed to `worlds-api.` first. Renaming a public hostname after third parties are on it
+        // costs a deprecation cycle." THAT PLAN WAS NEVER CARRIED OUT AND THE OPPOSITE WAS. The game
+        // API was consolidated INTO `api.`; `worlds-api.` was retired without ever getting a DNS
+        // record on either network. The deprecation-cycle argument is why the direction flipped —
+        // `api.` is the name a third party is given, so `api.` is the one that had to survive.
         //
-        // The deprecation-cycle argument was sound and is why the direction flipped: `api.` is the
-        // name a third party would be given, so it is the one that had to survive.
+        // The wrong direction was written down in at least four places (this row, the `worlds-api`
+        // row, `deploy/gateway/dynamic/estate-web.yml` and `worlds-web/src/lib/hosts.ts`) and each
+        // one made the next reader more confident. It is recorded here once, deliberately, because
+        // deleting the claim without replacing it is how it came back the first time.
+        //
+        // Measured 2026-08-05: `worlds-api.cloudsforge.online` does not resolve, while
+        // `api.cloudsforge.online` resolves and serves — `/v1/titles` answers 200, and an unmatched
+        // path answers `404 text/plain`.
         key: 'api',
         name: 'CloudsForge API',
         verb: null,
@@ -653,53 +658,6 @@ export const SURFACES = [
         glyph: '▤',
         markId: null,
         blurb: 'The public v1 surface',
-        servesUi: false,
-        inSwitcher: false,
-    },
-    {
-        // ── RETIRED AS A HOSTNAME, KEPT AS A ROW. DELIBERATE — READ BEFORE DELETING IT ─────────────
-        //
-        // `worlds-api.cloudsforge.online` HAS NO DNS RECORD and is not going to get one. The game API
-        // was consolidated into `api.` rather than split out of it, which is the reverse of what the
-        // `api` row above used to plan. Measured 2026-08-05: the name does not resolve on either
-        // network. **It must not be documented, linked or routed as a live endpoint.**
-        //
-        // It is NOT deleted, and the reasons are load-bearing rather than sentimental:
-        //
-        //   1. `micro-worlds-web` resolves its API base through this key — `API_SURFACE` is the
-        //      literal `'worlds-api'` (`worlds-web/src/lib/hosts.ts:80`) and ten assertions in
-        //      `worlds-web/test/hosts.test.ts` pin this row's `subdomain` and `devPort: 4002`.
-        //      Deleting the row makes `SurfaceKey` reject `'worlds-api'` and that file stops
-        //      compiling. The consolidation has to land in `worlds-web` FIRST; until then this row is
-        //      what keeps the estate's one registry honest about a key something still names.
-        //   2. It is the ONLY registry subdomain containing a hyphen — CHECKED, not assumed: of the
-        //      27 `subdomain` values in this file, exactly one has a hyphen in it, and it is this
-        //      one. That makes it the sole fixture for the last-hyphen split that the whole
-        //      `<surface>-<env>` scheme rests on — see `ENV_LABELS` below and `hosts.test.ts:185-189`,
-        //      which asserts `worlds-api-testnet.cloudsforge.online` resolves to the surface
-        //      `worlds-api` on `testnet` and not to `worlds` on an environment called `api-testnet`.
-        //      Remove the row and the rule keeps applying to every hostname while no longer having a
-        //      single case that exercises it, which is the worst of both.
-        //
-        // What removal would NOT break, so the next reader does not inherit a hazard that is not
-        // there: **ports.** Those derive from POSITION in `deployableRepos()`
-        // (`org/tools/cfctl.ts:1048-1049`, guarded by `DERIVED_PORT_ORDER` in `org/test/cfctl.test.ts`)
-        // — a list in `micro-org`, not this one. `worlds-api` appears nowhere in
-        // `org/tools/registry.ts`, and `devPort` here is a literal per row rather than an index, so
-        // nothing in this file renumbers when a row moves.
-        //
-        // So the row stays and the truth is written on it. `servesUi: false` already keeps it out of
-        // every footer and switcher; nothing renders it to a person.
-        key: 'worlds-api',
-        name: 'Worlds API (retired hostname)',
-        verb: null,
-        kind: 'service',
-        subdomain: 'worlds-api',
-        devPort: 4002,
-        accent: '#6d9a49',
-        glyph: '▤',
-        markId: null,
-        blurb: 'Retired: consolidated into api. — no DNS record, not a live endpoint',
         servesUi: false,
         inSwitcher: false,
     },
@@ -744,9 +702,8 @@ export const SURFACES = [
      * ── WHY THEY ARE HERE ──────────────────────────────────────────────────────────────────────
      *
      * The declaration above these rows says it: "Every addressable CloudsForge surface, INCLUDING
-     * THE ONES WITH NO UI OF THEIR OWN." Six such rows already exist — nimbus, account, api,
-     * worlds-api, pay, keyvault — and every one of them is a hostname the estate publishes and no
-     * person browses. `servesUi: false` is the field that carries exactly this distinction, and it
+     * THE ONES WITH NO UI OF THEIR OWN." Five such rows already exist — nimbus, account, api, pay,
+     * keyvault — and every one of them is a hostname the estate publishes and no person browses. `servesUi: false` is the field that carries exactly this distinction, and it
      * was introduced (see its own documentation above) so that a footer never links an address that
      * answers no HTML. These two set it false and are correctly invisible everywhere it matters:
      * FOOTER_SURFACES filters on it, SWITCHER_SURFACES filters on `inSwitcher`, and
@@ -944,12 +901,19 @@ export const ENV_LABELS = new Set([
  * Split a browser hostname's first label into `{subdomain, env}`, or `null` when it names no
  * environment at all.
  *
- * ── THE SPLIT IS ON THE LAST HYPHEN, AND `worlds-api` IS WHY ──────────────────────────────────
+ * ── THE SPLIT IS ON THE LAST HYPHEN, AND NOTHING CURRENTLY EXERCISES THAT ─────────────────────
  *
- * `worlds-api-testnet` must read as the surface `worlds-api` on `testnet`, not as the surface
- * `worlds` on an environment called `api-testnet`. `worlds-api` is the one registry subdomain
- * with a hyphen in it today, so it is the case that decides the rule; splitting on the first
- * hyphen would be correct for every other row and wrong for that one.
+ * `worlds-api` was the one registry subdomain containing a hyphen, and it is the case this rule
+ * was written for: `worlds-api-testnet` had to read as the surface `worlds-api` on `testnet` and
+ * not as the surface `worlds` on an environment called `api-testnet`. That row was deleted when
+ * the hostname was folded into `api.` — CHECKED, not assumed: no `subdomain` in this file now
+ * contains a hyphen, so last-hyphen and first-hyphen splitting agree on every name the estate
+ * serves and no test can tell them apart.
+ *
+ * IT STAYS `lastIndexOf`. The rule is still the correct one — the next hyphenated subdomain
+ * anyone adds gets the right answer with no edit here — and changing it now would be a change
+ * no test could catch, made for appearance, to a function that resolves every sibling link in
+ * every bundle. If you add a hyphenated subdomain, add a case here alongside it.
  *
  * ── BOTH HALVES ARE CHECKED, AND NEITHER CHECK IS REDUNDANT ───────────────────────────────────
  *

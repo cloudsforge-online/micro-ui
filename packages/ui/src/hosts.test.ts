@@ -205,18 +205,31 @@ describe('a testnet page resolves testnet siblings and NOTHING on mainnet', () =
     assert.equal(accountUrl(), 'https://hub-testnet.cloudsforge.online/account')
   })
 
-  it('carries the environment through a subdomain that already contains a hyphen', () => {
-    // `worlds-api` is the one registry subdomain with a hyphen in it, so it is the one that
-    // decides whether the environment is split off the FIRST hyphen or the LAST. Splitting on the
-    // first would read the surface as `worlds` on an environment called `api-testnet`.
+  it('has no hyphenated subdomain left, and does not resurrect the one it lost', () => {
+    // THIS CASE IS INVERTED ON PURPOSE. It used to assert that `worlds-api-testnet` resolved to
+    // the surface `worlds-api` on `testnet` — the one live case for splitting the environment off
+    // the LAST hyphen rather than the first. That hostname was retired when the game API was
+    // folded into `api.`, and asserting a dead surface exists is how the dead name kept looking
+    // alive. So it now asserts the opposite in both directions.
+    //
+    // The rule itself is unchanged and still `lastIndexOf` (see `splitEnvLabel`); it simply has
+    // no case to exercise. This first assertion is what tells you the day that changes.
+    assert.deepEqual(
+      SURFACES.filter((s) => s.subdomain.includes('-')).map((s) => s.key),
+      [],
+    )
+
+    // And the retired name is not a surface: `worlds-api` is no longer a known subdomain, so the
+    // hostname fails the head check in `splitEnvLabel` and is left alone as its own apex — the
+    // same refusal-to-guess as the `pr-42` case below.
     atHostname('worlds-api-testnet.cloudsforge.online')
-    assert.equal(cloudsforgeHosts()['worlds-api'], 'https://worlds-api-testnet.cloudsforge.online')
-    assert.equal(cloudsforgeHosts().hub, 'https://hub-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().hub, 'https://hub.worlds-api-testnet.cloudsforge.online')
+    assert.ok(!('worlds-api' in cloudsforgeHosts()))
   })
 
   it('leaves mainnet exactly as it was', () => {
     // The regression direction. Mainnet is live and public; nothing above may touch it.
-    for (const page of ['cloudsforge.online', 'hub.cloudsforge.online', 'worlds-api.cloudsforge.online']) {
+    for (const page of ['cloudsforge.online', 'hub.cloudsforge.online', 'api.cloudsforge.online']) {
       const resolved = resolvedHostnames(page)
       const wrong = SURFACES.filter((s) => resolved[s.key] !== mainnetHost(s.subdomain)).map(
         (s) => `at ${page}, ${s.key}: ${resolved[s.key]} (expected ${mainnetHost(s.subdomain)})`,
