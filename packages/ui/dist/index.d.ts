@@ -313,16 +313,25 @@ export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, 
  * Links that are deliberately NOT registry surfaces.
  *
  * The brief for this component said to drive it from `SURFACES` and, where a link genuinely is not
- * a surface, to say so explicitly rather than blur the two. This is that list, and it is two
- * entries long: both are ROUTES ON THE MARKETING SITE, resolved against `cloudsforgeHosts().site`
- * so they follow the apex like everything else and are never a typed URL.
+ * a surface, to say so explicitly rather than blur the two. This is that list, and it is three
+ * entries long: all three are ROUTES ON THE MARKETING SITE, resolved against
+ * `cloudsforgeHosts().site` so they follow the apex like everything else and are never a typed URL.
  *
  * The paths and the labels are not invented here either — they are `site/src/lib/routes.ts`, whose
- * `ROUTES` carries `terms` and `privacy` with `label: null` (that null is what keeps them out of
- * the site header) and a `summary` whose clause before the em dash is the name. This restates
- * those four strings because `@cloudsforge/ui` cannot import from a consumer, and that restatement
- * is the one place in this footer where drift is possible. `footer.test.ts` reads `site`'s route
- * module when a checkout of it is present and fails on disagreement.
+ * `ROUTES` carries `terms`, `privacy` and `risk` with `label: null` (that null is what keeps them
+ * out of the site header) and a `summary` whose clause before the em dash is the name. This
+ * restates those six strings because `@cloudsforge/ui` cannot import from a consumer, and that
+ * restatement is the one place in this footer where drift is possible. `footer.test.ts` reads
+ * `site`'s route module when a checkout of it is present and fails on disagreement — including on
+ * the set itself, so a legal page ADDED to the site is caught here rather than quietly unlinked.
+ *
+ * ── Why the risk disclosure is in a shared footer and not only the site's own ──────────────────
+ *
+ * `/risk` says, in plain words, that this platform holds the keys, that the operator can move held
+ * assets, that there are no backups and that there is no insurance. Prominence is the whole point
+ * of a disclosure: it was reachable only from the marketing site's footer, which is the one place
+ * a reader is NOT holding a balance. It belongs on the surfaces where they are — the wallet, the
+ * market, the hub — and this list is the only footer those surfaces have.
  *
  * ── What is deliberately absent ───────────────────────────────────────────────────────────────
  *
@@ -381,8 +390,8 @@ export interface CloudsForgeFooterProps {
  * nine surfaces with none, and a registry comment (`surfaces.ts`, the `developers` row: "Reached
  * from the footer, not the product switcher") describing a navigation path that did not exist.
  *
- * The two links that are NOT surfaces are in `FOOTER_LEGAL_LINKS` above, under their own heading,
- * with the reasoning for each absence written out.
+ * The three links that are NOT surfaces are in `FOOTER_LEGAL_LINKS` above, under their own
+ * heading, with the reasoning for each absence written out.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * ── `adminOnly` and the signed-out visitor ─────────────────────────────────────────────────────

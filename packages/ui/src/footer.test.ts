@@ -92,7 +92,7 @@ describe('the footer is a landmark', () => {
 /* ═══════════════════════════════ derived, not written down ═══════════════════════════════ */
 
 describe('every navigation link is derived from the registry', () => {
-  it('offers exactly the registry surfaces plus the two declared legal routes — no more', () => {
+  it('offers exactly the registry surfaces plus the three declared legal routes — no more', () => {
     /*
      * THE COUNTING TEST, and the one that makes every other assertion in this file worth having.
      * A link typed into the component by hand would not break "the products are present" or "admin
@@ -295,10 +295,10 @@ describe('the link text is usable out of context', () => {
   })
 })
 
-/* ══════════════════════ the two links that are not surfaces ══════════════════════ */
+/* ═════════════════════ the three links that are not surfaces ═════════════════════ */
 
 describe('the legal links are declared as non-surfaces and resolve on the site host', () => {
-  it('resolves both against the marketing site rather than the current origin', () => {
+  it('resolves each against the marketing site rather than the current origin', () => {
     const site = cloudsforgeHosts().site
     for (const l of FOOTER_LEGAL_LINKS) {
       const found = anchors(SIGNED_OUT).find((a) => a.text === l.label)
@@ -310,11 +310,11 @@ describe('the legal links are declared as non-surfaces and resolve on the site h
   it('names no path that the marketing site does not route, and calls it what the site calls it', async () => {
     /*
      * The one place in this footer where drift is possible: `@cloudsforge/ui` cannot import from a
-     * consumer, so these four strings are a restatement of `site/src/lib/routes.ts`. When a
+     * consumer, so these six strings are a restatement of `site/src/lib/routes.ts`. When a
      * checkout of `micro-site` is beside this one, the restatement is checked against it.
      *
      * It does NOT skip when the checkout is absent — the assertion above still runs, and this one
-     * asserts the two paths are at least well-formed, because "not run" reading as "passed" is the
+     * asserts the paths are at least well-formed, because "not run" reading as "passed" is the
      * defect this estate keeps paying for.
      *
      * ── WHY THIS EXECUTES THE ROUTE TABLE RATHER THAN SCANNING ITS SOURCE TEXT ────────────────

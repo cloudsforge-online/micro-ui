@@ -26,9 +26,9 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────────────────────
       # NOT A BUILD INPUT. Nothing here imports micro-site and the package does not change if it
       # is absent. It is checked out so that ONE assertion in `packages/ui/src/footer.test.ts` can
-      # run at all: the footer links `/terms` and `/privacy` on the marketing site, this package
-      # cannot import from a consumer, and those two strings are therefore a restatement of
-      # `site/src/lib/routes.ts` that has to be checked against it.
+      # run at all: the footer links `/terms`, `/privacy` and `/risk` on the marketing site, this
+      # package cannot import from a consumer, and those paths and labels are therefore a
+      # restatement of `site/src/lib/routes.ts` that has to be checked against it.
       #
       # UNTIL NOW IT NEVER RAN HERE. The assertion is guarded by `existsSync`, this job checked out
       # only itself, so the guard was false on every CI run and the cross-repo half returned early
