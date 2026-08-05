@@ -62,6 +62,14 @@ export interface AccountMenuProps {
     account: AccountState;
     onSignIn?: (() => void) | undefined;
     onSignOut?: (() => void) | undefined;
+    /**
+     * Where the `Account` entry goes. Defaults to {@link accountSettingsUrl}.
+     *
+     * For a surface that serves its own account screen and would rather keep the reader on it than
+     * send them across to Hub. It is an ADDRESS, not a callback, on purpose — see the note on
+     * `accountSettingsUrl`.
+     */
+    accountHref?: string | undefined;
 }
 export interface CloudsForgeBarProps {
     current: SurfaceKey;
@@ -71,6 +79,8 @@ export interface CloudsForgeBarProps {
     productUrls?: ProductUrls | undefined;
     /** Optional content rendered just left of the account menu. */
     rightSlot?: ReactNode | undefined;
+    /** Passed through to {@link AccountMenu}. Defaults to {@link accountSettingsUrl}. */
+    accountHref?: string | undefined;
 }
 /**
  * Every CloudsForge surface's base URL, resolved for the current environment.
@@ -144,6 +154,34 @@ export declare function cloudsforgeHosts(): CloudsForgeHosts;
  * surfaces.ts for why it rides on Hub rather than claiming a hostname of its own.
  */
 export declare function accountUrl(): string;
+/**
+ * Where the `Account` entry in the bar's menu goes: the settings page a signed-in reader is asking
+ * for. `https://hub.<apex>/settings`, resolved from the registry.
+ *
+ * ── THIS IS NOT `accountUrl()`, AND THE DIFFERENCE IS THE DEFECT ──────────────────────────────
+ *
+ * `accountUrl()` resolves the `signin` surface — the page you are sent to when you are NOT signed
+ * in. The account menu only exists when you ARE, so pointing it there sends a reader who is
+ * already authenticated to a sign-in form, which signs them in again and returns them to the page
+ * they pressed it on. That is precisely what shipped: the menu entry's `onClick` was `onSignIn`,
+ * the same callback as the `Sign in` button, so there was no route to an account screen from the
+ * chrome on any of the nineteen surfaces that render this bar.
+ *
+ * ── AND WHY IT IS AN `href` RATHER THAN A CALLBACK ────────────────────────────────────────────
+ *
+ * A `<button onClick>` is a destination that nothing can see. It cannot be middle-clicked or
+ * opened in a new tab, its target cannot be copied, and — the reason this went unnoticed for as
+ * long as it did — it is invisible to every check that reads links. `footer.test.ts` counts and
+ * resolves every anchor the footer emits and would have caught a wrong address here in the first
+ * run, had there been an address to read. `hub-web/test/account-link.test.ts` is the assertion
+ * that now does, driven through a real click in a real DOM.
+ *
+ * `/settings` is served by `hub-web` (`src/app.tsx:101-108`, `src/pages/settings.tsx`), which is
+ * the bundle already behind `hub.<apex>` — so this needs no new hostname, no new container and no
+ * DNS, for the same reason the `signin` row rides on Hub. A surface that serves its own account
+ * screen overrides it with `accountHref`.
+ */
+export declare function accountSettingsUrl(): string;
 /**
  * Redirect the browser to the Account portal to sign in. After a successful login the portal
  * returns to `returnUrl` with a one-time hand-off code in the URL hash (`#cf_code=…`) — redeem it
@@ -269,8 +307,8 @@ export declare function CloudsForgeLogo({ size, markOnly }: CloudsForgeLogoProps
  * accents from ever being adjacent to a product's.
  */
 export declare function ProductSwitcher({ current, productUrls, isAdmin }: ProductSwitcherProps): import("react").JSX.Element;
-export declare function AccountMenu({ account, onSignIn, onSignOut }: AccountMenuProps): import("react").JSX.Element;
-export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, }: CloudsForgeBarProps): import("react").JSX.Element;
+export declare function AccountMenu({ account, onSignIn, onSignOut, accountHref }: AccountMenuProps): import("react").JSX.Element;
+export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, }: CloudsForgeBarProps): import("react").JSX.Element;
 /**
  * Links that are deliberately NOT registry surfaces.
  *

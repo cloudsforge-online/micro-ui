@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { accountUrl, cloudsforgeHosts, resolveProducts } from './index.tsx'
+import { accountSettingsUrl, accountUrl, cloudsforgeHosts, resolveProducts } from './index.tsx'
 import { SURFACES } from './surfaces.ts'
 
 /**
@@ -87,6 +87,30 @@ describe('cloudsforgeHosts', () => {
     )
     atHostname('localhost')
     assert.equal(accountUrl(), 'http://localhost:3010/account')
+  })
+
+  it('sends the account MENU somewhere a signed-in reader can use, not back to sign-in', () => {
+    /*
+     * The two addresses are for opposite states and were the same one. The account menu only
+     * exists when somebody IS signed in, so resolving it to the sign-in surface offers them the
+     * form they have already filled in — which is what the bar did, because the entry's `onClick`
+     * was `onSignIn`. `hub-web/test/account-link.test.ts` asserts the rendered anchor; this
+     * asserts the address, in both environments, and fails the moment the two collapse again.
+     */
+    atHostname('cloudsforge.online')
+    assert.equal(accountSettingsUrl(), 'https://hub.cloudsforge.online/settings')
+    assert.notEqual(
+      accountSettingsUrl(),
+      accountUrl(),
+      'the account menu resolves the sign-in surface again — this is the defect, restored',
+    )
+    atHostname('localhost')
+    assert.equal(accountSettingsUrl(), 'http://localhost:3010/settings')
+
+    // Testnet, because a bundle is promoted rather than rebuilt: one wrong branch here would send
+    // every testnet reader's account link at the mainnet estate.
+    atHostname('hub-testnet.cloudsforge.online')
+    assert.equal(accountSettingsUrl(), 'https://hub-testnet.cloudsforge.online/settings')
   })
 
   it('keeps the reserved account hostname resolvable, and distinct from the sign-in page', () => {

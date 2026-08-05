@@ -111,6 +111,36 @@ export function accountUrl() {
     return cloudsforgeHosts().signin;
 }
 /**
+ * Where the `Account` entry in the bar's menu goes: the settings page a signed-in reader is asking
+ * for. `https://hub.<apex>/settings`, resolved from the registry.
+ *
+ * ── THIS IS NOT `accountUrl()`, AND THE DIFFERENCE IS THE DEFECT ──────────────────────────────
+ *
+ * `accountUrl()` resolves the `signin` surface — the page you are sent to when you are NOT signed
+ * in. The account menu only exists when you ARE, so pointing it there sends a reader who is
+ * already authenticated to a sign-in form, which signs them in again and returns them to the page
+ * they pressed it on. That is precisely what shipped: the menu entry's `onClick` was `onSignIn`,
+ * the same callback as the `Sign in` button, so there was no route to an account screen from the
+ * chrome on any of the nineteen surfaces that render this bar.
+ *
+ * ── AND WHY IT IS AN `href` RATHER THAN A CALLBACK ────────────────────────────────────────────
+ *
+ * A `<button onClick>` is a destination that nothing can see. It cannot be middle-clicked or
+ * opened in a new tab, its target cannot be copied, and — the reason this went unnoticed for as
+ * long as it did — it is invisible to every check that reads links. `footer.test.ts` counts and
+ * resolves every anchor the footer emits and would have caught a wrong address here in the first
+ * run, had there been an address to read. `hub-web/test/account-link.test.ts` is the assertion
+ * that now does, driven through a real click in a real DOM.
+ *
+ * `/settings` is served by `hub-web` (`src/app.tsx:101-108`, `src/pages/settings.tsx`), which is
+ * the bundle already behind `hub.<apex>` — so this needs no new hostname, no new container and no
+ * DNS, for the same reason the `signin` row rides on Hub. A surface that serves its own account
+ * screen overrides it with `accountHref`.
+ */
+export function accountSettingsUrl() {
+    return `${cloudsforgeHosts().hub}/settings`;
+}
+/**
  * Redirect the browser to the Account portal to sign in. After a successful login the portal
  * returns to `returnUrl` with a one-time hand-off code in the URL hash (`#cf_code=…`) — redeem it
  * on boot with {@link consumeAuthCallback}. Defaults to returning to the current page.
@@ -397,7 +427,7 @@ function initialsOf(handle) {
         return '?';
     return h.slice(0, 2);
 }
-export function AccountMenu({ account, onSignIn, onSignOut }) {
+export function AccountMenu({ account, onSignIn, onSignOut, accountHref }) {
     const { open, setOpen, rootRef, triggerRef } = useDropdown();
     const menuId = useId();
     if (!account.signedIn) {
@@ -406,22 +436,19 @@ export function AccountMenu({ account, onSignIn, onSignOut }) {
         return (_jsx("button", { type: "button", className: "cf-btn cf-btn--ember", onClick: () => onSignIn?.(), children: "Sign in" }));
     }
     const handle = account.handle || 'account';
-    return (_jsxs("div", { className: "cf-pop", ref: rootRef, children: [_jsxs("button", { ref: triggerRef, type: "button", className: "cf-btn", "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": menuId, onClick: () => setOpen((v) => !v), children: [_jsx("span", { className: "cf-account__avatar", "aria-hidden": "true", children: initialsOf(handle) }), _jsx("span", { className: "cf-account__handle", children: handle }), _jsx(Caret, {})] }), open && (_jsxs("ul", { className: "cf-menu cf-menu--right", id: menuId, role: "menu", "aria-label": "Account", children: [_jsxs("li", { className: "cf-menu__label", "aria-hidden": "true", children: ["Signed in as ", handle] }), _jsx("li", { role: "none", children: _jsxs("button", { type: "button", className: "cf-menu__item", role: "menuitem", onClick: () => {
-                                setOpen(false);
-                                onSignIn?.();
-                            }, children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", children: "\u25C7" }), _jsx("span", { className: "cf-menu__text", children: _jsx("span", { className: "cf-menu__name", children: "Account" }) })] }) }), _jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) }), _jsx("li", { role: "none", children: _jsxs("button", { type: "button", className: "cf-menu__item", role: "menuitem", onClick: () => {
+    return (_jsxs("div", { className: "cf-pop", ref: rootRef, children: [_jsxs("button", { ref: triggerRef, type: "button", className: "cf-btn", "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": menuId, onClick: () => setOpen((v) => !v), children: [_jsx("span", { className: "cf-account__avatar", "aria-hidden": "true", children: initialsOf(handle) }), _jsx("span", { className: "cf-account__handle", children: handle }), _jsx(Caret, {})] }), open && (_jsxs("ul", { className: "cf-menu cf-menu--right", id: menuId, role: "menu", "aria-label": "Account", children: [_jsxs("li", { className: "cf-menu__label", "aria-hidden": "true", children: ["Signed in as ", handle] }), _jsx("li", { role: "none", children: _jsxs("a", { className: "cf-menu__item", role: "menuitem", href: accountHref ?? accountSettingsUrl(), onClick: () => setOpen(false), children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", children: "\u25C7" }), _jsx("span", { className: "cf-menu__text", children: _jsx("span", { className: "cf-menu__name", children: "Account" }) })] }) }), _jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) }), _jsx("li", { role: "none", children: _jsxs("button", { type: "button", className: "cf-menu__item", role: "menuitem", onClick: () => {
                                 setOpen(false);
                                 onSignOut?.();
                             }, children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", children: "\u23FB" }), _jsx("span", { className: "cf-menu__text", children: _jsx("span", { className: "cf-menu__name", children: "Sign out" }) })] }) })] }))] }));
 }
 /* ========================= CloudsForgeBar ======================== */
-export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, }) {
+export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, }) {
     // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
     // two routes to one page cost a slot in a list whose whole job is separation.
     const siteUrl = cloudsforgeHosts().site;
     const isAdmin = account.roles?.includes('admin') ?? false;
     const barStyle = { colorScheme: 'dark' };
-    return (_jsx("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: _jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut })] }) }));
+    return (_jsx("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: _jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }) }));
 }
 /* ========================= CloudsForgeFooter ====================== */
 /**

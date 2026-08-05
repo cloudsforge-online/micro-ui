@@ -106,6 +106,14 @@ export interface AccountMenuProps {
   account: AccountState
   onSignIn?: (() => void) | undefined
   onSignOut?: (() => void) | undefined
+  /**
+   * Where the `Account` entry goes. Defaults to {@link accountSettingsUrl}.
+   *
+   * For a surface that serves its own account screen and would rather keep the reader on it than
+   * send them across to Hub. It is an ADDRESS, not a callback, on purpose — see the note on
+   * `accountSettingsUrl`.
+   */
+  accountHref?: string | undefined
 }
 
 export interface CloudsForgeBarProps {
@@ -116,6 +124,8 @@ export interface CloudsForgeBarProps {
   productUrls?: ProductUrls | undefined
   /** Optional content rendered just left of the account menu. */
   rightSlot?: ReactNode | undefined
+  /** Passed through to {@link AccountMenu}. Defaults to {@link accountSettingsUrl}. */
+  accountHref?: string | undefined
 }
 
 /* ========================= host resolution ======================== */
@@ -228,6 +238,37 @@ export function cloudsforgeHosts(): CloudsForgeHosts {
  */
 export function accountUrl(): string {
   return cloudsforgeHosts().signin
+}
+
+/**
+ * Where the `Account` entry in the bar's menu goes: the settings page a signed-in reader is asking
+ * for. `https://hub.<apex>/settings`, resolved from the registry.
+ *
+ * ── THIS IS NOT `accountUrl()`, AND THE DIFFERENCE IS THE DEFECT ──────────────────────────────
+ *
+ * `accountUrl()` resolves the `signin` surface — the page you are sent to when you are NOT signed
+ * in. The account menu only exists when you ARE, so pointing it there sends a reader who is
+ * already authenticated to a sign-in form, which signs them in again and returns them to the page
+ * they pressed it on. That is precisely what shipped: the menu entry's `onClick` was `onSignIn`,
+ * the same callback as the `Sign in` button, so there was no route to an account screen from the
+ * chrome on any of the nineteen surfaces that render this bar.
+ *
+ * ── AND WHY IT IS AN `href` RATHER THAN A CALLBACK ────────────────────────────────────────────
+ *
+ * A `<button onClick>` is a destination that nothing can see. It cannot be middle-clicked or
+ * opened in a new tab, its target cannot be copied, and — the reason this went unnoticed for as
+ * long as it did — it is invisible to every check that reads links. `footer.test.ts` counts and
+ * resolves every anchor the footer emits and would have caught a wrong address here in the first
+ * run, had there been an address to read. `hub-web/test/account-link.test.ts` is the assertion
+ * that now does, driven through a real click in a real DOM.
+ *
+ * `/settings` is served by `hub-web` (`src/app.tsx:101-108`, `src/pages/settings.tsx`), which is
+ * the bundle already behind `hub.<apex>` — so this needs no new hostname, no new container and no
+ * DNS, for the same reason the `signin` row rides on Hub. A surface that serves its own account
+ * screen overrides it with `accountHref`.
+ */
+export function accountSettingsUrl(): string {
+  return `${cloudsforgeHosts().hub}/settings`
 }
 
 /**
@@ -786,7 +827,7 @@ function initialsOf(handle?: string | null): string {
   return h.slice(0, 2)
 }
 
-export function AccountMenu({ account, onSignIn, onSignOut }: AccountMenuProps) {
+export function AccountMenu({ account, onSignIn, onSignOut, accountHref }: AccountMenuProps) {
   const { open, setOpen, rootRef, triggerRef } = useDropdown()
   const menuId = useId()
 
@@ -825,14 +866,18 @@ export function AccountMenu({ account, onSignIn, onSignOut }: AccountMenuProps) 
             Signed in as {handle}
           </li>
           <li role="none">
-            <button
-              type="button"
+            {/*
+              An <a href>, resolved from the registry — NOT a button, and NOT `accountUrl()`.
+              This entry used to call `onSignIn`, the same callback as the Sign in button, so the
+              one control offering a signed-in reader their account sent them to the sign-in page.
+              See `accountSettingsUrl` for why the address is what fixes it and the anchor is what
+              keeps it fixed.
+            */}
+            <a
               className="cf-menu__item"
               role="menuitem"
-              onClick={() => {
-                setOpen(false)
-                onSignIn?.()
-              }}
+              href={accountHref ?? accountSettingsUrl()}
+              onClick={() => setOpen(false)}
             >
               <span className="cf-menu__icon" aria-hidden="true">
                 ◇
@@ -840,7 +885,7 @@ export function AccountMenu({ account, onSignIn, onSignOut }: AccountMenuProps) 
               <span className="cf-menu__text">
                 <span className="cf-menu__name">Account</span>
               </span>
-            </button>
+            </a>
           </li>
           <li role="none" aria-hidden="true">
             <hr className="cf-menu__sep" />
@@ -878,6 +923,7 @@ export function CloudsForgeBar({
   onSignOut,
   productUrls,
   rightSlot,
+  accountHref,
 }: CloudsForgeBarProps) {
   // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
   // two routes to one page cost a slot in a list whose whole job is separation.
@@ -895,7 +941,12 @@ export function CloudsForgeBar({
         <ProductSwitcher current={current} productUrls={productUrls} isAdmin={isAdmin} />
         <span className="cf-bar__spacer" />
         {rightSlot && <div className="cf-bar__right">{rightSlot}</div>}
-        <AccountMenu account={account} onSignIn={onSignIn} onSignOut={onSignOut} />
+        <AccountMenu
+          account={account}
+          onSignIn={onSignIn}
+          onSignOut={onSignOut}
+          {...(accountHref === undefined ? {} : { accountHref })}
+        />
       </div>
     </div>
   )
