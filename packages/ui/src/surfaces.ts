@@ -751,9 +751,21 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
-    // The public, versioned surface. It is empty until the developer platform claims it: today
-    // `api.` still points at the game API, which is renamed to `worlds-api.` first. Renaming a
-    // public hostname after third parties are on it costs a deprecation cycle.
+    // The public, versioned surface.
+    //
+    // ── THIS COMMENT USED TO DESCRIBE THE CONSOLIDATION BACKWARDS. CORRECTED 2026-08-05 ────────
+    //
+    // It read: "today `api.` still points at the game API, which is renamed to `worlds-api.`
+    // first. Renaming a public hostname after third parties are on it costs a deprecation cycle."
+    // That plan was not carried out and the OPPOSITE was: the game API was consolidated INTO
+    // `api.`, and `worlds-api.` has no DNS record at all. Measured 2026-08-05 — `worlds-api.
+    // cloudsforge.online` does not resolve, while `api.cloudsforge.online` resolves and serves on
+    // both networks, answering `404 text/plain` on an unmatched path. It spent part of that day
+    // returning 502, from a `cf-api-catchall` router pointing at `http://127.0.0.1:1`; that is
+    // fixed and is not a naming question either way.
+    //
+    // The deprecation-cycle argument was sound and is why the direction flipped: `api.` is the
+    // name a third party would be given, so it is the one that had to survive.
     key: 'api',
     name: 'CloudsForge API',
     verb: null,
@@ -768,8 +780,41 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
+    // ── RETIRED AS A HOSTNAME, KEPT AS A ROW. DELIBERATE — READ BEFORE DELETING IT ─────────────
+    //
+    // `worlds-api.cloudsforge.online` HAS NO DNS RECORD and is not going to get one. The game API
+    // was consolidated into `api.` rather than split out of it, which is the reverse of what the
+    // `api` row above used to plan. Measured 2026-08-05: the name does not resolve on either
+    // network. **It must not be documented, linked or routed as a live endpoint.**
+    //
+    // It is NOT deleted, and the reasons are load-bearing rather than sentimental:
+    //
+    //   1. `micro-worlds-web` resolves its API base through this key — `API_SURFACE` is the
+    //      literal `'worlds-api'` (`worlds-web/src/lib/hosts.ts:80`) and ten assertions in
+    //      `worlds-web/test/hosts.test.ts` pin this row's `subdomain` and `devPort: 4002`.
+    //      Deleting the row makes `SurfaceKey` reject `'worlds-api'` and that file stops
+    //      compiling. The consolidation has to land in `worlds-web` FIRST; until then this row is
+    //      what keeps the estate's one registry honest about a key something still names.
+    //   2. It is the ONLY registry subdomain containing a hyphen — CHECKED, not assumed: of the
+    //      27 `subdomain` values in this file, exactly one has a hyphen in it, and it is this
+    //      one. That makes it the sole fixture for the last-hyphen split that the whole
+    //      `<surface>-<env>` scheme rests on — see `ENV_LABELS` below and `hosts.test.ts:185-189`,
+    //      which asserts `worlds-api-testnet.cloudsforge.online` resolves to the surface
+    //      `worlds-api` on `testnet` and not to `worlds` on an environment called `api-testnet`.
+    //      Remove the row and the rule keeps applying to every hostname while no longer having a
+    //      single case that exercises it, which is the worst of both.
+    //
+    // What removal would NOT break, so the next reader does not inherit a hazard that is not
+    // there: **ports.** Those derive from POSITION in `deployableRepos()`
+    // (`org/tools/cfctl.ts:1048-1049`, guarded by `DERIVED_PORT_ORDER` in `org/test/cfctl.test.ts`)
+    // — a list in `micro-org`, not this one. `worlds-api` appears nowhere in
+    // `org/tools/registry.ts`, and `devPort` here is a literal per row rather than an index, so
+    // nothing in this file renumbers when a row moves.
+    //
+    // So the row stays and the truth is written on it. `servesUi: false` already keeps it out of
+    // every footer and switcher; nothing renders it to a person.
     key: 'worlds-api',
-    name: 'Worlds API',
+    name: 'Worlds API (retired hostname)',
     verb: null,
     kind: 'service',
     subdomain: 'worlds-api',
@@ -777,7 +822,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     accent: '#6d9a49',
     glyph: '▤',
     markId: null,
-    blurb: 'The game platform API',
+    blurb: 'Retired: consolidated into api. — no DNS record, not a live endpoint',
     servesUi: false,
     inSwitcher: false,
   },
