@@ -368,7 +368,7 @@ describe('the legal links are declared as non-surfaces and resolve on the site h
       /*
        * A legal route carries no nav `label` — that is what keeps it out of the header — so the
        * site's own footer takes its link text from the clause of the summary before the em dash
-       * (`site/src/components/shell.tsx:153`). That clause IS the site's name for the page, so it
+       * (`site/src/components/shell.tsx`). That clause IS the site's name for the page, so it
        * is the thing this label has to agree with: one page must not be "Terms of service" on
        * sixteen surfaces and something else on the surface that serves it.
        */

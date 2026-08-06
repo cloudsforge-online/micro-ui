@@ -12,7 +12,7 @@
  * URL out of the implementation and compared it with a copy of itself, so it was green for every
  * possible value of that URL — including the one that was wrong. **`micro-identity` has never
  * served `/auth/exchange`.** It serves `POST /auth/handoff` and `POST /auth/handoff/redeem`
- * (`identity/src/server.ts:1076`, `:1084`). Every SSO callback in the estate 404'd.
+ * (`identity/src/server.ts`). Every SSO callback in the estate 404'd.
  *
  * A string-equality assertion cannot catch a wrong address, because a wrong address and a right
  * one are both just strings. So the calls below are driven against `identityStub` — a fetch that
@@ -53,12 +53,12 @@ const reply = (status: number, body: unknown): Reply => ({
  * The routes `micro-identity` serves that this module may call, with where each was read from.
  *
  * Anything absent answers 404 with identity's own error envelope
- * (`identity/src/server.ts:1431-1433`), because that is what identity does with a path it does not
+ * (`identity/src/server.ts`), because that is what identity does with a path it does not
  * route — and that is the failure the client hit in production.
  */
 const IDENTITY_ROUTES: Record<string, (body: Record<string, unknown>, auth: string | null) => Reply> = {
-  // identity/src/server.ts:1076 — mints a 60s single-use code, bound to one redirect origin.
-  // Refuses without a user token, and refuses an origin off the allowlist (handoff.ts:31-47).
+  // identity/src/server.ts — mints a 60s single-use code, bound to one redirect origin.
+  // Refuses without a user token, and refuses an origin off the allowlist (handoff.ts).
   'POST /auth/handoff': (body, auth) => {
     // identity verifies the token, so an empty bearer is a 401 rather than an authenticated caller.
     const token = auth?.startsWith('Bearer ') === true ? auth.slice('Bearer '.length) : ''
@@ -71,7 +71,7 @@ const IDENTITY_ROUTES: Record<string, (body: Record<string, unknown>, auth: stri
     }
     return reply(201, { code: 'handoff-code-1', expiresInSeconds: 60 })
   },
-  // identity/src/server.ts:1084 — spends a code exactly once and answers with a session.
+  // identity/src/server.ts — spends a code exactly once and answers with a session.
   'POST /auth/handoff/redeem': (body) => {
     if (typeof body['code'] !== 'string' || body['code'] === '') {
       return reply(400, { error: { code: 'bad_request', message: 'code is required' } })

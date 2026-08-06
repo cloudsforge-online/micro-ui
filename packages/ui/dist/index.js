@@ -112,7 +112,7 @@ export function cloudsforgeHosts() {
  *
  * `cloudsforgeHosts().account` is `https://account.<apex>` / `localhost:4001`. Both addresses are
  * empty: `micro-identity` binds 4001 and renders no HTML (`identity/src/server.ts` §3 forbids it,
- * `identity/src/server.test.ts:890` asserts the 404s), and no repository in the estate serves the
+ * `identity/src/server.test.ts` asserts the 404s), and no repository in the estate serves the
  * `account.` hostname. So every `Sign in` button in the estate led to a page that has never
  * existed. The registry entry `signin` is the address that IS served — see its note in
  * surfaces.ts for why it rides on Hub rather than claiming a hostname of its own.
@@ -142,7 +142,7 @@ export function accountUrl() {
  * run, had there been an address to read. `hub-web/test/account-link.test.ts` is the assertion
  * that now does, driven through a real click in a real DOM.
  *
- * `/settings` is served by `hub-web` (`src/app.tsx:101-108`, `src/pages/settings.tsx`), which is
+ * `/settings` is served by `hub-web` (`src/app.tsx`, `src/pages/settings.tsx`), which is
  * the bundle already behind `hub.<apex>` — so this needs no new hostname, no new container and no
  * DNS, for the same reason the `signin` row rides on Hub. A surface that serves its own account
  * screen overrides it with `accountHref`.
@@ -175,8 +175,8 @@ export function signOutRedirect(returnUrl) {
  *
  * The version of this file that shipped posted the hand-off code to `/auth/exchange`.
  * **`micro-identity` has never served `/auth/exchange`.** It serves `POST /auth/handoff` to mint a
- * code and `POST /auth/handoff/redeem` to spend one (`identity/src/server.ts:1076` and `:1084`,
- * with `/auth/handoff/redeem` in the throttle table at `:410`). Every SSO callback in the estate
+ * code and `POST /auth/handoff/redeem` to spend one (`identity/src/server.ts` and,
+ * with `/auth/handoff/redeem` in the throttle table). Every SSO callback in the estate
  * therefore 404'd, silently, and `consumeAuthCallback` returned null exactly as it does for a
  * stale code — so it looked like an expiry rather than like a wrong address.
  *
@@ -187,9 +187,9 @@ export function signOutRedirect(returnUrl) {
  * one string to disagree about instead of two.
  */
 export const IDENTITY_AUTH_ROUTES = {
-    /** Mint a single-use, origin-bound hand-off code. `identity/src/server.ts:1076`. */
+    /** Mint a single-use, origin-bound hand-off code. `identity/src/server.ts`. */
     handoff: '/auth/handoff',
-    /** Spend one. `identity/src/server.ts:1084`. */
+    /** Spend one. `identity/src/server.ts`. */
     handoffRedeem: '/auth/handoff/redeem',
 };
 /**
@@ -197,7 +197,7 @@ export const IDENTITY_AUTH_ROUTES = {
  *
  * Called by the sign-in surface once credentials have been accepted, and by nothing else: the
  * caller must present an access token, and identity refuses an origin that is not on
- * `IDENTITY_HANDOFF_ORIGINS` (`identity/src/handoff.ts:31-47`) rather than minting a code that
+ * `IDENTITY_HANDOFF_ORIGINS` (`identity/src/handoff.ts`) rather than minting a code that
  * could not be redeemed. `redirectOrigin` is an ORIGIN — scheme, host and port, no path — because
  * that is what a browser puts in the `Origin` header of the redemption POST, and the two are
  * compared for equality when the code is spent.
@@ -276,7 +276,7 @@ export async function consumeAuthCallback() {
     try {
         // No `authorization` header and no credentials: the code IS the credential, and it is bound to
         // this origin — which the browser states in `Origin` on every cross-site POST and identity
-        // matches against the value the code was minted for (`identity/src/handoff.ts:73-86`).
+        // matches against the value the code was minted for (`identity/src/handoff.ts`).
         const res = await fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoffRedeem}`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

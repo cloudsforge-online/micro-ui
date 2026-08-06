@@ -154,7 +154,7 @@ describe('cloudsforgeHosts', () => {
  *
  *   * no resolved address may be a mainnet address (the leak), and
  *   * every resolved address must be the exact testnet address (an address one level too deep
- *     resolves nothing, which is the `foresight-admin` defect recorded in surfaces.ts:350-353,
+ *     resolves nothing, which is the `foresight-admin` defect recorded in surfaces.ts,
  *     and it is the failure a naive rename actually produces).
  */
 describe('a testnet page resolves testnet siblings and NOTHING on mainnet', () => {

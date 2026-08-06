@@ -196,7 +196,7 @@ export const SURFACES = [
         verb: null,
         kind: 'service',
         subdomain: 'admin',
-        // 4014, because that is the port `admin-api` binds (`admin-api/src/env.ts:167`, and
+        // 4014, because that is the port `admin-api` binds (`admin-api/src/env.ts`, and
         // `admin-api/.env.example:76`). It said 3002, which nothing anywhere listens on. Production
         // hid it — the console and its API share an origin behind `admin.<apex>`, so `apiBase()` is
         // '' and every request is relative — but `pnpm dev` resolved to a dead port. micro-admin-web
@@ -351,7 +351,7 @@ export const SURFACES = [
          * production and `localhost:4001` under `pnpm dev`. **Nothing in the estate serves either
          * address.** `micro-identity` binds 4001 and renders no HTML at all — `identity/src/server.ts`
          * §3 forbids it ("NO PRODUCT FEATURE LIVES HERE… no portal") and
-         * `identity/src/server.test.ts:890` asserts that `/`, `/portal` and friends 404. There is no
+         * `identity/src/server.test.ts` asserts that `/`, `/portal` and friends 404. There is no
          * `account-web` among the 58 repositories. So every product in the estate sent every
          * signed-out visitor to a page that has never existed, and nobody could sign in from a
          * browser. Recorded as the largest blocker in docs/ecosystem/22 §8.1.
@@ -465,7 +465,7 @@ export const SURFACES = [
         verb: null,
         kind: 'service',
         subdomain: 'emberkin',
-        // 4100, because that is the port the service binds (`emberkin/src/env.ts:121`,
+        // 4100, because that is the port the service binds (`emberkin/src/env.ts`,
         // `emberkin/.env.example:40`). It was briefly 3014 — a free-looking number chosen without
         // reading the service, which is precisely how foresight came to be given beacon's 4011. A
         // devPort is not an allocation; it is a fact about a service, and the test below reads it.
@@ -488,7 +488,7 @@ export const SURFACES = [
         verb: null,
         kind: 'service',
         subdomain: 'aetherholm',
-        // 4120, because that is the port the service binds (`aetherholm/src/env.ts:105`,
+        // 4120, because that is the port the service binds (`aetherholm/src/env.ts`,
         // `aetherholm/.env.example:31`). A devPort is a fact about a service, not an allocation —
         // this entry class has been wrong three times, so the test below reads the value.
         devPort: 4120,
@@ -519,7 +519,7 @@ export const SURFACES = [
         // ══════════════════════════════════════════════════════════════════════════════════════════
         // 4022, AND IT IS THE ONE NUMBER IN THIS ROW THAT WAS ARGUED RATHER THAN PICKED.
         //
-        // It is the port the service binds — `tessera/src/env.ts:55`, `DEFAULT_PORT = 4022` — and a
+        // It is the port the service binds — `tessera/src/env.ts`, `DEFAULT_PORT = 4022` — and a
         // devPort is a fact about a service, not an allocation. That much is the standing rule, and
         // it has been broken three times (foresight carried beacon's 4011; emberkin carried 3014
         // while binding 4100; admin carried 3002 while admin-api binds 4014).
@@ -527,7 +527,7 @@ export const SURFACES = [
         // What is different here is WHY the service binds 4022 rather than something in the 4100s.
         // 23-tessera.md §10.1 separates three port spaces this estate keeps confusing: the port a
         // service binds, the HOST port in the estate compose file (derived — `4100 + index in
-        // deployableRepos()`, org/tools/cfctl.ts:864-871), and this field. Spaces one and two already
+        // deployableRepos()`, org/tools/cfctl.ts), and this field. Spaces one and two already
         // collide three times: emberkin binds 4100, which is identity's compose host port; aetherholm
         // binds 4120, which is admin-api's; nda binds 4110, which is notify's. Each of those services
         // binds a number the estate hands to somebody else.
@@ -570,7 +570,7 @@ export const SURFACES = [
         verb: null,
         kind: 'service',
         subdomain: 'explorer',
-        // 4008, the port `micro-indexer` binds (`indexer/src/env.ts:295`), NOT 8080.
+        // 4008, the port `micro-indexer` binds (`indexer/src/env.ts`), NOT 8080.
         //
         // 8080 was this bundle's own nginx container port, which is the one number that is certainly
         // wrong here: `hosts.ts` uses devPort to resolve the host a frontend CALLS, so `explorer`
@@ -611,7 +611,7 @@ export const SURFACES = [
         // be inferred from a string at a call site.
         //
         // NOTHING IS SERVED HERE TODAY. identity binds 4001 and renders no HTML (its own server.ts §3
-        // forbids it; server.test.ts:890 asserts the 404s), and no repository in the estate serves
+        // forbids it; server.test.ts asserts the 404s), and no repository in the estate serves
         // `account.<apex>`. The address a person is actually sent to sign in is the `signin` row
         // above — do not resolve this one for a redirect until something answers it.
         key: 'account',
@@ -700,13 +700,13 @@ export const SURFACES = [
         // line of defence rather than a formality. Uploads are validated by magic bytes, SVG is
         // rejected outright and EXIF is stripped, and the gateway adds `X-Content-Type-Options:
         // nosniff` on both entrypoint chains (`cf-security-headers`, attached in
-        // docker-compose.gateway.yml:197 and :266) so a stored file cannot be sniffed into script.
+        // docker-compose.gateway.yml and :266) so a stored file cannot be sniffed into script.
         //
         // `servesUi: false` because nothing here is a PAGE. It is not in the switcher and no footer
         // links it; a person never opens `studio.<apex>` and there is nothing to see if they do.
         //
         // devPort is 4015 because that is what the service itself defaults `PORT` to
-        // (`studio/src/env.ts:290`), read rather than allocated. Six rows in this file are numbers
+        // (`studio/src/env.ts`), read rather than allocated. Six rows in this file are numbers
         // that were picked and then contradicted by the service that binds them — see the note in
         // `micro-devportal-web`'s hosts.ts, which counts them — and the cheapest way not to be the
         // seventh is to copy the service's own default. In the compose estate the port is 4000 for
@@ -773,20 +773,20 @@ export const SURFACES = [
      * ------------------------------------------------------------------ */
     {
         // The Ethereum JSON-RPC endpoint of the EMBER chain: what MetaMask, Hardhat, Foundry and an
-        // exchange point at. Port 8545 and path `/`, settled in `hearth/node/src/params.js:309-327`
+        // exchange point at. Port 8545 and path `/`, settled in `hearth/node/src/params.js`
         // (`DEFAULT_JSONRPC_PORT`), which also records why it cannot move: the number is published in
         // `ethereum-lists/chains` and cached in every user's saved networks.
         //
         // NOT 8645, and this is the one confusion worth spelling out beside the number. Hearth serves
         // TWO protocols on TWO ports — 8645 is the REST API plus the legacy `{method:'getinfo'}`
-        // JSON-RPC and SSE (`hearth/node/src/rpc.js:46`), 8545 is Ethereum JSON-RPC 2.0
-        // (`hearth/node/src/jsonrpc/server.js:317`). Only the second is the one a wallet speaks, so
-        // only the second is published. 8546 is deliberately unpublished and unused: `params.js:328`
+        // JSON-RPC and SSE (`hearth/node/src/rpc.js`), 8545 is Ethereum JSON-RPC 2.0
+        // (`hearth/node/src/jsonrpc/server.js`). Only the second is the one a wallet speaks, so
+        // only the second is published. 8546 is deliberately unpublished and unused: `params.js`
         // reserves it for the paired WebSocket `eth_subscribe` convention, which Hearth does not
         // implement.
         //
         // `servesUi: false` is measured rather than reasoned: the endpoint answers `405` with
-        // `allow: POST,OPTIONS` to a GET (`jsonrpc/server.js:277-279`), so a browser opening this
+        // `allow: POST,OPTIONS` to a GET (`jsonrpc/server.js`), so a browser opening this
         // address is told, correctly, that there is no page here.
         key: 'rpc',
         name: 'EMBER JSON-RPC',
@@ -808,7 +808,7 @@ export const SURFACES = [
         // EMBER peer gossip, over WebSocket, so that P2P can cross a Cloudflare Tunnel at all.
         //
         // THE HOSTNAME EXISTS BECAUSE THE TRANSPORT DOES NOT WORK OTHERWISE. Hearth's peer transport
-        // is raw TCP on 8646 (`hearth/node/src/params.js:307`, `DEFAULT_P2P_PORT`), and a tunnel
+        // is raw TCP on 8646 (`hearth/node/src/params.js`, `DEFAULT_P2P_PORT`), and a tunnel
         // carries HTTP: there is no ingress rule that can publish a TCP socket to the internet through
         // it. A WebSocket is HTTP until the 101, which is why it is the transport that fits.
         //

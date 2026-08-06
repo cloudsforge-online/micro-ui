@@ -330,8 +330,8 @@
    *
    * `--cf-critical` is #d2543a and measures 3.38:1 on the tightest ground
    * this system composes text on. Two surfaces set `color:` in it —
-   * `worlds-web/src/styles.css:238,619,824,934` and
-   * `market-web/src/styles.css:824` — so the word "failed", on the two
+   * `worlds-web/src/styles.css,619,824,934` and
+   * `market-web/src/styles.css` — so the word "failed", on the two
    * screens where it matters most, has been below the AA floor since it
    * shipped. This is the same defect `--cf-accent-text` was invented for,
    * one token family over, and it gets the same fix: a step derived from
