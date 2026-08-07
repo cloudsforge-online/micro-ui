@@ -22,10 +22,12 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import {
   ANALYTICS_META_NAME,
+  CONSENT_COOKIE_NAME,
   CONSENT_STORAGE_KEY,
   analyticsAllowedHere,
   analyticsId,
   clearConsent,
+  consentCookieDomains,
   denyConsent,
   grantConsent,
   initAnalytics,
@@ -56,10 +58,11 @@ interface Harness {
 let h: Harness
 
 /** Build a browser with one meta tag, one hostname and an empty cookie jar. */
-function install(options: { id?: string | null; hostname?: string; cookie?: string } = {}): void {
+function install(
+  options: { id?: string | null; hostname?: string; cookie?: string; protocol?: string } = {},
+): void {
   const id = options.id === undefined ? 'G-NB8DNLTKZQ' : options.id
   h = { appended: [], cookiesWritten: [], store: new Map(), events: [] }
-  let cookie = options.cookie ?? ''
 
   const element = (tagName: string): FakeElement => {
     const attributes: Record<string, string> = {}
@@ -78,30 +81,85 @@ function install(options: { id?: string | null; hostname?: string; cookie?: stri
 
   const listeners = new Map<string, ((e: unknown) => void)[]>()
 
+  const hostname = options.hostname ?? 'cloudsforge.online'
+
+  /*
+    A cookie jar that models DOMAIN SCOPE, which is the whole subject of the tests below it.
+    The previous jar was a string that recorded writes and honoured a 1970 expiry, and it could not
+    have caught the defect these tests exist for: `localStorage` is per-origin, so one answer on
+    `cloudsforge.online` left the reader asked again on `hub.`, on `explorer.` and on every other
+    surface. A jar that ignores `Domain=` cannot tell a shared cookie from a per-host one.
+
+    Three browser behaviours are reproduced, and only three:
+
+      • `Domain=.a.b` is visible to `a.b` and to every subdomain of it.
+      • `Domain=` naming a PUBLIC SUFFIX is DISCARDED, silently. `Domain=.online` sets nothing at
+        all and reports nothing, which is why the writer walks candidates and reads each back. The
+        stand-in for the suffix list is "a single label is a suffix", which is right for `.online`
+        and for every suffix this estate will meet.
+      • `Domain=` naming a domain the current host is not under is discarded, also silently.
+
+    Everything else — paths, `Secure`, `SameSite`, ordering — is recorded in `h.cookiesWritten` for
+    assertions but does not affect visibility, because nothing here depends on it.
+  */
+  interface Jar {
+    name: string
+    value: string
+    domain: string
+  }
+  const jar: Jar[] = []
+  for (const raw of (options.cookie ?? '').split(';')) {
+    const eq = raw.indexOf('=')
+    if (eq < 0) continue
+    jar.push({ name: raw.slice(0, eq).trim(), value: raw.slice(eq + 1).trim(), domain: '' })
+  }
+
+  const visibleTo = (host: string, domain: string): boolean =>
+    domain === '' || host === domain.replace(/^\./, '') || host.endsWith(domain)
+
+  const acceptable = (host: string, domain: string): boolean => {
+    if (domain === '') return true
+    const bare = domain.replace(/^\./, '')
+    if (bare.split('.').length < 2) return false // a public suffix; the browser drops it
+    return visibleTo(host, `.${bare}`)
+  }
+
   const fakeDocument = {
     head: { appendChild: (el: FakeElement) => h.appended.push(el) },
     createElement: element,
     querySelector: (selector: string) =>
       id !== null && selector === `meta[name="${ANALYTICS_META_NAME}"]` ? metaTag : null,
     get cookie(): string {
-      return cookie
+      return jar
+        .filter((c) => visibleTo(fakeWindow.location.hostname, c.domain))
+        .map((c) => `${c.name}=${c.value}`)
+        .join('; ')
     },
     set cookie(value: string) {
       h.cookiesWritten.push(value)
-      // Good enough for the delete path: an expiry in the past removes the name from the jar.
-      const name = value.split('=')[0] ?? ''
-      if (/expires=Thu, 01 Jan 1970/.test(value)) {
-        cookie = cookie
-          .split(';')
-          .map((c) => c.trim())
-          .filter((c) => c !== '' && c.split('=')[0] !== name)
-          .join('; ')
+      const [pair = '', ...attrs] = value.split(';').map((s) => s.trim())
+      const eq = pair.indexOf('=')
+      if (eq < 0) return
+      const name = pair.slice(0, eq)
+      const val = pair.slice(eq + 1)
+      const domain =
+        attrs.find((a) => /^domain=/i.test(a))?.slice('domain='.length).toLowerCase() ?? ''
+      const host = fakeWindow.location.hostname
+      if (!acceptable(host, domain)) return
+
+      const at = jar.findIndex((c) => c.name === name && c.domain === domain)
+      const expired = /expires=Thu, 01 Jan 1970/.test(value) || /max-age=0(\b|;|$)/i.test(value)
+      if (expired) {
+        if (at >= 0) jar.splice(at, 1)
+        return
       }
+      if (at >= 0) jar[at] = { name, value: val, domain }
+      else jar.push({ name, value: val, domain })
     },
   }
 
   const fakeWindow = {
-    location: { hostname: options.hostname ?? 'cloudsforge.online' },
+    location: { hostname, protocol: options.protocol ?? 'https:' },
     localStorage: {
       getItem: (k: string) => h.store.get(k) ?? null,
       setItem: (k: string, v: string) => void h.store.set(k, v),
@@ -318,6 +376,121 @@ describe('where it is allowed to report from', () => {
   it('reports from a real hostname', () => {
     install({ hostname: 'trade.cloudsforge.online' })
     assert.equal(analyticsAllowedHere(), true)
+  })
+})
+
+describe('one answer, every surface', () => {
+  /*
+   * The defect these exist for. `localStorage` is scoped to an ORIGIN and every surface in this
+   * estate is a different subdomain, so a reader who accepted on the marketing site was asked again
+   * on hub, again on explorer, again on developers and again on status. Reported by the owner after
+   * answering it on subdomain after subdomain; seventeen banners, one decision.
+   */
+  const moveTo = (hostname: string): void => {
+    const w = (globalThis as unknown as { window: { location: { hostname: string } } }).window
+    w.location.hostname = hostname
+  }
+
+  it('carries the answer from the apex to every subdomain, with no localStorage at all', () => {
+    install({ hostname: 'cloudsforge.online' })
+    grantConsent()
+    h.store.clear() // prove it is the cookie doing the work and not the fallback
+
+    for (const host of [
+      'hub.cloudsforge.online',
+      'explorer.cloudsforge.online',
+      'developers-testnet.cloudsforge.online',
+      'status.cloudsforge.online',
+    ]) {
+      moveTo(host)
+      assert.equal(readConsent(), 'granted', `${host} would have asked again`)
+    }
+  })
+
+  it('carries a REFUSAL just as far — a reader who said no is not asked seventeen times', () => {
+    install({ hostname: 'hub.cloudsforge.online' })
+    denyConsent()
+    h.store.clear()
+    moveTo('worlds.cloudsforge.online')
+    assert.equal(readConsent(), 'denied')
+  })
+
+  it('sets it on the registrable domain, not on the host it was answered on', () => {
+    install({ hostname: 'hub-testnet.cloudsforge.online' })
+    grantConsent()
+    const written = h.cookiesWritten.filter((c) => c.startsWith(`${CONSENT_COOKIE_NAME}=`))
+    assert.ok(written.length > 0, 'no consent cookie was written')
+    assert.ok(
+      written.some((c) => c.includes('Domain=.cloudsforge.online')),
+      `the record was not shared:\n${written.join('\n')}`,
+    )
+    // And it never tries the public suffix as though it might work.
+    assert.ok(!written.some((c) => /Domain=\.online\b/.test(c)) || written.length > 1)
+  })
+
+  it('withdrawing on one surface withdraws on all of them', () => {
+    install({ hostname: 'cloudsforge.online' })
+    grantConsent()
+    moveTo('market.cloudsforge.online')
+    revokeConsent()
+    h.store.clear()
+    moveTo('trade.cloudsforge.online')
+    assert.equal(readConsent(), null, 'the banner did not come back on the other surfaces')
+  })
+
+  it('falls back to a host-only cookie rather than to nothing under a public suffix', () => {
+    // `.online` is a public suffix and a browser discards `Domain=.online` in silence. The walk
+    // must notice that and keep going, or the record is written nowhere at all.
+    install({ hostname: 'cloudsforge.online' })
+    grantConsent()
+    h.store.clear()
+    assert.equal(readConsent(), 'granted')
+  })
+
+  it('is Secure on https and NOT on http, because a Secure cookie over http is discarded', () => {
+    install({ hostname: 'cloudsforge.online', protocol: 'https:' })
+    grantConsent()
+    assert.ok(
+      h.cookiesWritten.filter((c) => c.startsWith(CONSENT_COOKIE_NAME)).every((c) => c.includes('; Secure')),
+      'the consent record is not marked Secure on https',
+    )
+
+    install({ hostname: 'cloudsforge.online', protocol: 'http:' })
+    grantConsent()
+    assert.ok(
+      h.cookiesWritten.filter((c) => c.startsWith(CONSENT_COOKIE_NAME)).every((c) => !c.includes('Secure')),
+      'a Secure cookie was written over http, where the browser drops it',
+    )
+  })
+
+  it('is still nothing before the reader answers', () => {
+    // The claim with legal weight, restated against the new store: adding a shared cookie must not
+    // have added a cookie that is set on arrival.
+    install({ hostname: 'hub.cloudsforge.online' })
+    initAnalytics()
+    assert.deepEqual(h.cookiesWritten, [], 'the consent cookie was written before the answer')
+    assert.equal(readConsent(), null)
+  })
+
+  it('names the domains a browser would accept, widest first', () => {
+    assert.deepEqual(consentCookieDomains('hub-testnet.cloudsforge.online'), [
+      '.cloudsforge.online',
+      '.hub-testnet.cloudsforge.online',
+      '',
+    ])
+    assert.deepEqual(consentCookieDomains('cloudsforge.online'), ['.cloudsforge.online', ''])
+    // No domain attribute is the only correct answer for these.
+    assert.deepEqual(consentCookieDomains('localhost'), [''])
+    assert.deepEqual(consentCookieDomains('127.0.0.1'), [''])
+    assert.deepEqual(consentCookieDomains(''), [''])
+  })
+
+  it('still honours a decision recorded before the cookie existed', () => {
+    // Readers who answered under the localStorage-only scheme are already answered. Asking them
+    // again because the mechanism changed would be the same defect wearing a different hat.
+    install({ hostname: 'cloudsforge.online' })
+    h.store.set(CONSENT_STORAGE_KEY, 'granted')
+    assert.equal(readConsent(), 'granted')
   })
 })
 

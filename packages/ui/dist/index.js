@@ -22,7 +22,7 @@ import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsent
  * `/sitemap`, `/consent`) for the callers that are not React — a build script generating a
  * sitemap has no business pulling in a rendering library.
  */
-export { ANALYTICS_META_NAME, CONSENT_EVENT, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, } from "./consent.js";
+export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AGE_SECONDS, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, consentCookieDomains, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, } from "./consent.js";
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, } from "./seo.js";
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, } from "./sitemap.js";
 export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
@@ -556,6 +556,8 @@ export function CookieBanner({ privacyHref, onDecide }) {
     const [decision, setDecision] = useState(undefined);
     const titleId = useId();
     const [id, setId] = useState(null);
+    const bannerRef = useRef(null);
+    const [bannerHeight, setBannerHeight] = useState(0);
     useEffect(() => {
         // Read in an effect rather than in render: `localStorage` and `document.head` are not
         // available during a server render, and reading them in the render body is what makes a
@@ -564,6 +566,38 @@ export function CookieBanner({ privacyHref, onDecide }) {
         setId(analyticsAllowedHere() ? analyticsId() : null);
         return onConsentChange(setDecision);
     }, []);
+    /*
+      Measure the banner and reserve that much room at the end of the document.
+  
+      The banner is `position: fixed` to the bottom of the viewport, so while it is unanswered it
+      sits ON TOP of whatever the last thing on the page is. On the marketing site that is the final
+      footer link, and it could not be clicked at all on a first visit — the click landed on
+      `.cf-consent__inner` instead. micro-org#241. It is every surface with a footer, which is all of
+      them.
+  
+      The room is a spacer element in normal flow rather than `padding-bottom` on `body`, because a
+      surface that sets its own body padding would silently win or lose that fight depending on
+      stylesheet order, and this component is not in a position to know. A block of the right height,
+      rendered where the banner already renders — last in the shell — cannot conflict with anything.
+  
+      Measured rather than assumed: the banner wraps to two, three or four lines depending on the
+      viewport, and a constant here would be right at one width and wrong at the rest. A
+      `ResizeObserver` where there is one, and a single read where there is not.
+    */
+    useEffect(() => {
+        const el = bannerRef.current;
+        if (!el) {
+            setBannerHeight(0);
+            return;
+        }
+        const measure = () => setBannerHeight(el.getBoundingClientRect().height);
+        measure();
+        if (typeof ResizeObserver === 'undefined')
+            return;
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [decision, id]);
     // `undefined` is "have not looked yet" and must not flash a banner at a reader who already
     // answered. `null` is "looked, and they have not been asked".
     if (decision !== null || id === null)
@@ -577,7 +611,7 @@ export function CookieBanner({ privacyHref, onDecide }) {
         onDecide?.(next);
     };
     const privacy = privacyHref ?? `${cloudsforgeHosts().site}/privacy`;
-    return (_jsx("div", { className: "cf-consent", role: "dialog", "aria-modal": "false", "aria-labelledby": titleId, children: _jsxs("div", { className: "cf-consent__inner", children: [_jsxs("p", { className: "cf-consent__copy", children: [_jsx("strong", { className: "cf-consent__title", id: titleId, children: "Analytics on CloudsForge" }), "We would like to count page views with Google Analytics, which sets a cookie in your browser. Nothing is loaded and no cookie is set unless you say yes, and you can change your mind at any time.", ' ', _jsx("a", { className: "cf-consent__link", href: privacy, children: "How we use cookies" })] }), _jsxs("div", { className: "cf-consent__actions", children: [_jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('denied'), children: "Reject" }), _jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('granted'), children: "Accept" })] })] }) }));
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "cf-consent__spacer", style: { height: bannerHeight }, "aria-hidden": "true" }), _jsx("div", { className: "cf-consent", role: "dialog", "aria-modal": "false", "aria-labelledby": titleId, ref: bannerRef, children: _jsxs("div", { className: "cf-consent__inner", children: [_jsxs("p", { className: "cf-consent__copy", children: [_jsx("strong", { className: "cf-consent__title", id: titleId, children: "Analytics on CloudsForge" }), "We would like to count page views with Google Analytics, which sets a cookie in your browser. Nothing is loaded and no cookie is set unless you say yes, you only have to answer once for the whole of CloudsForge, and you can change your mind at any time.", ' ', _jsx("a", { className: "cf-consent__link", href: privacy, children: "How we use cookies" })] }), _jsxs("div", { className: "cf-consent__actions", children: [_jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('denied'), children: "Reject" }), _jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('granted'), children: "Accept" })] })] }) })] }));
 }
 /* ========================= CloudsForgeFooter ====================== */
 /**

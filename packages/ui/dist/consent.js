@@ -32,8 +32,9 @@
  *      preferences" link, is not freely given consent under Art. 4(11); the CNIL and the EDPB have
  *      both said so in terms, and both have fined for it.
  *   2. **Nothing is set before the answer.** Not even the consent record: see the note on
- *      {@link readConsent} for why the decision is kept in `localStorage` and why that is legal
- *      without consent while the analytics cookie is not.
+ *      {@link CONSENT_STORAGE_KEY} for where the decision is kept, why it is kept on the
+ *      registrable domain so one answer covers every surface, and why storing that record is legal
+ *      without consent while the analytics cookie it gates is not.
  *   3. **The decision is revisitable.** {@link clearConsent} puts the banner back, and
  *      {@link revokeConsent} additionally deletes the cookies GA already set. Consent that cannot
  *      be withdrawn as easily as it was given is not consent (Art. 7(3)).
@@ -58,13 +59,47 @@
 /**
  * Where the decision is kept.
  *
- * `localStorage`, not a cookie, and the distinction is legal rather than stylistic. Art. 5(3)
- * exempts storage that is "strictly necessary for the provision of a service explicitly requested
- * by the subscriber" — and a record of the user's own consent choice is the textbook example
- * regulators give of that exemption, because without it the banner cannot stop asking. A cookie
- * would additionally be sent on every request to the origin, which is a transfer nobody needs.
+ * BOTH a cookie on the registrable domain AND `localStorage`, and the cookie is the one that
+ * matters. This used to be `localStorage` alone, with a note here saying a cookie "would
+ * additionally be sent on every request to the origin, which is a transfer nobody needs". That
+ * reasoning was sound about one surface and wrong about this estate, because `localStorage` is
+ * scoped to an ORIGIN and every surface here is a different subdomain. A reader who accepted on
+ * `cloudsforge.online` was asked again on `hub.`, again on `explorer.`, again on `developers.` and
+ * again on `status.` — seventeen surfaces, seventeen banners, one decision they had already made.
+ * Reported by the owner after answering it on subdomain after subdomain.
+ *
+ * A cookie set on the registrable domain (`.cloudsforge.online`) is visible to every subdomain, so
+ * one answer covers the estate. That is the only shared client-side store a browser offers without
+ * a network round-trip and without a third-party frame, and paying ~30 bytes on each request to
+ * this domain is a straightforwardly better trade than asking the same question seventeen times.
+ *
+ * The legal position does not change with the mechanism. Art. 5(3) exempts storage "strictly
+ * necessary for the provision of a service explicitly requested by the subscriber", and a record
+ * of the reader's own consent choice is the textbook example regulators give of that exemption —
+ * it is exempt because without it the banner cannot stop asking, not because of where it is kept.
+ * That is why storing the RECORD needs no consent while the analytics cookie it gates does.
+ *
+ * `localStorage` is still written, and still read as a fallback. Two reasons, both real: it keeps
+ * every reader who already answered under the old scheme answered, and it is the store that still
+ * works when a reader has blocked cookies entirely — in which case they are asked once per surface
+ * rather than once per page, which is the honest degradation.
  */
 export const CONSENT_STORAGE_KEY = 'cf.consent.analytics';
+/**
+ * The cookie name. Deliberately not the `localStorage` key: a dot is legal in a cookie name but is
+ * asking for trouble in the parsers this gets read by, and the two stores are read separately
+ * anyway.
+ */
+export const CONSENT_COOKIE_NAME = 'cf_consent_analytics';
+/**
+ * How long a recorded answer lasts before the reader is asked again: six months.
+ *
+ * The CNIL's guidance is that a consent decision should not be treated as valid indefinitely and
+ * puts six months forward as the reasonable period, and the same period applies to a REFUSAL —
+ * re-asking a reader who said no sooner than that is nagging, which is its own compliance problem.
+ * So one constant, used for both answers.
+ */
+export const CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 182;
 /** The meta tag the measurement ID is read from. */
 export const ANALYTICS_META_NAME = 'cf-analytics';
 /** Fired on `window` whenever the decision changes, so open tabs and other components follow. */
@@ -72,8 +107,115 @@ export const CONSENT_EVENT = 'cf:consent';
 function globalsOf() {
     return typeof window === 'undefined' ? null : window;
 }
+/* ─────────────────────────── the shared cookie ─────────────────────────── */
+/**
+ * The domains a cookie could be set on, from the WIDEST that might work inward.
+ *
+ * For `hub-testnet.cloudsforge.online` that is `.cloudsforge.online`, then
+ * `.hub-testnet.cloudsforge.online`, and finally `''` — no domain attribute at all, which scopes
+ * the cookie to exactly this host and is the only correct answer for `localhost` and for a bare IP.
+ *
+ * The widest candidate is the last two labels, NOT every parent up the tree, because a browser
+ * silently discards a cookie whose `domain` is a public suffix — `domain=.online` sets nothing, and
+ * so does `domain=.co.uk`. Walking from the widest inward and stopping at the first one that
+ * actually reads back is the standard way to find the registrable domain without shipping a copy of
+ * the Public Suffix List, and it handles `.co.uk` correctly for free: `.example.co.uk` is rejected
+ * as a public suffix, so the walk falls through to the host-only cookie rather than to nothing.
+ *
+ * Two labels is enough for the widest candidate here and everywhere it is likely to run. If this
+ * estate ever moves under a multi-label suffix, the walk degrades to a per-host cookie — the old
+ * behaviour — rather than to no cookie at all.
+ */
+export function consentCookieDomains(hostname) {
+    if (hostname === '' || /^\[?[0-9a-f:.]+\]?$/i.test(hostname))
+        return [''];
+    const labels = hostname.split('.');
+    if (labels.length < 2)
+        return [''];
+    const candidates = [`.${labels.slice(-2).join('.')}`];
+    if (labels.length > 2)
+        candidates.push(`.${hostname}`);
+    candidates.push('');
+    return candidates;
+}
+/** Read one cookie by name. `null` when it is absent, unreadable, or the document has no cookies. */
+function readCookie(name) {
+    if (typeof document === 'undefined')
+        return null;
+    let jar;
+    try {
+        jar = document.cookie;
+    }
+    catch {
+        return null;
+    }
+    for (const raw of jar.split(';')) {
+        const eq = raw.indexOf('=');
+        if (eq < 0)
+            continue;
+        if (raw.slice(0, eq).trim() !== name)
+            continue;
+        try {
+            return decodeURIComponent(raw.slice(eq + 1).trim());
+        }
+        catch {
+            return null;
+        }
+    }
+    return null;
+}
+/**
+ * Write the consent cookie on the widest domain the browser will accept, and confirm it took.
+ *
+ * The confirmation is the point. `document.cookie = …` reports nothing: a rejected `domain` is
+ * discarded in silence, and a "shared" consent that was silently scoped to one host is exactly the
+ * defect this is here to fix. So each candidate is written and then read back, and the first one
+ * that survives is the one kept.
+ *
+ * `SameSite=Lax` because this record is never needed on a cross-site POST, and `Secure` on https
+ * only — a `Secure` cookie is discarded outright over http, which would break `pnpm dev`.
+ */
+function writeConsentCookie(decision) {
+    const w = globalsOf();
+    if (!w || typeof document === 'undefined')
+        return;
+    const secure = w.location.protocol === 'https:' ? '; Secure' : '';
+    for (const domain of consentCookieDomains(w.location.hostname)) {
+        try {
+            document.cookie =
+                `${CONSENT_COOKIE_NAME}=${decision}; Max-Age=${CONSENT_MAX_AGE_SECONDS}; Path=/; SameSite=Lax${secure}` +
+                    (domain === '' ? '' : `; Domain=${domain}`);
+        }
+        catch {
+            return;
+        }
+        if (readCookie(CONSENT_COOKIE_NAME) === decision)
+            return;
+    }
+}
+/** Expire the consent cookie on every scope it could have been written to. */
+function deleteConsentCookie() {
+    const w = globalsOf();
+    if (!w || typeof document === 'undefined')
+        return;
+    for (const domain of consentCookieDomains(w.location.hostname)) {
+        try {
+            document.cookie =
+                `${CONSENT_COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax` +
+                    (domain === '' ? '' : `; Domain=${domain}`);
+        }
+        catch {
+            return;
+        }
+    }
+}
+/* ─────────────────────────── reading and writing ─────────────────────────── */
 /**
  * The decision, or `null` when the reader has not been asked yet.
+ *
+ * The cookie is consulted first, because it is the store that spans the estate: a reader who
+ * answered on any surface has already answered on this one. `localStorage` is the fallback, which
+ * is what keeps readers who answered before the cookie existed from being asked again.
  *
  * Every storage access in this module is wrapped: `localStorage` throws rather than returning
  * undefined in a Safari private window and under a `SecurityError` from a sandboxed frame, and a
@@ -82,6 +224,9 @@ function globalsOf() {
  * assuming a grant.
  */
 export function readConsent() {
+    const cookie = readCookie(CONSENT_COOKIE_NAME);
+    if (cookie === 'granted' || cookie === 'denied')
+        return cookie;
     try {
         const raw = globalsOf()?.localStorage.getItem(CONSENT_STORAGE_KEY);
         return raw === 'granted' || raw === 'denied' ? raw : null;
@@ -95,6 +240,7 @@ export function writeConsent(decision) {
     const w = globalsOf();
     if (!w)
         return;
+    writeConsentCookie(decision);
     try {
         w.localStorage.setItem(CONSENT_STORAGE_KEY, decision);
     }
@@ -109,6 +255,7 @@ export function clearConsent() {
     const w = globalsOf();
     if (!w)
         return;
+    deleteConsentCookie();
     try {
         w.localStorage.removeItem(CONSENT_STORAGE_KEY);
     }

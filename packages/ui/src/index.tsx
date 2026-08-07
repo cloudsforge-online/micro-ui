@@ -55,11 +55,14 @@ export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface }
  */
 export {
   ANALYTICS_META_NAME,
+  CONSENT_COOKIE_NAME,
   CONSENT_EVENT,
+  CONSENT_MAX_AGE_SECONDS,
   CONSENT_STORAGE_KEY,
   analyticsAllowedHere,
   analyticsId,
   clearConsent,
+  consentCookieDomains,
   deleteAnalyticsCookies,
   denyConsent,
   grantConsent,
@@ -1181,6 +1184,8 @@ export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
   const [decision, setDecision] = useState<ConsentDecision | null | undefined>(undefined)
   const titleId = useId()
   const [id, setId] = useState<string | null>(null)
+  const bannerRef = useRef<HTMLDivElement | null>(null)
+  const [bannerHeight, setBannerHeight] = useState(0)
 
   useEffect(() => {
     // Read in an effect rather than in render: `localStorage` and `document.head` are not
@@ -1190,6 +1195,38 @@ export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
     setId(analyticsAllowedHere() ? analyticsId() : null)
     return onConsentChange(setDecision)
   }, [])
+
+  /*
+    Measure the banner and reserve that much room at the end of the document.
+
+    The banner is `position: fixed` to the bottom of the viewport, so while it is unanswered it
+    sits ON TOP of whatever the last thing on the page is. On the marketing site that is the final
+    footer link, and it could not be clicked at all on a first visit — the click landed on
+    `.cf-consent__inner` instead. micro-org#241. It is every surface with a footer, which is all of
+    them.
+
+    The room is a spacer element in normal flow rather than `padding-bottom` on `body`, because a
+    surface that sets its own body padding would silently win or lose that fight depending on
+    stylesheet order, and this component is not in a position to know. A block of the right height,
+    rendered where the banner already renders — last in the shell — cannot conflict with anything.
+
+    Measured rather than assumed: the banner wraps to two, three or four lines depending on the
+    viewport, and a constant here would be right at one width and wrong at the rest. A
+    `ResizeObserver` where there is one, and a single read where there is not.
+  */
+  useEffect(() => {
+    const el = bannerRef.current
+    if (!el) {
+      setBannerHeight(0)
+      return
+    }
+    const measure = (): void => setBannerHeight(el.getBoundingClientRect().height)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [decision, id])
 
   // `undefined` is "have not looked yet" and must not flash a banner at a reader who already
   // answered. `null` is "looked, and they have not been asked".
@@ -1205,34 +1242,44 @@ export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
   const privacy = privacyHref ?? `${cloudsforgeHosts().site}/privacy`
 
   return (
-    <div className="cf-consent" role="dialog" aria-modal="false" aria-labelledby={titleId}>
-      <div className="cf-consent__inner">
-        <p className="cf-consent__copy">
-          <strong className="cf-consent__title" id={titleId}>
-            Analytics on CloudsForge
-          </strong>
-          We would like to count page views with Google Analytics, which sets a cookie in your
-          browser. Nothing is loaded and no cookie is set unless you say yes, and you can change
-          your mind at any time.{' '}
-          <a className="cf-consent__link" href={privacy}>
-            How we use cookies
-          </a>
-        </p>
-        <div className="cf-consent__actions">
-          {/*
-            Two buttons, one class, no modifier. The order puts Reject first because a reader
-            scanning left to right meets the refusal before the acceptance, which is the opposite
-            of the pattern regulators have fined for.
-          */}
-          <button type="button" className="cf-consent__choice" onClick={() => decide('denied')}>
-            Reject
-          </button>
-          <button type="button" className="cf-consent__choice" onClick={() => decide('granted')}>
-            Accept
-          </button>
+    <>
+      {/* The room the fixed banner would otherwise take away. See the measuring effect above. */}
+      <div className="cf-consent__spacer" style={{ height: bannerHeight }} aria-hidden="true" />
+      <div
+        className="cf-consent"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby={titleId}
+        ref={bannerRef}
+      >
+        <div className="cf-consent__inner">
+          <p className="cf-consent__copy">
+            <strong className="cf-consent__title" id={titleId}>
+              Analytics on CloudsForge
+            </strong>
+            We would like to count page views with Google Analytics, which sets a cookie in your
+            browser. Nothing is loaded and no cookie is set unless you say yes, you only have to
+            answer once for the whole of CloudsForge, and you can change your mind at any time.{' '}
+            <a className="cf-consent__link" href={privacy}>
+              How we use cookies
+            </a>
+          </p>
+          <div className="cf-consent__actions">
+            {/*
+              Two buttons, one class, no modifier. The order puts Reject first because a reader
+              scanning left to right meets the refusal before the acceptance, which is the opposite
+              of the pattern regulators have fined for.
+            */}
+            <button type="button" className="cf-consent__choice" onClick={() => decide('denied')}>
+              Reject
+            </button>
+            <button type="button" className="cf-consent__choice" onClick={() => decide('granted')}>
+              Accept
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

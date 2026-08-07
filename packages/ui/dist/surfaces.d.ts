@@ -34,7 +34,7 @@ export interface CloudsForgeSurface {
     readonly key: SurfaceKey;
     /** The name a person reads. Always the surface's real name, never a category. */
     readonly name: string;
-    /** The verb this surface owns in "mine it, trade it, make it, sell it, play in it". */
+    /** The verb this surface owns in "mine it, bet it, trade it, make it, sell it, play in it". */
     readonly verb: string | null;
     readonly kind: SurfaceKind;
     /** Subdomain under the apex. An empty string means the apex itself. */

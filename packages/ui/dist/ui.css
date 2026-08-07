@@ -945,6 +945,21 @@
   font-family: var(--cf-font-sans);
   animation: cf-consent-in var(--cf-speed) var(--cf-ease);
 }
+/*
+ * The room the fixed banner would otherwise take away.
+ *
+ * Its height is set inline from a measurement in the component, because the
+ * banner wraps to a different number of lines at every width and a constant
+ * here would be right at one of them. A plain block in normal flow, rendered
+ * last in the shell alongside the banner itself — the alternative, padding on
+ * `body`, silently fights any surface that sets its own.
+ *
+ * Without it the banner sat on top of the last footer link on a first visit
+ * and the link could not be clicked at all. micro-org#241.
+ */
+.cf-consent__spacer {
+  flex: none;
+}
 .cf-consent__inner {
   display: flex;
   flex-wrap: wrap;

@@ -22,7 +22,7 @@ export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface };
  * `/sitemap`, `/consent`) for the callers that are not React — a build script generating a
  * sitemap has no business pulling in a rendering library.
  */
-export { ANALYTICS_META_NAME, CONSENT_EVENT, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, type ConsentDecision, } from './consent.ts';
+export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AGE_SECONDS, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, consentCookieDomains, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, type ConsentDecision, } from './consent.ts';
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, type MetaTag, type PageMetaInput, type SurfaceMeta, type TagKind, } from './seo.ts';
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, type SitemapUrl, } from './sitemap.ts';
 export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, type SurfaceKind, } from './surfaces.ts';

@@ -63,7 +63,7 @@ export interface CloudsForgeSurface {
   readonly key: SurfaceKey
   /** The name a person reads. Always the surface's real name, never a category. */
   readonly name: string
-  /** The verb this surface owns in "mine it, trade it, make it, sell it, play in it". */
+  /** The verb this surface owns in "mine it, bet it, trade it, make it, sell it, play in it". */
   readonly verb: string | null
   readonly kind: SurfaceKind
   /** Subdomain under the apex. An empty string means the apex itself. */
@@ -218,7 +218,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
   {
     key: 'foresight',
     name: 'Forge Foresight',
-    verb: 'Predict',
+    verb: 'Bet',
     kind: 'product',
     subdomain: 'foresight',
     // 4021, because that is the port the service actually binds
@@ -230,7 +230,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     accent: '#1e89c7',
     glyph: '◈',
     markId: 'mark-foresight',
-    blurb: 'Back what you think will happen, staked in crypto you already hold',
+    blurb: 'Bet on what you think will happen, with the crypto you already hold',
     servesUi: true,
     inSwitcher: true,
   },
@@ -258,7 +258,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     accent: '#2a9e93',
     glyph: '◐',
     markId: 'mark-trade',
-    blurb: 'Test a trading strategy on real past prices, before you risk money',
+    blurb: 'Trade crypto natively, on chain, with no exchange in the middle',
     servesUi: true,
     inSwitcher: true,
   },
@@ -517,7 +517,7 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     accent: CLOUDSFORGE_EMBER,
     glyph: '◆',
     markId: 'mark-cloudsforge',
-    blurb: 'Mine, hold, launch, trade, sell and play — on one account',
+    blurb: 'Mine, hold, bet, trade, launch, sell and play — on one account',
     servesUi: true,
     inSwitcher: false,
   },
