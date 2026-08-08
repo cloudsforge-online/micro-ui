@@ -1479,3 +1479,202 @@ export function CloudsForgeFooter({
     </footer>
   )
 }
+
+/* ========================= SignInIntent ====================== */
+
+/** One thing a signed-out reader can do on this surface, right now, and where. */
+export interface SignInIntentAction {
+  readonly label: string
+  /**
+   * An address ON THIS SURFACE. Relative, and that is not a style preference — see the note on
+   * `SignInIntent` for why an off-surface "alternative" is the defect this component exists to
+   * stop rather than a way round it.
+   */
+  readonly href: string
+}
+
+/**
+ * What a reader without an account is offered instead. Exactly one of the two, enforced by the
+ * type, because the third possibility — saying nothing — is the one that shipped.
+ */
+export type SignInIntentAlternatives =
+  | {
+      /** At least one. A one-element tuple is the smallest honest answer; zero is not an answer. */
+      readonly actions: readonly [SignInIntentAction, ...SignInIntentAction[]]
+      readonly nothing?: never
+    }
+  | {
+      /**
+       * The surface's own sentence for "there is genuinely nothing here without an account".
+       * A real state on several surfaces, and a legitimate one — what is not legitimate is
+       * leaving the reader to work it out from an empty list.
+       */
+      readonly nothing: string
+      readonly actions?: never
+    }
+
+export interface SignInIntentProps {
+  /** Which surface the reader is standing on. The NAME comes from the registry, never typed. */
+  readonly surface: SurfaceKey
+  /**
+   * What a session unlocks HERE, in this surface's own words. At least one — the tuple type is
+   * what makes "sign in to continue", which says nothing, fail to compile.
+   */
+  readonly unlocks: readonly [string, ...string[]]
+  /** What the reader can do without one. See {@link SignInIntentAlternatives}. */
+  readonly without: SignInIntentAlternatives
+  /** Where the portal returns to. Defaults to the address the reader is on. */
+  readonly returnUrl?: string | undefined
+  /**
+   * Called instead of {@link signInRedirect}, for a surface that owns its own hand-off — and for
+   * the tests, which must be able to prove the button is wired without navigating the harness.
+   */
+  readonly onSignIn?: ((returnUrl?: string) => void) | undefined
+}
+
+/**
+ * The panel a signed-out reader meets before anything sends them to another hostname.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHAT IT REPLACES, AND WHY THAT WAS NOT A BROKEN LINK
+ *
+ * `signInRedirect()` above is an immediate `window.location.assign`. Eleven repositories carry the
+ * identical template-copied call site — `<LoadingGate label="Taking you to sign in" />` in
+ * `src/lib/auth.tsx` — and six of them are PUBLIC FRONT DOORS, the first page a stranger sees.
+ * The destination works. Nothing 404s. The defect is that six independently written landing pages
+ * each end by throwing the reader at a hostname they have not been introduced to, before any of
+ * them has said what an account is for.
+ *
+ * A spinner captioned "Taking you to sign in" is the worst available answer to "why?", because it
+ * reads as progress. The reader has no way to tell an intentional hand-off from a page that has
+ * decided they are not welcome, and by the time they could ask, the address bar has changed.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE FOUR THINGS IT SAYS, IN ORDER
+ *
+ *   1. WHICH SURFACE. From `surface(key).name` in the registry — the same string the switcher, the
+ *      footer and every `<title>` use. A surface cannot rename itself in this panel alone.
+ *   2. WHAT AN ACCOUNT UNLOCKS HERE. Supplied by the surface, because only the surface knows. The
+ *      prop is a non-empty tuple, so a caller cannot compile a panel that asks for a session and
+ *      declines to say what for.
+ *   3. WHAT THE READER CAN STILL DO WITHOUT ONE. Also required, also by the type: either at least
+ *      one in-surface address, or an explicit sentence saying there is nothing. The list is the
+ *      part that makes this a decision rather than a toll gate.
+ *   4. WHERE THEY ARE ABOUT TO BE SENT. The sign-in host, resolved by `accountUrl()` from
+ *      `window.location.hostname` at render time. It is named BEFORE the button rather than
+ *      discovered in the address bar afterwards, and it is never typed here — the same bundle is
+ *      served from localhost, a preview host and mainnet, and this string has to follow.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * IT DOES NOT REDIRECT BY ITSELF, AND THAT IS THE CHANGE
+ *
+ * There is no effect, no timer and no `autoFocus`. Nothing navigates until the reader presses the
+ * button. A countdown would have been the obvious compromise and it is refused twice over: it
+ * invents a number nobody decided (rule 1.1 of 32-roadmap-ui-and-content applies to a constant
+ * that moves a reader as much as to one that is printed at them), and a panel that explains itself
+ * and then navigates anyway has not given the reader a choice, only a delay.
+ *
+ * A surface that genuinely must redirect immediately — a deep link into a gated page, where the
+ * reader asked for something specific and the return address is the whole point — should keep
+ * doing that. This panel is for the front door, which is where the six copies are.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ACCESSIBILITY
+ *
+ * A `<section>` with an accessible name, not a dialog: nothing here is modal, nothing traps focus,
+ * and the reader may ignore the panel and read the page. The two lists are real lists, so a screen
+ * reader announces how many of each there are before reading them — which is the single most
+ * useful fact about "what can I do without an account" and is exactly what a stack of `<div>`s
+ * withholds. The button is a `<button>` and the alternatives are `<a href>`s, because one performs
+ * an action and the others are destinations that can be opened in a new tab.
+ */
+export function SignInIntent({
+  surface: key,
+  unlocks,
+  without,
+  returnUrl,
+  onSignIn,
+}: SignInIntentProps) {
+  const idBase = useId()
+  const titleId = `${idBase}-title`
+
+  // `surface()` throws on an unknown key rather than resolving it to something. A typo must fail
+  // loudly here, not render a panel inviting somebody to sign in to a product that does not exist.
+  const here = surface(key)
+
+  // Resolved at render, from the hostname the reader is actually on. Never a literal: this package
+  // is linked into sixteen bundles that are each served from localhost, a preview host and mainnet.
+  const portal = new URL(accountUrl()).host
+
+  const go = (): void => {
+    if (onSignIn) onSignIn(returnUrl)
+    else signInRedirect(returnUrl)
+  }
+
+  return (
+    <section className="cf-signin" aria-labelledby={titleId}>
+      <h2 className="cf-signin__title" id={titleId}>
+        Sign in to {here.name}
+      </h2>
+      {/* The registry's one-line description of this surface, not a second tagline written here. */}
+      <p className="cf-signin__blurb">{here.blurb}</p>
+
+      {/*
+        The two halves are SIDE BY SIDE where there is room, and the order is not decorative: what
+        an account unlocks is the offer, what works without one is the answer to "and if I say no?".
+        A reader who reads only the left column has still been told the truth; a reader who reads
+        only the right one has not been sold anything.
+      */}
+      <div className="cf-signin__halves">
+        <div className="cf-signin__half">
+          <h3 className="cf-signin__heading">What an account gives you here</h3>
+          <ul className="cf-signin__list">
+            {unlocks.map((item) => (
+              <li className="cf-signin__item" key={item}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="cf-signin__half">
+          <h3 className="cf-signin__heading">What you can do without one</h3>
+          {without.actions ? (
+            <ul className="cf-signin__list">
+              {without.actions.map((action) => (
+                <li className="cf-signin__item" key={action.href}>
+                  <a className="cf-signin__link" href={action.href}>
+                    {action.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            /*
+              The named hole. A surface with nothing to offer a signed-out reader says so in its own
+              words, in the place the list would have been — rather than rendering an empty list, or
+              dropping the heading and leaving a reader to infer from an absence.
+            */
+            <p className="cf-signin__nothing">{without.nothing}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="cf-signin__actions">
+        <button type="button" className="cf-signin__go" onClick={go}>
+          Sign in
+        </button>
+        {/*
+          The destination, named before the button is pressed rather than discovered in the address
+          bar after. `portal` is a host and not a full URL on purpose: the reader is being told
+          which site they are about to be handed to, and a query string carrying their return
+          address is noise in a sentence whose whole job is to be read.
+        */}
+        <p className="cf-signin__where">
+          This takes you to <strong className="cf-signin__host">{portal}</strong> and brings you
+          back here afterwards.
+        </p>
+      </div>
+    </section>
+  )
+}

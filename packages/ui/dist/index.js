@@ -719,4 +719,83 @@ export function CloudsForgeFooter({ current, account, surfaceUrls, note, }) {
                             return (_jsxs("nav", { className: "cf-foot__col", "aria-labelledby": headingId, children: [_jsx("h2", { className: "cf-foot__title", id: headingId, children: group.title }), _jsx("ul", { className: "cf-foot__list", children: visible.map((s) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: surfaceUrls?.[s.key] ?? hosts[s.key], "aria-current": s.key === current ? 'page' : undefined, children: s.name }) }, s.key))) })] }, group.kind));
                         }), _jsxs("nav", { className: "cf-foot__col", "aria-labelledby": `${idBase}-legal`, children: [_jsx("h2", { className: "cf-foot__title", id: `${idBase}-legal`, children: "Legal" }), _jsx("ul", { className: "cf-foot__list", children: FOOTER_LEGAL_LINKS.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: `${hosts.site}${l.path}`, children: l.label }) }, l.path))) })] })] }), note && _jsx("p", { className: "cf-foot__note", children: note }), _jsxs("div", { className: "cf-foot__base", children: [_jsx("span", { className: "cf-foot__brand", children: _jsx(CloudsForgeLogo, { size: 16 }) }), _jsxs("span", { className: "cf-foot__here", children: [here.name, " \u2014 ", here.blurb] })] })] }) }));
 }
+/**
+ * The panel a signed-out reader meets before anything sends them to another hostname.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHAT IT REPLACES, AND WHY THAT WAS NOT A BROKEN LINK
+ *
+ * `signInRedirect()` above is an immediate `window.location.assign`. Eleven repositories carry the
+ * identical template-copied call site — `<LoadingGate label="Taking you to sign in" />` in
+ * `src/lib/auth.tsx` — and six of them are PUBLIC FRONT DOORS, the first page a stranger sees.
+ * The destination works. Nothing 404s. The defect is that six independently written landing pages
+ * each end by throwing the reader at a hostname they have not been introduced to, before any of
+ * them has said what an account is for.
+ *
+ * A spinner captioned "Taking you to sign in" is the worst available answer to "why?", because it
+ * reads as progress. The reader has no way to tell an intentional hand-off from a page that has
+ * decided they are not welcome, and by the time they could ask, the address bar has changed.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE FOUR THINGS IT SAYS, IN ORDER
+ *
+ *   1. WHICH SURFACE. From `surface(key).name` in the registry — the same string the switcher, the
+ *      footer and every `<title>` use. A surface cannot rename itself in this panel alone.
+ *   2. WHAT AN ACCOUNT UNLOCKS HERE. Supplied by the surface, because only the surface knows. The
+ *      prop is a non-empty tuple, so a caller cannot compile a panel that asks for a session and
+ *      declines to say what for.
+ *   3. WHAT THE READER CAN STILL DO WITHOUT ONE. Also required, also by the type: either at least
+ *      one in-surface address, or an explicit sentence saying there is nothing. The list is the
+ *      part that makes this a decision rather than a toll gate.
+ *   4. WHERE THEY ARE ABOUT TO BE SENT. The sign-in host, resolved by `accountUrl()` from
+ *      `window.location.hostname` at render time. It is named BEFORE the button rather than
+ *      discovered in the address bar afterwards, and it is never typed here — the same bundle is
+ *      served from localhost, a preview host and mainnet, and this string has to follow.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * IT DOES NOT REDIRECT BY ITSELF, AND THAT IS THE CHANGE
+ *
+ * There is no effect, no timer and no `autoFocus`. Nothing navigates until the reader presses the
+ * button. A countdown would have been the obvious compromise and it is refused twice over: it
+ * invents a number nobody decided (rule 1.1 of 32-roadmap-ui-and-content applies to a constant
+ * that moves a reader as much as to one that is printed at them), and a panel that explains itself
+ * and then navigates anyway has not given the reader a choice, only a delay.
+ *
+ * A surface that genuinely must redirect immediately — a deep link into a gated page, where the
+ * reader asked for something specific and the return address is the whole point — should keep
+ * doing that. This panel is for the front door, which is where the six copies are.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ACCESSIBILITY
+ *
+ * A `<section>` with an accessible name, not a dialog: nothing here is modal, nothing traps focus,
+ * and the reader may ignore the panel and read the page. The two lists are real lists, so a screen
+ * reader announces how many of each there are before reading them — which is the single most
+ * useful fact about "what can I do without an account" and is exactly what a stack of `<div>`s
+ * withholds. The button is a `<button>` and the alternatives are `<a href>`s, because one performs
+ * an action and the others are destinations that can be opened in a new tab.
+ */
+export function SignInIntent({ surface: key, unlocks, without, returnUrl, onSignIn, }) {
+    const idBase = useId();
+    const titleId = `${idBase}-title`;
+    // `surface()` throws on an unknown key rather than resolving it to something. A typo must fail
+    // loudly here, not render a panel inviting somebody to sign in to a product that does not exist.
+    const here = surface(key);
+    // Resolved at render, from the hostname the reader is actually on. Never a literal: this package
+    // is linked into sixteen bundles that are each served from localhost, a preview host and mainnet.
+    const portal = new URL(accountUrl()).host;
+    const go = () => {
+        if (onSignIn)
+            onSignIn(returnUrl);
+        else
+            signInRedirect(returnUrl);
+    };
+    return (_jsxs("section", { className: "cf-signin", "aria-labelledby": titleId, children: [_jsxs("h2", { className: "cf-signin__title", id: titleId, children: ["Sign in to ", here.name] }), _jsx("p", { className: "cf-signin__blurb", children: here.blurb }), _jsxs("div", { className: "cf-signin__halves", children: [_jsxs("div", { className: "cf-signin__half", children: [_jsx("h3", { className: "cf-signin__heading", children: "What an account gives you here" }), _jsx("ul", { className: "cf-signin__list", children: unlocks.map((item) => (_jsx("li", { className: "cf-signin__item", children: item }, item))) })] }), _jsxs("div", { className: "cf-signin__half", children: [_jsx("h3", { className: "cf-signin__heading", children: "What you can do without one" }), without.actions ? (_jsx("ul", { className: "cf-signin__list", children: without.actions.map((action) => (_jsx("li", { className: "cf-signin__item", children: _jsx("a", { className: "cf-signin__link", href: action.href, children: action.label }) }, action.href))) })) : (
+                            /*
+                              The named hole. A surface with nothing to offer a signed-out reader says so in its own
+                              words, in the place the list would have been — rather than rendering an empty list, or
+                              dropping the heading and leaving a reader to infer from an absence.
+                            */
+                            _jsx("p", { className: "cf-signin__nothing", children: without.nothing }))] })] }), _jsxs("div", { className: "cf-signin__actions", children: [_jsx("button", { type: "button", className: "cf-signin__go", onClick: go, children: "Sign in" }), _jsxs("p", { className: "cf-signin__where", children: ["This takes you to ", _jsx("strong", { className: "cf-signin__host", children: portal }), " and brings you back here afterwards."] })] })] }));
+}
 //# sourceMappingURL=index.js.map

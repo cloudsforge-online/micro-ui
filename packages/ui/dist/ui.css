@@ -1094,3 +1094,151 @@
     top: var(--cf-space-sm);
   }
 }
+
+/* ========================= SignInIntent ==========================
+ *
+ * The panel a signed-out reader meets before anything sends them to another
+ * hostname. See `SignInIntent` in index.tsx for what it says and why it does
+ * not redirect by itself.
+ *
+ * There is no hex literal here. Every colour is a `--cf-*` token, so the panel
+ * takes the accent of whichever surface renders it and follows `data-cf-scheme`
+ * into light mode with the rest of the page.
+ */
+.cf-signin {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--cf-max-w);
+  margin-inline: auto;
+  padding: var(--cf-space-2xl);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-lg);
+  background: var(--cf-surface);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+}
+.cf-signin__title {
+  margin: 0;
+  font-family: var(--cf-font-display);
+  font-size: var(--cf-text-2xl);
+  font-weight: 600;
+  letter-spacing: var(--cf-tracking-tight);
+  line-height: var(--cf-leading-tight);
+  color: var(--cf-fg);
+}
+.cf-signin__blurb {
+  margin: var(--cf-space-2xs) 0 0;
+  max-width: var(--cf-measure);
+  font-size: var(--cf-text-md);
+  line-height: var(--cf-leading);
+  color: var(--cf-fg-dim);
+}
+/*
+ * The two halves sit side by side where there is room and stack where there is
+ * not. `flex-wrap` plus a basis rather than a media query: what decides whether
+ * two columns fit is the width of THIS panel, and a surface may render it in a
+ * narrow column on a wide screen.
+ */
+.cf-signin__halves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-lg) var(--cf-space-2xl);
+  margin-top: var(--cf-space-xl);
+}
+.cf-signin__half {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.cf-signin__heading {
+  margin: 0 0 var(--cf-space-xs);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-sm);
+  font-weight: 600;
+  letter-spacing: var(--cf-tracking-wide);
+  text-transform: uppercase;
+  color: var(--cf-fg-mute);
+}
+.cf-signin__list {
+  margin: 0;
+  padding-inline-start: var(--cf-space-lg);
+  display: grid;
+  gap: var(--cf-space-2xs);
+}
+.cf-signin__item {
+  font-size: var(--cf-text-md);
+  line-height: var(--cf-leading);
+  color: var(--cf-fg-dim);
+}
+.cf-signin__link {
+  color: var(--cf-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+/*
+ * The hover is `--cf-fg`, NOT `--cf-accent-hover`, and that is not a taste
+ * call: `--cf-accent-hover` is derived to clear 3:1, the NON-TEXT floor, and
+ * `contrast.test.ts` (`never lets a color: rule NAME the accent instead of the
+ * accent text token`) fails the build for painting text in it. This rule was
+ * written with it and that test is what caught it. `.cf-foot__link` had already
+ * settled the same question the same way.
+ */
+.cf-signin__link:hover {
+  color: var(--cf-fg);
+}
+/* An OUTLINE for the keyboard reader, never a colour swap — the same rule
+   `.cf-foot__link:focus-visible` follows, for the same reason. */
+.cf-signin__link:focus-visible,
+.cf-signin__go:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
+}
+/*
+ * The named hole. Deliberately NOT dimmed further than the list beside it: a
+ * surface saying "there is nothing here without an account" is stating a fact
+ * the reader needs, and greying it out would present the answer as an absence
+ * rather than as the answer.
+ */
+.cf-signin__nothing {
+  margin: 0;
+  max-width: var(--cf-measure);
+  font-size: var(--cf-text-md);
+  line-height: var(--cf-leading);
+  color: var(--cf-fg-dim);
+}
+.cf-signin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cf-space-md) var(--cf-space-lg);
+  margin-top: var(--cf-space-xl);
+  padding-top: var(--cf-space-lg);
+  border-top: 1px solid var(--cf-line);
+}
+.cf-signin__go {
+  min-height: 44px; /* the WCAG 2.2 AA target size, not a rounded-up guess */
+  padding: var(--cf-space-sm) var(--cf-space-2xl);
+  border: 1px solid transparent;
+  border-radius: var(--cf-radius);
+  background: var(--cf-ember);
+  color: var(--cf-ember-ink);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cf-signin__go:hover {
+  background: var(--cf-ember-hover);
+}
+.cf-signin__where {
+  flex: 1 1 16rem;
+  margin: 0;
+  min-width: 0;
+  font-size: var(--cf-text-sm);
+  line-height: var(--cf-leading);
+  color: var(--cf-fg-mute);
+}
+.cf-signin__host {
+  font-family: var(--cf-font-mono);
+  font-weight: 400;
+  color: var(--cf-fg-dim);
+}
