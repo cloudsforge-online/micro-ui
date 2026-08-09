@@ -101,9 +101,26 @@ interface Options {
   readonly only: readonly string[]
   /**
    * The account used for the second pass, over the surfaces that will not show themselves to a
-   * stranger. Same defaults and the same estate account as `beacon smoke`
+   * stranger. Same names and the same estate account as `beacon smoke`
    * (`BEACON_SMOKE_IDENTIFIER` / `_PASSWORD` / `_HANDLE`), because a second set of credentials for
    * the same estate is a second thing to rotate and a second thing to be wrong.
+   *
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * **THE PASSWORD HAS NO DEFAULT, AND EMPTY HERE MEANS "NOT CONFIGURED" RATHER THAN "BLANK".**
+   *
+   * It had one until 2026-08-09: a literal that `deploy/scripts/estate-bootstrap.sh` also used as
+   * its `ADMIN_PASSWORD` default. Mainnet was bootstrapped without overriding it, so that string
+   * was the real password of the real administrator of `https://api.cloudsforge.online` — sitting
+   * in a public repository, returning 200 and a token with the `admin` platform role to anybody
+   * who typed it. micro-org#276 has the measurement; micro-deploy#13 rotated it and put the new
+   * value in the estate host's gitignored `compose/estate/tokens.env`.
+   *
+   * A generated secret is NOT the answer for this one. `estate-admin` is a fixed account that
+   * this script does not create and must find already there on the next run; minting a password
+   * would lock the guard out of the only account the two `adminOnly` consoles will open for. So
+   * it is read, never defaulted, and its absence is a refusal — see `main`, which is where that
+   * refusal lives and where the comment explains why it is there and not up here.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
    */
   readonly identifier: string
   readonly password: string
@@ -126,10 +143,9 @@ function parseArgs(argv: readonly string[]): Options {
       process.env['CF_FOOTER_IDENTIFIER'] ??
       process.env['BEACON_SMOKE_IDENTIFIER'] ??
       'estate-admin@example.test',
-    password:
-      process.env['CF_FOOTER_PASSWORD'] ??
-      process.env['BEACON_SMOKE_PASSWORD'] ??
-      'correct-horse-battery-staple-42',
+    // No third fallback. `beacon`'s own reader has none either now, so the two agree about what an
+    // unset password means instead of one of them quietly inventing a value for the other.
+    password: process.env['CF_FOOTER_PASSWORD'] ?? process.env['BEACON_SMOKE_PASSWORD'] ?? '',
     handle: process.env['CF_FOOTER_HANDLE'] ?? process.env['BEACON_SMOKE_HANDLE'] ?? 'estateadmin',
   }
 }
@@ -550,6 +566,35 @@ async function main(): Promise<void> {
    * exits 2 rather than reporting on the surfaces it did manage.
    * ──────────────────────────────────────────────────────────────────────────────────────── */
   if (gated.length > 0) {
+    /*
+     * ── THE CREDENTIAL IS DEMANDED HERE, AND NOT AT THE TOP OF THE RUN ──────────────────────
+     *
+     * Everything else this function refuses over — the CA, playwright-core, Chromium, the estate
+     * answering — is refused before anything happens, because all four are needed by every run.
+     * This one is not: `--surface market` audits a surface no stranger is turned away from, and a
+     * guard that demanded an administrator's password in order to look at a public page would be
+     * a guard people run less often. Whether a session is needed at all is only known once pass
+     * one has watched which surfaces redirect, so this is the first line at which the question
+     * can honestly be asked.
+     *
+     * It is asked BEFORE `signIn` rather than left to it. An empty password reaches identity as a
+     * 401 and comes back as "could not sign in", which reads like the estate refusing a
+     * credential rather than like this machine never having had one — and the reason a run gives
+     * for stopping is the whole of what the person reading it has to work from.
+     */
+    if (opts.password === '') {
+      await browser.close()
+      cannotRun(
+        `${gated.length} surfaces (${gated.map((s) => s.key).join(', ')}) require an operator ` +
+          'session, and no password is set. There is deliberately no default: the one that used ' +
+          'to be here was published in a public repository and was the estate administrator’s ' +
+          'real password on mainnet until 2026-08-09 (micro-org#276). The rotated value is on the ' +
+          "estate host in the gitignored compose/estate/tokens.env as ESTATE_ADMIN_PASSWORD — " +
+          'export it as CF_FOOTER_PASSWORD or BEACON_SMOKE_PASSWORD. To audit only the surfaces ' +
+          'that need no session, pass --surface.',
+      )
+    }
+
     const session = await browser.newContext({ viewport: { width: 1280, height: 900 } })
     const login = await session.newPage()
     login.setDefaultTimeout(opts.timeoutMs)
