@@ -563,6 +563,55 @@ export const SURFACES = [
         servesUi: true,
         inSwitcher: false,
     },
+    {
+        /* ── THE MINING POOL, AND THE THREE FIELDS THAT ARE ARGUMENTS RATHER THAN CHOICES ────────
+         *
+         * `micro-pool` is a Stratum v1 server (docs/ecosystem/36-multi-chain-and-mining-pool.md §5)
+         * and `micro-pool-web` is the console in front of it, sharing `pool.<apex>` the way lantern
+         * and beacon share theirs — the bundle resolves its API base to the EMPTY STRING and issues
+         * relative `/v1/...`, and the gateway splits the host by path (`cf-web-pool` at 500,
+         * `cf-api-pool` at 600). Without this row `cloudsforgeHosts()` cannot strip the label and
+         * every derived estate URL the bundle composes lands one level too deep, so the row is not
+         * bookkeeping: it is what makes the console's own addresses resolve.
+         *
+         * `kind: 'service'` and NOT `'product'`. `ProductKey` is the six the design system validated
+         * and the marketing site renders cards for; widening it here would put a sixth card on a page
+         * whose copy, art and accent search were all done for five. A pool is a hostname with a UI,
+         * which is what `service` + `servesUi` already means — the same shape `explorer` has.
+         *
+         * `inSwitcher: false` and NOT `adminOnly`. Every other `service` in the switcher is an
+         * operator tool; this one is the opposite of one. `pool/src/env.ts` declares no
+         * `IDENTITY_JWKS_URL` and no auth ON PURPOSE, because the only identity a miner has here is
+         * the stratum username they chose, and 36 §6 makes "a miner can check their own share
+         * history" a product requirement. Gating it behind an estate login would exclude every miner
+         * without an account, which today is all of them. A surface anybody may open has no business
+         * in an operator switcher either.
+         *
+         * `devPort: 4146` — the port micro-pool BINDS (`pool/src/env.ts`), not the 8080 the bundle's
+         * own nginx serves. That is explorer's correction restated: devPort is a fact about the thing
+         * you call, and writing the bundle's own port here is how explorer spent months asking itself
+         * for chain data. 4146 is also what micro-org's registry derives for `pool`, which is
+         * agreement rather than coincidence — both are "the service's port" read from the same file.
+         *
+         * `markId: null` — `micro-brand` has no `assets/pool/` set. Null is the honest answer; naming
+         * a mark that does not exist renders nothing and reports nothing. */
+        key: 'pool',
+        name: 'Mining Pool',
+        verb: null,
+        kind: 'service',
+        subdomain: 'pool',
+        devPort: 4146,
+        // Gold, shared with `create` rather than newly invented. The accent guard forbids a sixth
+        // orange and a resurrected retired hue; it does not forbid a service wearing a validated
+        // product colour, and `explorer` and `nimbus` already do. A search for a seventh distinct
+        // accent would be taste spent where the guard asks for none.
+        accent: '#b28e1e',
+        glyph: '▨',
+        markId: null,
+        blurb: 'Point real mining hardware at CloudsForge and be credited for the work',
+        servesUi: true,
+        inSwitcher: false,
+    },
     /* --- hostnames with no UI of their own ------------------------------ */
     {
         key: 'explorer',
