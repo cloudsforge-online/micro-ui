@@ -507,6 +507,43 @@ export function SkipLink({ targetId = MAIN_ID, children }) {
 export function MainRegion({ id = MAIN_ID, className, children }) {
     return (_jsx("main", { id: id, tabIndex: -1, ...(className === undefined ? {} : { className }), children: children }));
 }
+/**
+ * The second row of the header: this surface's own sections, under the company bar.
+ *
+ * ── WHY IT IS HERE RATHER THAN IN EACH APP ────────────────────────────────────────────────────
+ *
+ * Measured 2026-08-10, re-measured the same day against every repository's `main` after a first
+ * count proved wrong in both directions: ELEVEN frontends declared this strip in their own
+ * stylesheet, under eight different class prefixes, from what was plainly one original — ten as
+ * `<prefix>-subnav` (`wt-` in `hub-web`, `mint-web`, `admin-web` and `worlds-web`, then `mk-`,
+ * `ex-`, `fs-`, `dp-`, `bw-`, `ln-`) and `tessera-web` as `.tw-nav`, which is the same component
+ * under a name that hides it. They had drifted in three ways a reader can see:
+ *
+ *   1. **Four of the eleven did not survive a narrow viewport.** `market-web`, `mint-web`,
+ *      `worlds-web` and `admin-web` set neither `white-space: nowrap` nor `overflow-x`, so a
+ *      `display: flex` row with no wrap and no scroll left the links to squeeze and break
+ *      mid-label on a phone — ten sections in `admin-web` — with no way to reach the ones past
+ *      the edge. The other seven had both, and that is the sharper half of the finding: the fix
+ *      existed, was correct, and could not propagate because there was nothing to propagate
+ *      through. A shared component is that thing.
+ *   2. **Six of the eleven did not share the chrome's measure, at three different widths.**
+ *      `76rem`/1216px in `hub-web`, `mint-web`, `worlds-web` and `admin-web`; `78rem`/1248px in
+ *      `market-web`; `84rem`/1344px in `lantern-web` — against `var(--cf-max-w)` (1200px) in
+ *      `.cf-bar__inner` and `.cf-foot__inner`. On a wide screen the row of sections sat 8px, 24px
+ *      or 72px proud of the bar on each side.
+ *   3. **It was written in literals.** `0.25rem`, `0.7rem 0.85rem`, `0.875rem`, `76rem` — none of
+ *      which move when the scale does. `--cf-text-md` was raised from 0.82rem to 1rem when the
+ *      body size was fixed (see the note in `tokens.css`), and not one copy moved with it, which
+ *      is why the sections under the bar are still set smaller than the bar's own controls on the
+ *      surfaces that have not adopted this.
+ *
+ * The bar makes moving between surfaces feel like one application. The row immediately beneath it
+ * being a different height, a different measure and a different size on each one undoes that at
+ * the second glance.
+ */
+export function SubNav({ label, children }) {
+    return (_jsx("nav", { className: "cf-subnav", "aria-label": label, children: _jsx("div", { className: "cf-subnav__inner", children: children }) }));
+}
 /** Glyph per level. Colour is never the only channel; this is the second, and the word is the third. */
 const STATUS_GLYPHS = {
     good: '●',
