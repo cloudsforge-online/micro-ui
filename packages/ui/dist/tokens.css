@@ -858,8 +858,30 @@
   --cf-accent-hover-light: #114f49; /* 6.92:1 */
 }
 
-/* Slot 4 — Forge Create — brass */
-[data-cf-product='create'] {
+/* Slot 4 — Forge Create — brass.
+
+   The mining pool console wears the same brass, which is the registry's own
+   choice rather than a new one: `surfaces.ts` gives `pool` the accent #b28e1e
+   and argues there for sharing a validated hue instead of searching for a
+   seventh. Sharing a BLOCK is then the honest expression of sharing a hue —
+   the alternative is a second copy of these eight values that a later contrast
+   fix would have to find twice. The `beacon`/`status` pair above is the same
+   construction for the same reason.
+
+   Two surfaces may share an accent only while neither has to be told apart
+   from the other in a list. `create` is a switcher entry and `pool` is not
+   (`inSwitcher: false`), so they are never adjacent anywhere — and
+   `surfaces.test.ts` keeps every SWITCHER entry's accent distinct, which is
+   the assertion that would fail the day somebody promotes `pool` without
+   giving it a hue of its own.
+
+   Added 2026-08-10 because `pool` was being SCOPED without being DECLARED:
+   `site/src/content/pages.ts` renders the home page's pool capability with
+   `data-cf-product='pool'`, which matched no selector here and fell through to
+   the company ember in silence — the exact failure recorded in the `admin`
+   note below. */
+[data-cf-product='create'],
+[data-cf-product='pool'] {
   --cf-accent-dark: #b28e1e;
   --cf-accent-hover-dark: #d4ad35;
   --cf-accent-ink-dark: #1a1404;
