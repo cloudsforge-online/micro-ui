@@ -6,15 +6,38 @@
  * assert on the exact string instead of on a paraphrase of it.
  */
 export declare const NOT_PAID_CLAUSE = "Shares are recorded against your account; nothing is paid out and there is no mechanism by which it could be.";
+/**
+ * The other sentence, for the other subject. Never a replacement for {@link NOT_PAID_CLAUSE}.
+ *
+ * Present tense and no schedule, the same standard, and it is a statement about a mechanism that
+ * exists rather than one that does not. It carries NO FIGURE for the same reason its neighbour
+ * carries none, and for one more: the confirmation depth (EMBER's is 60, about fifteen minutes at
+ * Hearth's fifteen-second target) is a consensus parameter, and a number restated in a design
+ * system is a number that goes on being rendered after `contracts/packages/chain` changes it. The
+ * mining page states the depth, next to the address, where a reader who wants it will look.
+ */
+export declare const EMBER_CREDITED_CLAUSE = "Blocks this browser finds are sent to your own CloudsForge EMBER deposit address, and credited once the network has confirmed them.";
 /** What the control is showing. See the header for what each one means and why. */
 export type MiningPhase = 'unavailable' | 'signed-out' | 'idle' | 'mining' | 'elsewhere';
+/**
+ * WHAT a press mines, which decides which of the two clauses is true.
+ *
+ * Defaulted to `pool` everywhere it is optional, so that a caller who does not know is described
+ * by the sentence the estate has always shown rather than by the new one. Getting this wrong in
+ * the safe direction shows a reader the pool's "nothing is paid out" over an EMBER session, which
+ * understates what happened; getting it wrong in the other direction would promise a credit that
+ * no mechanism produces, which is the failure the honesty regime exists to prevent.
+ */
+export type MiningSubject = 'pool' | 'ember';
 /**
  * The live figures, when there are live figures.
  *
  * Both are WORK, and there is deliberately no third field. `hashrate` is hashes per second as the
  * miner measured them over its own rolling window — never the pool's estimate, which is derived
  * from accepted shares and reads as zero for a browser that has not found one yet. `accepted` is
- * the count the pool acknowledged.
+ * the count the OTHER SIDE acknowledged: shares, for a pool session, and blocks the node took, for
+ * an EMBER one. Which of the two words the description uses is decided by {@link MiningSubject};
+ * the field is one field because both are the same fact — work this browser did that was accepted.
  */
 export interface MiningReadout {
     readonly hashrate: number;
@@ -35,11 +58,15 @@ export type MiningControlProps = {
 } | {
     readonly phase: 'idle';
     readonly onStart: () => void;
+    /** What the press will start. Omitted means `pool`; see {@link MiningSubject}. */
+    readonly subject?: MiningSubject | undefined;
     readonly payoutsImplemented?: boolean | undefined;
 } | {
     readonly phase: 'mining';
     readonly onStop: () => void;
     readonly readout: MiningReadout;
+    /** What is running. Omitted means `pool`; see {@link MiningSubject}. */
+    readonly subject?: MiningSubject | undefined;
     readonly payoutsImplemented?: boolean | undefined;
 } | {
     readonly phase: 'elsewhere';
@@ -52,6 +79,19 @@ export type MiningControlProps = {
     readonly href: string;
     /** The surface's registry name, for the description. Never a second name written here. */
     readonly hostSurfaceName: string;
+    /** What is being linked to. Omitted means `pool`; see {@link MiningSubject}. */
+    readonly subject?: MiningSubject | undefined;
+    /**
+     * Why the press is a journey rather than a start, as a full sentence, when there is a reason
+     * beyond "the miner is not on this surface".
+     *
+     * Thirteen surfaces need none: for them the destination IS the explanation, and a sentence
+     * saying "because you are not on Forge Hub" to somebody who can see they are not on Forge Hub
+     * is noise. Forge Hub itself needs one — micro-org#362 — because there the anchor points at
+     * this surface's own mining page, and a link that goes where the reader already is has to say
+     * what is there. See `hub-web/src/mining/bar.ts` for the four sentences it passes.
+     */
+    readonly reason?: string | undefined;
     readonly payoutsImplemented?: boolean | undefined;
 };
 /**

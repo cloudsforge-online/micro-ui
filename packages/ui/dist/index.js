@@ -31,7 +31,7 @@ export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCE
  * The browser mining control. Re-exported from the root rather than given its own subpath: it is
  * React and it belongs in the bar, so every caller that can use it is already importing from here.
  */
-export { HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, } from "./mining.js";
+export { EMBER_CREDITED_CLAUSE, HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, } from "./mining.js";
 /**
  * Resolve every surface's base URL through `origin`, which differs only in whether it produces a
  * localhost port or an apex subdomain. A surface with a `basePath` — the wallet inside Hub, the

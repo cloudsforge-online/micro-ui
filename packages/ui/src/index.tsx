@@ -124,6 +124,7 @@ export {
  * React and it belongs in the bar, so every caller that can use it is already importing from here.
  */
 export {
+  EMBER_CREDITED_CLAUSE,
   HUB_MINE_PATH,
   MiningControl,
   NOT_PAID_CLAUSE,
@@ -132,6 +133,7 @@ export {
   type MiningControlProps,
   type MiningPhase,
   type MiningReadout,
+  type MiningSubject,
 } from './mining.tsx'
 
 /* =============================== types ============================= */
