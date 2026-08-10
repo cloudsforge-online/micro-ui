@@ -44,6 +44,7 @@ import {
   grantConsent,
   onConsentChange,
   readConsent,
+  revokeConsent,
   type ConsentDecision,
 } from './consent.ts'
 
@@ -1260,6 +1261,48 @@ export interface CookieBannerProps {
 }
 
 /**
+ * The name of the control that makes "you can change your answer" true, written ONCE.
+ *
+ * The banner's copy is composed from this constant and the control renders it as its whole label,
+ * so the sentence and the mechanism cannot be edited apart. `consent-revisit.test.ts` asserts that
+ * relationship in both directions, which is the guard the original defect needed and did not have:
+ * the banner promised a change of mind for eighteen surfaces and `revokeConsent` had zero call
+ * sites anywhere in the estate, so the promise was false everywhere and nothing was red.
+ *
+ * "Cookie choices" and not "Cookie settings": there are no settings, there is one question with
+ * two answers, and a word that implies a panel of switches would be the second false promise in
+ * the same sentence.
+ */
+export const CONSENT_CHOICES_LABEL = 'Cookie choices'
+
+/**
+ * The control the banner's promise names.
+ *
+ * It is a `<button>` and not a link because it does something to this page rather than going
+ * somewhere. Its handler is `revokeConsent` ITSELF — not a wrapper, not a local re-implementation
+ * — so there is exactly one description of what "change your mind" means:
+ *
+ *   * `denyConsent` records the refusal, tells Consent Mode to stop, and deletes the `_ga` cookies
+ *     already written. A script that is on the page cannot be unloaded, so deleting what it wrote
+ *     is the strongest withdrawal a browser allows;
+ *   * `clearConsent` then forgets the decision, which puts the banner back on this page view —
+ *     `CookieBanner` subscribes to `onConsentChange` — so a reader who wants to go the other way
+ *     can answer again immediately, without hunting for a reload.
+ *
+ * It errs toward withdrawal in both directions, which is the safe way for a consent control to be
+ * ambiguous.
+ */
+export function ConsentChoices() {
+  return (
+    <div className="cf-consent__revisit-row">
+      <button type="button" className="cf-consent__revisit" onClick={revokeConsent}>
+        {CONSENT_CHOICES_LABEL}
+      </button>
+    </div>
+  )
+}
+
+/**
  * The consent banner, and the only thing in this estate that may cause Google Analytics to load.
  *
  * ── What it does, in order ────────────────────────────────────────────────────────────────────
@@ -1333,7 +1376,26 @@ export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
 
   // `undefined` is "have not looked yet" and must not flash a banner at a reader who already
   // answered. `null` is "looked, and they have not been asked".
-  if (decision !== null || id === null) return null
+  if (id === null || decision === undefined) return null
+
+  /*
+   * ANSWERED. The banner is gone and the promise it made is not.
+   *
+   * This is the whole of the fix for micro-ui's oldest false sentence: the copy below has told
+   * readers "you can change your mind at any time" on eighteen surfaces since the banner shipped,
+   * and `revokeConsent` — the function that would have made it true — had no call site anywhere in
+   * the estate. There was nothing to press.
+   *
+   * It lives HERE rather than in `CloudsForgeFooter` because three of those eighteen surfaces
+   * (micro-explorer-web, micro-site, micro-network-site) render the banner and their own footer,
+   * so a control placed in the shared footer would have left the sentence false on exactly the
+   * surfaces nobody would think to check. Every surface that can make the promise renders this
+   * component, by construction.
+   *
+   * Last in the shell, so last in the document and last in the tab order — the place a reader
+   * looks for it, and out of the way of everything they came for.
+   */
+  if (decision !== null) return <ConsentChoices />
 
   const decide = (next: ConsentDecision): void => {
     if (next === 'granted') grantConsent(id)
@@ -1362,7 +1424,13 @@ export function CookieBanner({ privacyHref, onDecide }: CookieBannerProps) {
             </strong>
             We would like to count page views with Google Analytics, which sets a cookie in your
             browser. Nothing is loaded and no cookie is set unless you say yes, you only have to
-            answer once for the whole of CloudsForge, and you can change your mind at any time.{' '}
+            answer once for the whole of CloudsForge, and you can change your answer at any time
+            {/*
+              THE PROMISE NAMES THE CONTROL, and composes its name from the constant the control
+              renders. It used to end at "change your mind at any time", which was a promise with
+              no mechanism and no address — a reader who believed it had nowhere to go.
+            */}
+            {` — ${CONSENT_CHOICES_LABEL}, at the foot of every page.`}{' '}
             <a className="cf-consent__link" href={privacy}>
               How we use cookies
             </a>

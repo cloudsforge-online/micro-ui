@@ -484,6 +484,38 @@ export interface CookieBannerProps {
     onDecide?: ((decision: ConsentDecision) => void) | undefined;
 }
 /**
+ * The name of the control that makes "you can change your answer" true, written ONCE.
+ *
+ * The banner's copy is composed from this constant and the control renders it as its whole label,
+ * so the sentence and the mechanism cannot be edited apart. `consent-revisit.test.ts` asserts that
+ * relationship in both directions, which is the guard the original defect needed and did not have:
+ * the banner promised a change of mind for eighteen surfaces and `revokeConsent` had zero call
+ * sites anywhere in the estate, so the promise was false everywhere and nothing was red.
+ *
+ * "Cookie choices" and not "Cookie settings": there are no settings, there is one question with
+ * two answers, and a word that implies a panel of switches would be the second false promise in
+ * the same sentence.
+ */
+export declare const CONSENT_CHOICES_LABEL = "Cookie choices";
+/**
+ * The control the banner's promise names.
+ *
+ * It is a `<button>` and not a link because it does something to this page rather than going
+ * somewhere. Its handler is `revokeConsent` ITSELF — not a wrapper, not a local re-implementation
+ * — so there is exactly one description of what "change your mind" means:
+ *
+ *   * `denyConsent` records the refusal, tells Consent Mode to stop, and deletes the `_ga` cookies
+ *     already written. A script that is on the page cannot be unloaded, so deleting what it wrote
+ *     is the strongest withdrawal a browser allows;
+ *   * `clearConsent` then forgets the decision, which puts the banner back on this page view —
+ *     `CookieBanner` subscribes to `onConsentChange` — so a reader who wants to go the other way
+ *     can answer again immediately, without hunting for a reload.
+ *
+ * It errs toward withdrawal in both directions, which is the safe way for a consent control to be
+ * ambiguous.
+ */
+export declare function ConsentChoices(): import("react").JSX.Element;
+/**
  * The consent banner, and the only thing in this estate that may cause Google Analytics to load.
  *
  * ── What it does, in order ────────────────────────────────────────────────────────────────────

@@ -1240,6 +1240,46 @@
   font-size: var(--cf-text-sm);
 }
 
+/* --- the control that makes "change your answer at any time" true ----- *
+ * See `ConsentChoices` in index.tsx. It replaces the banner once the reader
+ * has answered, in normal flow at the very end of the document.
+ *
+ * QUIET, AND NOT HIDDEN. This is the only mechanism for withdrawing consent
+ * on the estate, so it may not be `.cf-sr`, an icon with no word, or a
+ * hover-only affordance — but it is also not something a reader who has
+ * already answered came here for. Muted text at the small step, centred,
+ * with the full 44px target the rest of this stylesheet's standing controls
+ * carry: findable when looked for, invisible when not.
+ * ---------------------------------------------------------------------- */
+.cf-consent__revisit-row {
+  display: flex;
+  justify-content: center;
+  padding: var(--cf-space-md) var(--cf-space-lg);
+}
+.cf-consent__revisit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px; /* the WCAG 2.2 AA target size, not a rounded-up guess */
+  padding: 0 var(--cf-space-md);
+  border: 0;
+  background: transparent;
+  color: var(--cf-fg-mute);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-sm);
+  cursor: pointer;
+  border-radius: var(--cf-radius-sm);
+  /* Underlined at rest, because it is the only control in the estate that
+     sits alone on a page with nothing beside it to read as a control. An
+     underline is the one affordance that does not depend on proximity. */
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color var(--cf-speed) var(--cf-ease);
+}
+.cf-consent__revisit:hover {
+  color: var(--cf-fg);
+}
+
 @keyframes cf-consent-in {
   from {
     transform: translateY(100%);
@@ -1354,6 +1394,7 @@
   .cf-skip,
   .cf-status,
   .cf-consent,
+  .cf-consent__revisit,
   .cf-consent__choice {
     transition: none !important;
     animation: none !important;

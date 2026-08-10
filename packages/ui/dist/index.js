@@ -16,7 +16,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
 import { Fragment, useEffect, useId, useRef, useState, } from 'react';
 import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
 import { MiningControl } from "./mining.js";
-import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsentChange, readConsent, } from "./consent.js";
+import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsentChange, readConsent, revokeConsent, } from "./consent.js";
 /**
  * The four cross-cutting concerns, re-exported from the root so a surface adopts them with one
  * import rather than four. Each has its own subpath as well (`@cloudsforge/ui/seo`,
@@ -572,6 +572,40 @@ export function StatusPill({ level, children, glyph, live, className }) {
     return (_jsxs("span", { className: cls, ...(live ? { role: 'status', 'aria-live': 'polite' } : {}), children: [_jsx("span", { className: "cf-status__glyph", "aria-hidden": "true", children: glyph ?? STATUS_GLYPHS[level] }), children] }));
 }
 /**
+ * The name of the control that makes "you can change your answer" true, written ONCE.
+ *
+ * The banner's copy is composed from this constant and the control renders it as its whole label,
+ * so the sentence and the mechanism cannot be edited apart. `consent-revisit.test.ts` asserts that
+ * relationship in both directions, which is the guard the original defect needed and did not have:
+ * the banner promised a change of mind for eighteen surfaces and `revokeConsent` had zero call
+ * sites anywhere in the estate, so the promise was false everywhere and nothing was red.
+ *
+ * "Cookie choices" and not "Cookie settings": there are no settings, there is one question with
+ * two answers, and a word that implies a panel of switches would be the second false promise in
+ * the same sentence.
+ */
+export const CONSENT_CHOICES_LABEL = 'Cookie choices';
+/**
+ * The control the banner's promise names.
+ *
+ * It is a `<button>` and not a link because it does something to this page rather than going
+ * somewhere. Its handler is `revokeConsent` ITSELF — not a wrapper, not a local re-implementation
+ * — so there is exactly one description of what "change your mind" means:
+ *
+ *   * `denyConsent` records the refusal, tells Consent Mode to stop, and deletes the `_ga` cookies
+ *     already written. A script that is on the page cannot be unloaded, so deleting what it wrote
+ *     is the strongest withdrawal a browser allows;
+ *   * `clearConsent` then forgets the decision, which puts the banner back on this page view —
+ *     `CookieBanner` subscribes to `onConsentChange` — so a reader who wants to go the other way
+ *     can answer again immediately, without hunting for a reload.
+ *
+ * It errs toward withdrawal in both directions, which is the safe way for a consent control to be
+ * ambiguous.
+ */
+export function ConsentChoices() {
+    return (_jsx("div", { className: "cf-consent__revisit-row", children: _jsx("button", { type: "button", className: "cf-consent__revisit", onClick: revokeConsent, children: CONSENT_CHOICES_LABEL }) }));
+}
+/**
  * The consent banner, and the only thing in this estate that may cause Google Analytics to load.
  *
  * ── What it does, in order ────────────────────────────────────────────────────────────────────
@@ -643,8 +677,27 @@ export function CookieBanner({ privacyHref, onDecide }) {
     }, [decision, id]);
     // `undefined` is "have not looked yet" and must not flash a banner at a reader who already
     // answered. `null` is "looked, and they have not been asked".
-    if (decision !== null || id === null)
+    if (id === null || decision === undefined)
         return null;
+    /*
+     * ANSWERED. The banner is gone and the promise it made is not.
+     *
+     * This is the whole of the fix for micro-ui's oldest false sentence: the copy below has told
+     * readers "you can change your mind at any time" on eighteen surfaces since the banner shipped,
+     * and `revokeConsent` — the function that would have made it true — had no call site anywhere in
+     * the estate. There was nothing to press.
+     *
+     * It lives HERE rather than in `CloudsForgeFooter` because three of those eighteen surfaces
+     * (micro-explorer-web, micro-site, micro-network-site) render the banner and their own footer,
+     * so a control placed in the shared footer would have left the sentence false on exactly the
+     * surfaces nobody would think to check. Every surface that can make the promise renders this
+     * component, by construction.
+     *
+     * Last in the shell, so last in the document and last in the tab order — the place a reader
+     * looks for it, and out of the way of everything they came for.
+     */
+    if (decision !== null)
+        return _jsx(ConsentChoices, {});
     const decide = (next) => {
         if (next === 'granted')
             grantConsent(id);
@@ -654,7 +707,7 @@ export function CookieBanner({ privacyHref, onDecide }) {
         onDecide?.(next);
     };
     const privacy = privacyHref ?? `${cloudsforgeHosts().site}/privacy`;
-    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "cf-consent__spacer", style: { height: bannerHeight }, "aria-hidden": "true" }), _jsx("div", { className: "cf-consent", role: "dialog", "aria-modal": "false", "aria-labelledby": titleId, ref: bannerRef, children: _jsxs("div", { className: "cf-consent__inner", children: [_jsxs("p", { className: "cf-consent__copy", children: [_jsx("strong", { className: "cf-consent__title", id: titleId, children: "Analytics on CloudsForge" }), "We would like to count page views with Google Analytics, which sets a cookie in your browser. Nothing is loaded and no cookie is set unless you say yes, you only have to answer once for the whole of CloudsForge, and you can change your mind at any time.", ' ', _jsx("a", { className: "cf-consent__link", href: privacy, children: "How we use cookies" })] }), _jsxs("div", { className: "cf-consent__actions", children: [_jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('denied'), children: "Reject" }), _jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('granted'), children: "Accept" })] })] }) })] }));
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "cf-consent__spacer", style: { height: bannerHeight }, "aria-hidden": "true" }), _jsx("div", { className: "cf-consent", role: "dialog", "aria-modal": "false", "aria-labelledby": titleId, ref: bannerRef, children: _jsxs("div", { className: "cf-consent__inner", children: [_jsxs("p", { className: "cf-consent__copy", children: [_jsx("strong", { className: "cf-consent__title", id: titleId, children: "Analytics on CloudsForge" }), "We would like to count page views with Google Analytics, which sets a cookie in your browser. Nothing is loaded and no cookie is set unless you say yes, you only have to answer once for the whole of CloudsForge, and you can change your answer at any time", ` — ${CONSENT_CHOICES_LABEL}, at the foot of every page.`, ' ', _jsx("a", { className: "cf-consent__link", href: privacy, children: "How we use cookies" })] }), _jsxs("div", { className: "cf-consent__actions", children: [_jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('denied'), children: "Reject" }), _jsx("button", { type: "button", className: "cf-consent__choice", onClick: () => decide('granted'), children: "Accept" })] })] }) })] }));
 }
 /* ========================= CloudsForgeFooter ====================== */
 /**
