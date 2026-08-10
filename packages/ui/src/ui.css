@@ -871,6 +871,16 @@
   max-width: var(--cf-max-w);
   margin: 0 auto;
   padding: var(--cf-space-3xl) var(--cf-space-xl) var(--cf-space-2xl);
+  /* `max-width` plus a horizontal padding and no `box-sizing` is 1200px of
+     CONTENT with 16px of padding outside it — 1232px, against the bar's 1200.
+     `.cf-bar__inner` and `.cf-subnav__inner` beside it both declare this; the
+     footer never did, and this stylesheet ships no reset of its own.
+     Measured 2026-08-10: four surfaces have no universal `border-box` rule in
+     their own stylesheet — aetherholm-web, tessera-web, beacon-web and
+     lantern-web — so on those the company footer sat 16px proud of the bar on
+     each side, which is the same defect the sub-nav was brought here to fix,
+     one row further down the page. */
+  box-sizing: border-box;
 }
 .cf-foot__cols {
   display: grid;
@@ -990,6 +1000,102 @@
   transform: translateY(0);
   outline: 2px solid var(--cf-fg);
   outline-offset: 2px;
+}
+
+/* ========================= the sub-nav ========================== *
+ * The second row of the header: this surface's own sections, under the
+ * company bar.
+ *
+ * Ten frontends had a private copy of this strip under six class prefixes
+ * (measured 2026-08-10). See the note above `SubNav` in index.tsx for what
+ * had drifted; the three fixes are here:
+ *
+ *   - the measure is `--cf-max-w`, the SAME token the bar and the footer
+ *     use, so the sections line up with the chrome above and below them.
+ *     Five of the copies said `76rem` — 1216px against the bar's 1200 —
+ *     which put this row 8px proud of the bar on each side;
+ *   - it SCROLLS rather than squeezing. A flex row with no wrap and no
+ *     scroll gives a phone six labels broken mid-word and no way to reach
+ *     the ones past the edge. `overflow-x: auto` with the scrollbar hidden
+ *     is what the one copy that got this right did;
+ *   - it is written in tokens, so it moves when the scale does. The
+ *     literal copies still set 0.875rem here while `--cf-text-md` went to
+ *     1rem — which is why the sections read smaller than the bar's own
+ *     controls on every surface that has not adopted this.
+ * ---------------------------------------------------------------- */
+.cf-subnav {
+  position: sticky;
+  /* The bar's own height token, never a number copied out of it. */
+  top: var(--cf-bar-h);
+  /* Under the bar (60) and over the page. Two sticky rows in the wrong
+     order is the header sliding under its own content. */
+  z-index: 40;
+  background: var(--cf-bg-raised);
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.cf-subnav__inner {
+  display: flex;
+  align-items: stretch;
+  gap: var(--cf-space-2xs);
+  max-width: var(--cf-max-w);
+  margin-inline: auto;
+  padding-inline: var(--cf-space-xl);
+  box-sizing: border-box;
+  overflow-x: auto;
+  /* The bar above it does not scroll, so a scrollbar here draws a line
+     across the header on the one platform that reserves space for it, and
+     the row grows by that much on exactly one breakpoint. The content is
+     reachable by swipe, by trackpad and by keyboard — every link is in the
+     tab order and the browser scrolls a focused element into view. */
+  scrollbar-width: none;
+}
+
+.cf-subnav__inner::-webkit-scrollbar {
+  display: none;
+}
+
+.cf-subnav__link {
+  display: inline-flex;
+  align-items: center;
+  /* Or a ten-section nav breaks its labels mid-word on a phone instead of
+     scrolling, which is what four of the eleven copies did — measured
+     2026-08-10 in market-web, mint-web, worlds-web and admin-web. */
+  white-space: nowrap;
+  padding: var(--cf-space-lg) var(--cf-space-md);
+  color: var(--cf-fg-dim);
+  text-decoration: none;
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-md);
+  /* The channel that is not colour. It is transparent rather than absent so
+     that marking the current section does not move the row by 2px. */
+  border-bottom: 2px solid transparent;
+}
+
+.cf-subnav__link:hover {
+  color: var(--cf-fg);
+  background: var(--cf-surface-hover);
+}
+
+/*
+ * The section being read. THREE channels, deliberately: the ink lifts to
+ * full strength, the weight goes up, and the accent underline appears.
+ * Colour is never the only one — the accent is a product hue and two of
+ * them sit inside 4.6 ΔE of each other under protanopia, which is the
+ * measurement `tokens.css` records beside the reserved status hues.
+ */
+.cf-subnav__link--current {
+  color: var(--cf-fg);
+  font-weight: 600;
+  border-bottom-color: var(--cf-accent);
+}
+
+/* Inside the row rather than around it: an outline drawn outside a link in
+   a strip with `overflow-x: auto` is clipped by the scroll container on the
+   first and last item. */
+.cf-subnav__link:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: -2px;
 }
 
 /* ======================= the severity pill ====================== *
@@ -1200,6 +1306,11 @@
    * that cannot reflow.
    */
   .cf-bar__inner {
+    padding-inline: var(--cf-space-md);
+  }
+  /* The second row of the header follows the first. They share a gutter or
+     the sections are visibly indented from the logo above them. */
+  .cf-subnav__inner {
     padding-inline: var(--cf-space-md);
   }
   /*
