@@ -871,6 +871,16 @@
   max-width: var(--cf-max-w);
   margin: 0 auto;
   padding: var(--cf-space-3xl) var(--cf-space-xl) var(--cf-space-2xl);
+  /* `max-width` plus a horizontal padding and no `box-sizing` is 1200px of
+     CONTENT with 16px of padding outside it — 1232px, against the bar's 1200.
+     `.cf-bar__inner` and `.cf-subnav__inner` beside it both declare this; the
+     footer never did, and this stylesheet ships no reset of its own.
+     Measured 2026-08-10: four surfaces have no universal `border-box` rule in
+     their own stylesheet — aetherholm-web, tessera-web, beacon-web and
+     lantern-web — so on those the company footer sat 16px proud of the bar on
+     each side, which is the same defect the sub-nav was brought here to fix,
+     one row further down the page. */
+  box-sizing: border-box;
 }
 .cf-foot__cols {
   display: grid;
@@ -1048,8 +1058,9 @@
 .cf-subnav__link {
   display: inline-flex;
   align-items: center;
-  /* Or a six-section nav breaks its labels mid-word on a phone instead of
-     scrolling, which is what nine of the ten copies did. */
+  /* Or a ten-section nav breaks its labels mid-word on a phone instead of
+     scrolling, which is what four of the eleven copies did — measured
+     2026-08-10 in market-web, mint-web, worlds-web and admin-web. */
   white-space: nowrap;
   padding: var(--cf-space-lg) var(--cf-space-md);
   color: var(--cf-fg-dim);

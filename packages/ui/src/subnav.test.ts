@@ -7,25 +7,31 @@
  * The component is four lines. Almost nothing here is about it; what is asserted is the CSS, and
  * the reason is the measurement that produced the component in the first place.
  *
- * On 2026-08-10 ten frontends declared this strip in their own stylesheet, under six different
- * class prefixes (`wt-`, `mk-`, `ex-`, `fs-`, `dp-`, `ln-`, `bw-`), from what was plainly one
- * original that had been copied and then edited in place. Three of the differences were visible to
- * a reader:
+ * On 2026-08-10 ELEVEN frontends declared this strip in their own stylesheet, under eight different
+ * class prefixes (`wt-` in four repositories, then `mk-`, `ex-`, `fs-`, `dp-`, `ln-`, `bw-`, and
+ * `tessera-web`'s `.tw-nav`, the same component under a name that hides it), from what was plainly
+ * one original that had been copied and then edited in place. A first pass at this census was wrong
+ * in both directions and the numbers below are the re-measurement, taken from each repository's
+ * `main`. Three of the differences were visible to a reader:
  *
- *   1. Only ONE of the ten survived a narrow viewport. `hub-web` carried `white-space: nowrap` and
- *      `overflow-x: auto`; the other nine had a `display: flex` row with neither, so a phone got
- *      six labels squeezed and broken mid-word with no way to reach the ones past the edge.
- *   2. Five of the ten set `max-width: 76rem` — 1216px — while `.cf-bar__inner` and
+ *   1. FOUR of the eleven did not survive a narrow viewport: `market-web`, `mint-web`,
+ *      `worlds-web` and `admin-web` had a `display: flex` row with neither `white-space: nowrap`
+ *      nor `overflow-x`, so a phone got ten labels squeezed and broken mid-word with no way to
+ *      reach the ones past the edge. The other seven carried both — which is the part worth
+ *      keeping in mind here: the fix already existed and still could not reach them.
+ *   2. Six of the eleven did not share the chrome's measure, at three different widths: `76rem`
+ *      (1216px) in `hub-web`, `mint-web`, `worlds-web` and `admin-web`, `78rem` (1248px) in
+ *      `market-web`, `84rem` (1344px) in `lantern-web` — while `.cf-bar__inner` and
  *      `.cf-foot__inner` use `var(--cf-max-w)`, which is 1200px. The second row of the header sat
- *      8px proud of the first on each side, on every wide screen.
- *   3. All ten were written in literals, so none of them moved when the type scale did. They still
+ *      8px, 24px or 72px proud of the first on each side, on every wide screen.
+ *   3. They were written in literals, so none of them moved when the type scale did. They still
  *      set the sections at 0.875rem while `--cf-text-md` — the body step — had been raised to
  *      1rem, which is the note `tokens.css` carries beside it.
  *
- * A copy that has drifted is not a copy anybody notices; it is ten surfaces that each look nearly
- * right. So the assertions below are about the properties that DIFFERED, each pinned to the reason
- * it mattered, and about the three-channel treatment of the current section, which is the estate's
- * standing rule and the one a private copy is most likely to reduce to a colour.
+ * A copy that has drifted is not a copy anybody notices; it is eleven surfaces that each look
+ * nearly right. So the assertions below are about the properties that DIFFERED, each pinned to the
+ * reason it mattered, and about the three-channel treatment of the current section, which is the
+ * estate's standing rule and the one a private copy is most likely to reduce to a colour.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 import assert from 'node:assert/strict'
@@ -78,9 +84,9 @@ describe('the strip is the same strip as the bar', () => {
     assert.match(rule, /position:\s*sticky/)
   })
 
-  it('shares the measure with the bar and the footer, which five copies did not', () => {
-    // The defect this closes exactly: 76rem against the bar's 1200px is 8px of overhang on each
-    // side, on the row directly under it, on five surfaces.
+  it('shares the measure with the bar and the footer, which six copies did not', () => {
+    // The defect this closes exactly: 76rem, 78rem or 84rem against the bar's 1200px is 8px, 24px
+    // or 72px of overhang on each side, on the row directly under it, on six surfaces.
     const rule = block('.cf-subnav__inner')
     assert.match(rule, /max-width:\s*var\(--cf-max-w\)/)
     assert.doesNotMatch(rule, /max-width:\s*\d/, 'the measure is a literal again')
@@ -88,6 +94,25 @@ describe('the strip is the same strip as the bar', () => {
     // than two rules that happen to be spelled the same way.
     assert.match(block('.cf-bar__inner'), /max-width:\s*var\(--cf-max-w\)/)
     assert.match(block('.cf-foot__inner'), /max-width:\s*var\(--cf-max-w\)/)
+  })
+
+  it('measures the same way as well as to the same number, in all three rows of chrome', () => {
+    // Agreeing on `max-width` is only half of agreeing on a measure. A box with `max-width:
+    // 1200px` and `padding-inline: 16px` and no `box-sizing` is 1232px wide, and this stylesheet
+    // ships no reset — measured 2026-08-10, four surfaces (aetherholm-web, tessera-web,
+    // beacon-web, lantern-web) declare no universal `border-box` rule of their own, and on those
+    // the company footer really did sit 16px proud of the bar on each side. It is the same defect
+    // this component was written to fix, one row further down, and it was found by adopting it.
+    for (const selector of ['.cf-bar__inner', '.cf-subnav__inner', '.cf-foot__inner']) {
+      const rule = block(selector)
+      assert.match(rule, /max-width:\s*var\(--cf-max-w\)/)
+      assert.match(rule, /padding(-inline)?:/, `${selector} is no longer a padded measure`)
+      assert.match(
+        rule,
+        /box-sizing:\s*border-box/,
+        `${selector} pairs a measure with padding and does not say which one the measure counts`,
+      )
+    }
   })
 
   it('stacks under the bar rather than over it', () => {
