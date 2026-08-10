@@ -35,6 +35,8 @@ import {
   type SwitcherKey,
 } from './surfaces.ts'
 
+import { MiningControl, type MiningControlProps } from './mining.tsx'
+
 import {
   analyticsAllowedHere,
   analyticsId,
@@ -117,6 +119,21 @@ export {
   type SurfaceKind,
 } from './surfaces.ts'
 
+/**
+ * The browser mining control. Re-exported from the root rather than given its own subpath: it is
+ * React and it belongs in the bar, so every caller that can use it is already importing from here.
+ */
+export {
+  HUB_MINE_PATH,
+  MiningControl,
+  NOT_PAID_CLAUSE,
+  formatHashrate,
+  miningOnHub,
+  type MiningControlProps,
+  type MiningPhase,
+  type MiningReadout,
+} from './mining.tsx'
+
 /* =============================== types ============================= */
 
 /** A single switcher entry, resolved for the current environment. */
@@ -190,6 +207,20 @@ export interface CloudsForgeBarProps {
   rightSlot?: ReactNode | undefined
   /** Passed through to {@link AccountMenu}. Defaults to {@link accountSettingsUrl}. */
   accountHref?: string | undefined
+  /**
+   * The browser mining control, rendered immediately left of the account menu.
+   *
+   * OPT-IN, and deliberately not defaulted. Defaulting it to {@link miningOnHub} would put the
+   * control on every surface with a zero-line diff, which is tempting and is the wrong trade: this
+   * package is linked into nineteen bundles whose test suites assert on the bar's exact markup —
+   * its anchors, its triggers, its class list — so a default would fail the CI of every repository
+   * that has not been touched, including the ones nobody is editing this quarter. A surface adopts
+   * it with one line (`mining={miningOnHub(hosts().hub)}`) when its own tests are ready for it.
+   *
+   * Surfaces with NO account context at all (micro-pool-web, which does not mount this bar) reach
+   * for {@link MiningControl} directly and place it in their own header.
+   */
+  mining?: MiningControlProps | undefined
 }
 
 /* ========================= host resolution ======================== */
@@ -988,6 +1019,7 @@ export function CloudsForgeBar({
   productUrls,
   rightSlot,
   accountHref,
+  mining,
 }: CloudsForgeBarProps) {
   // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
   // two routes to one page cost a slot in a list whose whole job is separation.
@@ -1005,6 +1037,14 @@ export function CloudsForgeBar({
         <ProductSwitcher current={current} productUrls={productUrls} isAdmin={isAdmin} />
         <span className="cf-bar__spacer" />
         {rightSlot && <div className="cf-bar__right">{rightSlot}</div>}
+        {/*
+          BESIDE THE ACCOUNT, ON EVERY PAGE. It sits here and not in `rightSlot` because its
+          position is the whole of the change: the owner's complaint was that starting a browser
+          miner is "hidden deep in mining page", and a control that moves around between surfaces
+          is hidden again. `rightSlot` is each app's own business — search on Hub, a filter
+          elsewhere — and would put this at a different place on every one of them.
+        */}
+        {mining && <MiningControl {...mining} />}
         <AccountMenu
           account={account}
           onSignIn={onSignIn}

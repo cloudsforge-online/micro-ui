@@ -14,6 +14,7 @@
  */
 import { type ReactNode } from 'react';
 import { type CloudsForgeSurface, type ProductKey, type SurfaceKey, type SwitcherKey } from './surfaces.ts';
+import { type MiningControlProps } from './mining.tsx';
 import { type ConsentDecision } from './consent.ts';
 export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface };
 /**
@@ -26,6 +27,11 @@ export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AG
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, type MetaTag, type PageMetaInput, type SurfaceMeta, type TagKind, } from './seo.ts';
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, type SitemapUrl, } from './sitemap.ts';
 export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, type SurfaceKind, } from './surfaces.ts';
+/**
+ * The browser mining control. Re-exported from the root rather than given its own subpath: it is
+ * React and it belongs in the bar, so every caller that can use it is already importing from here.
+ */
+export { HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, type MiningControlProps, type MiningPhase, type MiningReadout, } from './mining.tsx';
 /** A single switcher entry, resolved for the current environment. */
 export interface CloudsForgeProduct {
     key: SwitcherKey;
@@ -91,6 +97,20 @@ export interface CloudsForgeBarProps {
     rightSlot?: ReactNode | undefined;
     /** Passed through to {@link AccountMenu}. Defaults to {@link accountSettingsUrl}. */
     accountHref?: string | undefined;
+    /**
+     * The browser mining control, rendered immediately left of the account menu.
+     *
+     * OPT-IN, and deliberately not defaulted. Defaulting it to {@link miningOnHub} would put the
+     * control on every surface with a zero-line diff, which is tempting and is the wrong trade: this
+     * package is linked into nineteen bundles whose test suites assert on the bar's exact markup —
+     * its anchors, its triggers, its class list — so a default would fail the CI of every repository
+     * that has not been touched, including the ones nobody is editing this quarter. A surface adopts
+     * it with one line (`mining={miningOnHub(hosts().hub)}`) when its own tests are ready for it.
+     *
+     * Surfaces with NO account context at all (micro-pool-web, which does not mount this bar) reach
+     * for {@link MiningControl} directly and place it in their own header.
+     */
+    mining?: MiningControlProps | undefined;
 }
 /**
  * Every CloudsForge surface's base URL, resolved for the current environment.
@@ -318,7 +338,7 @@ export declare function CloudsForgeLogo({ size, markOnly }: CloudsForgeLogoProps
  */
 export declare function ProductSwitcher({ current, productUrls, isAdmin }: ProductSwitcherProps): import("react").JSX.Element;
 export declare function AccountMenu({ account, onSignIn, onSignOut, accountHref }: AccountMenuProps): import("react").JSX.Element;
-export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, }: CloudsForgeBarProps): import("react").JSX.Element;
+export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, }: CloudsForgeBarProps): import("react").JSX.Element;
 export interface SkipLinkProps {
     /**
      * The `id` of the element focus should land on. Defaults to `main`, which is also the id

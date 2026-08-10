@@ -1,0 +1,360 @@
+/**
+ * `MiningControl` — the one control that offers browser mining, in the bar, on every surface.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHY THIS IS IN THE DESIGN SYSTEM AND NOT ON THE MINING PAGE
+ *
+ * Browser mining exists (`hub-web/src/mining/pool-miner.ts`, `pool/src/wsstratum.ts`) and the only
+ * way to reach it is to already be on Forge Hub, know that `/mine` is an address, and scroll a
+ * 1,081-line page to a Start button below the chain picker. A reader on Forge Market, on the
+ * explorer, or on the status page has no route to it at all and no reason to believe there is one.
+ *
+ * So the control moves into the shared bar, beside the account menu, on every surface that renders
+ * `CloudsForgeBar`. That is the estate's only piece of chrome present on every address of every
+ * bundle, which makes it the only place a control can be put ONCE and be everywhere.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * IT NEVER IMPLIES A PAYMENT, AND THAT IS ENFORCED BY THE TYPE AS WELL AS BY THE COPY
+ *
+ * `pool/src/payouts.ts`: "PAYOUTS ARE OFF. THIS FILE NOW CONTAINS A REAL SINK, AND TWO INDEPENDENT
+ * GATES REFUSE IT." `payoutsImplemented` is derived by the service and is false on this estate
+ * today. `pool-web/src/components/notices.tsx` states the standard this control has to match: the
+ * statement is present tense, carries no schedule, and is ACCOMPANIED BY NO NUMBER — "not zeroed
+ * and not greyed out, because a zero reads as 'not yet, but soon' and the truth is 'not at all'".
+ *
+ * Mechanically, here:
+ *
+ *   * there is no prop for an amount, a balance, a projection or a currency, so a caller cannot
+ *     pass one — the same technique `SignInIntent`'s non-empty tuple uses to make "sign in to
+ *     continue" fail to compile;
+ *   * the two figures it will render are `hashrate` (hashes per second, MEASURED by the miner) and
+ *     `accepted` (shares the pool acknowledged). Both are work. Neither is money;
+ *   * when `payoutsImplemented` is false the description carries {@link NOT_PAID_CLAUSE}, and
+ *     `mining.test.ts` asserts both its presence and the absence of every currency mark and every
+ *     earnings word from the whole rendered string.
+ *
+ * `payoutsImplemented` defaults to FALSE — the honest default and the one that survives a caller
+ * who has not asked the service yet, which includes every surface that does not talk to the pool
+ * at all. A surface that wants the clause gone has to be able to prove it.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE FIVE STATES, AND WHY THE MINER IS NOT IN THIS PACKAGE
+ *
+ * A browser mining session is a WebSocket to the pool plus two Web Workers grinding scrypt. It
+ * lives on one origin and one page. `hub.<apex>` and `market.<apex>` are different origins; nothing
+ * on the second can observe, start or stop a session on the first, and no amount of shared code
+ * changes that. Inventing a cross-origin channel to fake one would be a lie about where the work is
+ * happening.
+ *
+ * So the control is honest about the split instead:
+ *
+ *   `unavailable`  the deployment publishes no browser endpoint, or this device cannot mine. Named
+ *                  reason, `aria-disabled` rather than `disabled` so it stays reachable and the
+ *                  reason is announced instead of the control silently skipping the tab order.
+ *   `signed-out`   a press signs you in. The pool mints a ticket against an estate session
+ *                  (`POST /v1/pool/ticket`); there is nothing to start without one.
+ *   `idle`         signed in, not mining, and this surface hosts the miner. A press starts it.
+ *   `mining`       running here. The trigger carries the measured rate and the accepted count.
+ *   `elsewhere`    signed in, and the miner does not live on this surface. Renders an ANCHOR to
+ *                  the surface that hosts it, so it can be middle-clicked, opened in a new tab and
+ *                  read by every check that reads links — the argument `accountSettingsUrl` makes.
+ *
+ * Thirteen of the fourteen surfaces render `elsewhere`. That is the correct answer for them and
+ * not a degraded one: the reader is told the control exists, told where it works, and taken there.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE GLYPH IS THE ESTATE'S OWN RIDGE, AND THE SPARK IS THE ONLY THING THAT MOVES
+ *
+ * Every CloudsForge mark is drawn to one construction: a 24-unit viewBox, a ground line in
+ * `--cf-fg-mute` (the ash ridge), and exactly ONE accent element. This glyph is that construction
+ * at 16px — the ridge is always there, and a single spark sits above it ONLY while the machine is
+ * actually contributing. Nothing animates and nothing is invented: there is no pulsing dot, no
+ * spinner and no fake sparkline over samples nobody supplied. The spark's presence is a change of
+ * FORM, which is what lets the state read for somebody who separates none of the hues — the rule
+ * `tokens.css` states and `StatusPill` exists to make structural.
+ */
+import { useId } from 'react'
+import { surface } from './surfaces.ts'
+
+/**
+ * The sentence, spelled once.
+ *
+ * Present tense, no schedule, no number — `pool-web/src/lib/format.ts` set that standard and this
+ * matches it rather than restating it in fourteen bundles. Exported so a consuming surface can
+ * assert on the exact string instead of on a paraphrase of it.
+ */
+export const NOT_PAID_CLAUSE =
+  'Shares are recorded against your account; nothing is paid out and there is no mechanism by which it could be.'
+
+/** What the control is showing. See the header for what each one means and why. */
+export type MiningPhase = 'unavailable' | 'signed-out' | 'idle' | 'mining' | 'elsewhere'
+
+/**
+ * The live figures, when there are live figures.
+ *
+ * Both are WORK, and there is deliberately no third field. `hashrate` is hashes per second as the
+ * miner measured them over its own rolling window — never the pool's estimate, which is derived
+ * from accepted shares and reads as zero for a browser that has not found one yet. `accepted` is
+ * the count the pool acknowledged.
+ */
+export interface MiningReadout {
+  readonly hashrate: number
+  readonly accepted: number
+}
+
+export type MiningControlProps =
+  | {
+      readonly phase: 'unavailable'
+      /**
+       * Why, in the reader's terms, as a full sentence. Required: a control that is refusing and
+       * will not say what for is the state this component exists to stop rendering.
+       */
+      readonly reason: string
+      readonly payoutsImplemented?: boolean | undefined
+    }
+  | {
+      readonly phase: 'signed-out'
+      readonly onSignIn: () => void
+      readonly payoutsImplemented?: boolean | undefined
+    }
+  | {
+      readonly phase: 'idle'
+      readonly onStart: () => void
+      readonly payoutsImplemented?: boolean | undefined
+    }
+  | {
+      readonly phase: 'mining'
+      readonly onStop: () => void
+      readonly readout: MiningReadout
+      readonly payoutsImplemented?: boolean | undefined
+    }
+  | {
+      readonly phase: 'elsewhere'
+      /**
+       * Where the miner actually runs. An absolute address resolved by the CALLER from
+       * `cloudsforgeHosts()`, never composed here: this package is linked into fourteen bundles
+       * each served from localhost, a preview host and the apex, and a literal would be right on
+       * one of them.
+       */
+      readonly href: string
+      /** The surface's registry name, for the description. Never a second name written here. */
+      readonly hostSurfaceName: string
+      readonly payoutsImplemented?: boolean | undefined
+    }
+
+/**
+ * Hashes per second, at the precision a person reads rather than the precision the meter holds.
+ *
+ * Three significant figures and an SI step. A browser doing 412,318 H/s is doing "412 kH/s"; the
+ * remaining digits change every second and carry nothing. Below 1 kH/s the raw count is shown,
+ * because that is the range a machine that has only just started is in and rounding it to "0 kH/s"
+ * would read as not working.
+ */
+export function formatHashrate(hashesPerSecond: number): string {
+  if (!Number.isFinite(hashesPerSecond) || hashesPerSecond <= 0) return '0 H/s'
+  const STEPS = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s'] as const
+  let value = hashesPerSecond
+  let step = 0
+  while (value >= 1000 && step < STEPS.length - 1) {
+    value /= 1000
+    step += 1
+  }
+  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2
+  return `${value.toFixed(step === 0 ? 0 : digits)} ${STEPS[step]}`
+}
+
+/**
+ * The address of the page that hosts the miner, relative to Forge Hub's origin.
+ *
+ * Written ONCE. Thirteen surfaces link here, and thirteen copies of a path string is thirteen
+ * chances for one of them to go on pointing at a route after it moves.
+ */
+export const HUB_MINE_PATH = '/mine'
+
+/**
+ * The props every surface that does NOT host the miner passes. One call, one line at the call
+ * site, and the registry supplies the destination's name so it cannot disagree with the name in
+ * the product switcher and in every footer.
+ *
+ * `hubUrl` is passed IN rather than resolved here. `cloudsforgeHosts()` lives in `index.tsx`, which
+ * imports this module; reaching back for it would make a cycle, and every consuming app already
+ * resolves its own `hosts()` for exactly this purpose.
+ */
+export function miningOnHub(hubUrl: string, payoutsImplemented = false): MiningControlProps {
+  return {
+    phase: 'elsewhere',
+    href: `${hubUrl.replace(/\/+$/, '')}${HUB_MINE_PATH}`,
+    hostSurfaceName: surface('hub').name,
+    payoutsImplemented,
+  }
+}
+
+/** The visible label. ONE WORD, THE SAME WORD, IN EVERY STATE — see below. */
+const LABEL = 'Mine'
+
+/**
+ * The description each state carries, as an `aria-describedby` target rather than as the label.
+ *
+ * The label stays `Mine` throughout because the vocabulary of an interface is its signposting: a
+ * control that renames itself between "Mine", "Start mining", "Stop mining" and "Mining" is four
+ * controls to learn instead of one, and a reader scanning for the thing they pressed last time is
+ * looking for a word that is no longer there. What changes is the PRESSED STATE (`aria-pressed`,
+ * which a screen reader announces), the spark, and the figures.
+ *
+ * The sentence is a description and not the accessible NAME on purpose. Folding it into the name
+ * would make the button announce as "Mine for the CloudsForge pool in this browser, shares are
+ * recorded…" every time focus lands on it, which is a paragraph read aloud on every tab pass.
+ */
+function describe(props: MiningControlProps): string {
+  const paid = props.payoutsImplemented ?? false
+  const clause = paid ? '' : ` ${NOT_PAID_CLAUSE}`
+  switch (props.phase) {
+    case 'unavailable':
+      return `Browser mining is not available here. ${props.reason}`
+    case 'signed-out':
+      return `Sign in to mine for the CloudsForge pool in this browser.${clause}`
+    case 'idle':
+      return `Mine for the CloudsForge pool in this browser.${clause}`
+    case 'mining':
+      return (
+        `Mining for the CloudsForge pool in this browser at ${formatHashrate(props.readout.hashrate)}, ` +
+        `${props.readout.accepted} shares accepted. Press to stop.${clause}`
+      )
+    case 'elsewhere':
+      return `Mine for the CloudsForge pool in your browser, on ${props.hostSurfaceName}.${clause}`
+  }
+}
+
+/**
+ * The ridge, and the spark that is only there when the machine is.
+ *
+ * `aria-hidden`, because the state is already carried by `aria-pressed`, by the description and —
+ * for a sighted reader — by the figures beside it. A second announcement of the same fact is an
+ * interruption, not an affordance.
+ */
+function Ridge({ lit }: { lit: boolean }) {
+  return (
+    <svg
+      className="cf-mine__ridge"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* The ash ridge, present in every CloudsForge mark. Stroked from the stylesheet rather than
+          from a `stroke` attribute, so the one place the colour is stated is `ui.css`. */}
+      <path className="cf-mine__ridge-line" d="M2 18 L8 11 L12 15 L16 9 L22 18" />
+      {/* The one accent element, and the whole of the state change. */}
+      {lit && (
+        <path
+          className="cf-mine__spark"
+          d="M16 2.5 C17.4 4.2 18.1 5.5 18.1 6.6 C18.1 8 17.2 9 16 9 C14.8 9 13.9 8 13.9 6.6 C13.9 5.5 14.6 4.2 16 2.5 Z"
+        />
+      )}
+    </svg>
+  )
+}
+
+/**
+ * The control.
+ *
+ * A `<button>` for the three states that DO something and an `<a href>` for the one that is a
+ * destination. That distinction is not cosmetic — `accountSettingsUrl`'s note records what it cost
+ * the last time it was got wrong: an `onClick` destination cannot be middle-clicked, cannot be
+ * opened in a new tab, its target cannot be copied, and it is invisible to every check that reads
+ * links, which is why a wrong one survived on nineteen surfaces.
+ *
+ * `unavailable` uses `aria-disabled` rather than `disabled`. A `disabled` button is removed from
+ * the tab order, so the one reader who most needs to be told WHY mining is refused is the one who
+ * cannot reach the element carrying the reason.
+ */
+export function MiningControl(props: MiningControlProps) {
+  const phase = props.phase
+  const mining = phase === 'mining'
+  /*
+   * `useId`, not a constant derived from the phase. Two controls on one page with the same id would
+   * be a silently wrong `aria-describedby` rather than a visible break — the same argument
+   * `SignInIntent` makes about its `aria-labelledby`, and asserted the same way.
+   */
+  const descriptionId = useId()
+
+  const className = `cf-btn cf-mine cf-mine--${phase}`
+
+  const body = (
+    <>
+      <Ridge lit={mining} />
+      <span className="cf-mine__label">{LABEL}</span>
+      {props.phase === 'mining' && (
+        /*
+          The measured rate, in the mono face with tabular figures — `.cf-num` — so a figure that
+          changes every second does not shuffle the controls beside it on every change.
+
+          `aria-hidden`, and NOT a live region. A rate that updates once a second in an `aria-live`
+          element is a screen reader talking over the page continuously, forever; the same number is
+          already in the description, where it is read when the reader asks for it by putting focus
+          on the control. This is the one figure a sighted reader gets for free and a screen-reader
+          user gets on request, which is the right way round.
+        */
+        <span className="cf-mine__rate cf-num" aria-hidden="true">
+          {formatHashrate(props.readout.hashrate)}
+        </span>
+      )}
+    </>
+  )
+
+  /*
+   * OUTSIDE the control, and that placement is load-bearing.
+   *
+   * An element's accessible NAME is computed from its own descendants, `.cf-sr` included. Nesting
+   * this span inside the button would make it announce as "Mine, Mining for the CloudsForge pool in
+   * this browser at 412 kH/s, 9 shares accepted…" on every tab pass — the exact paragraph-as-a-name
+   * that putting the sentence in a DESCRIPTION was meant to avoid. As a sibling it is a description
+   * and only a description: read on request, never as part of the name.
+   *
+   * A `Fragment` rather than a wrapper element: the bar's row is a flex container, and an extra box
+   * in it would take a gap. The span is `position: absolute` and 1px, so it occupies nothing.
+   */
+  const description = (
+    <span className="cf-sr" id={descriptionId}>
+      {describe(props)}
+    </span>
+  )
+
+  if (props.phase === 'elsewhere') {
+    return (
+      <>
+        <a className={className} href={props.href} aria-describedby={descriptionId}>
+          {body}
+        </a>
+        {description}
+      </>
+    )
+  }
+
+  const onClick = (): void => {
+    if (props.phase === 'signed-out') props.onSignIn()
+    else if (props.phase === 'idle') props.onStart()
+    else if (props.phase === 'mining') props.onStop()
+    // `unavailable` does nothing. The reason is already on the element.
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={className}
+        aria-describedby={descriptionId}
+        {...(phase === 'unavailable' ? { 'aria-disabled': true } : {})}
+        {...(phase === 'idle' || mining ? { 'aria-pressed': mining } : {})}
+        onClick={onClick}
+      >
+        {body}
+      </button>
+      {description}
+    </>
+  )
+}
