@@ -594,7 +594,37 @@ export const SURFACES = [
          * agreement rather than coincidence — both are "the service's port" read from the same file.
          *
          * `markId: null` — `micro-brand` has no `assets/pool/` set. Null is the honest answer; naming
-         * a mark that does not exist renders nothing and reports nothing. */
+         * a mark that does not exist renders nothing and reports nothing.
+         *
+         * ── 2026-08-10: THE SWITCHER QUESTION WAS RE-OPENED, AND `inSwitcher` STAYS FALSE ────────
+         *
+         * The ask was to make the pool a first-class product surface, and the switcher was the
+         * obvious lever. It is the wrong one, and a guard in `surfaces.test.ts` says so before any
+         * taste argument has to be settled: **"gives every entry a distinct accent"** asserts that
+         * `SWITCHER_SURFACES` holds no two entries of the same hue. This row's accent is #b28e1e,
+         * which is `create`'s — deliberately, per the note below it. Setting `inSwitcher: true`
+         * therefore fails that test outright, and the only ways to pass it are to invent a seventh
+         * validated accent (the note below records why that search is not worth making, and the
+         * all-pairs separation work above records why it is close to unachievable across eight
+         * brand-faithful hues) or to weaken a colour-accessibility guard for a marketing goal.
+         *
+         * Neither is a trade this registry should make, so discoverability was solved where it was
+         * actually broken instead. The pool was not undiscoverable because it was missing from the
+         * switcher; it was undiscoverable because the company site advertised it in prose on the
+         * home page and every route to it was a dead end:
+         *
+         *   * `site/src/content/pages.ts` carries a home-page capability with `linkTo: 'pool'`, and
+         *     `site/src/pages/home.tsx` renders `linkTo` as `/products/<slug>` — so the visible call
+         *     to action "See the pool" resolved to `/products/pool`, which `site/nginx.conf`
+         *     enumerates no location for and which answered a hard 404. Measured 2026-08-10.
+         *   * `site` and `network-site` are the only two bundles in the estate that do NOT mount
+         *     `CloudsForgeFooter`, and that footer is the one place `pool` was linked from at all
+         *     (structurally, via `FOOTER_SURFACES`). The two public marketing surfaces — the ones a
+         *     stranger meets first — were exactly the two with no link.
+         *
+         * So `micro-site` now serves `/products/pool` and links it from its own footer, and this row
+         * is unchanged. A surface earns a switcher slot by being something a person chooses BETWEEN;
+         * the pool is somewhere they are sent, and being sent there is what was missing. */
         key: 'pool',
         name: 'Mining Pool',
         verb: null,
