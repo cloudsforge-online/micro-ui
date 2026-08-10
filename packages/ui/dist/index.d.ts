@@ -390,6 +390,52 @@ export interface MainRegionProps {
  * has exactly one `main` landmark" is something a browser test can assert by name.
  */
 export declare function MainRegion({ id, className, children }: MainRegionProps): import("react").JSX.Element;
+export interface SubNavProps {
+    /**
+     * What a screen reader hears when it lands on the landmark. Required, and deliberately not
+     * defaulted to "Sections": a document with two `<nav>` elements — the bar is one — announces
+     * both, and two landmarks called "Navigation" are two landmarks nobody can tell apart.
+     */
+    label: string;
+    /**
+     * The links. Each one should carry `className="cf-subnav__link"` and, when it is the address
+     * being read, `cf-subnav__link--current`.
+     *
+     * The markup is the caller's because the routing is: every surface here uses react-router's
+     * `NavLink`, which owns the active state, and this package does not depend on react-router. What
+     * is shared is the STRIP — the sticky offset, the scroll behaviour and the measure — which is
+     * the part that drifted.
+     */
+    children: ReactNode;
+}
+/**
+ * The second row of the header: this surface's own sections, under the company bar.
+ *
+ * ── WHY IT IS HERE RATHER THAN IN EACH APP ────────────────────────────────────────────────────
+ *
+ * Measured 2026-08-10: ten frontends declared this strip in their own stylesheet, under six
+ * different class prefixes, from what was plainly one original. They had drifted in three ways
+ * that a reader can see:
+ *
+ *   1. **It did not survive a narrow viewport anywhere but Forge Hub.** Only `hub-web` carried
+ *      `white-space: nowrap` and `overflow-x: auto`. Everywhere else a `display: flex` row with no
+ *      wrap and no scroll left the links to squeeze and break mid-label on a phone — six sections
+ *      in `admin-web`, five in `worlds-web` — with no way to reach the ones past the edge.
+ *   2. **It was 16px wider than the chrome above and below it.** Five of the ten set
+ *      `max-width: 76rem` (1216px) while `.cf-bar__inner` and `.cf-foot__inner` use
+ *      `var(--cf-max-w)` (1200px), so on a wide screen the row of sections sat 8px proud of the
+ *      bar on each side.
+ *   3. **It was written in literals.** `0.25rem`, `0.7rem 0.85rem`, `0.875rem`, `76rem` — none of
+ *      which move when the scale does. `--cf-text-md` was raised from 0.82rem to 1rem when the
+ *      body size was fixed (see the note in `tokens.css`), and none of the ten copies moved with
+ *      it, which is why the sections under the bar are still set smaller than the bar's own
+ *      controls on the surfaces that have not adopted this.
+ *
+ * The bar makes moving between surfaces feel like one application. The row immediately beneath it
+ * being a different height, a different measure and a different size on each one undoes that at
+ * the second glance.
+ */
+export declare function SubNav({ label, children }: SubNavProps): import("react").JSX.Element;
 export type StatusLevel = 'good' | 'warn' | 'critical' | 'neutral';
 export interface StatusPillProps {
     level: StatusLevel;

@@ -507,6 +507,36 @@ export function SkipLink({ targetId = MAIN_ID, children }) {
 export function MainRegion({ id = MAIN_ID, className, children }) {
     return (_jsx("main", { id: id, tabIndex: -1, ...(className === undefined ? {} : { className }), children: children }));
 }
+/**
+ * The second row of the header: this surface's own sections, under the company bar.
+ *
+ * ── WHY IT IS HERE RATHER THAN IN EACH APP ────────────────────────────────────────────────────
+ *
+ * Measured 2026-08-10: ten frontends declared this strip in their own stylesheet, under six
+ * different class prefixes, from what was plainly one original. They had drifted in three ways
+ * that a reader can see:
+ *
+ *   1. **It did not survive a narrow viewport anywhere but Forge Hub.** Only `hub-web` carried
+ *      `white-space: nowrap` and `overflow-x: auto`. Everywhere else a `display: flex` row with no
+ *      wrap and no scroll left the links to squeeze and break mid-label on a phone — six sections
+ *      in `admin-web`, five in `worlds-web` — with no way to reach the ones past the edge.
+ *   2. **It was 16px wider than the chrome above and below it.** Five of the ten set
+ *      `max-width: 76rem` (1216px) while `.cf-bar__inner` and `.cf-foot__inner` use
+ *      `var(--cf-max-w)` (1200px), so on a wide screen the row of sections sat 8px proud of the
+ *      bar on each side.
+ *   3. **It was written in literals.** `0.25rem`, `0.7rem 0.85rem`, `0.875rem`, `76rem` — none of
+ *      which move when the scale does. `--cf-text-md` was raised from 0.82rem to 1rem when the
+ *      body size was fixed (see the note in `tokens.css`), and none of the ten copies moved with
+ *      it, which is why the sections under the bar are still set smaller than the bar's own
+ *      controls on the surfaces that have not adopted this.
+ *
+ * The bar makes moving between surfaces feel like one application. The row immediately beneath it
+ * being a different height, a different measure and a different size on each one undoes that at
+ * the second glance.
+ */
+export function SubNav({ label, children }) {
+    return (_jsx("nav", { className: "cf-subnav", "aria-label": label, children: _jsx("div", { className: "cf-subnav__inner", children: children }) }));
+}
 /** Glyph per level. Colour is never the only channel; this is the second, and the word is the third. */
 const STATUS_GLYPHS = {
     good: '●',
