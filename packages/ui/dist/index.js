@@ -15,6 +15,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  */
 import { Fragment, useEffect, useId, useRef, useState, } from 'react';
 import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
+import { MiningControl } from "./mining.js";
 import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsentChange, readConsent, } from "./consent.js";
 /**
  * The four cross-cutting concerns, re-exported from the root so a surface adopts them with one
@@ -26,6 +27,11 @@ export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AG
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, } from "./seo.js";
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, } from "./sitemap.js";
 export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
+/**
+ * The browser mining control. Re-exported from the root rather than given its own subpath: it is
+ * React and it belongs in the bar, so every caller that can use it is already importing from here.
+ */
+export { HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, } from "./mining.js";
 /**
  * Resolve every surface's base URL through `origin`, which differs only in whether it produces a
  * localhost port or an apex subdomain. A surface with a `basePath` — the wallet inside Hub, the
@@ -452,13 +458,13 @@ export function AccountMenu({ account, onSignIn, onSignOut, accountHref }) {
                             }, children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", children: "\u23FB" }), _jsx("span", { className: "cf-menu__text", children: _jsx("span", { className: "cf-menu__name", children: "Sign out" }) })] }) })] }))] }));
 }
 /* ========================= CloudsForgeBar ======================== */
-export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, }) {
+export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, }) {
     // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
     // two routes to one page cost a slot in a list whose whole job is separation.
     const siteUrl = cloudsforgeHosts().site;
     const isAdmin = account.roles?.includes('admin') ?? false;
     const barStyle = { colorScheme: 'dark' };
-    return (_jsx("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: _jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }) }));
+    return (_jsx("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: _jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }) }));
 }
 /**
  * The id the skip link points at, and the id a surface must put on its `<main>`.

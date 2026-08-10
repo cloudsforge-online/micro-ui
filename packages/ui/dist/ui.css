@@ -256,6 +256,100 @@
   flex: 0 0 auto;
 }
 
+/* ==================== the browser mining control ================= *
+ * `MiningControl`, which sits in the bar beside the account menu on every
+ * surface. See src/mining.tsx for why it is there rather than on a page.
+ *
+ * It is a `.cf-btn` first and a `.cf-mine` second — the trigger geometry,
+ * the 34px floor, the mono face and the hover are the SAME as the product
+ * switcher's and the account menu's, because it stands between them and a
+ * control that is a different height in the same row reads as a mistake
+ * before it reads as emphasis.
+ *
+ * NO EMBER. Ember is the company's colour and has exactly three uses (see
+ * the head of this file); a fourth on the estate's most-repeated new
+ * control would quietly make it a product accent. The one coloured thing
+ * here is the spark, in `--cf-accent` — the mark step, which is the 3:1
+ * token and therefore the correct one for a graphical object rather than
+ * for text.
+ * ---------------------------------------------------------------- */
+.cf-mine {
+  /* An anchor in the `elsewhere` state and a button in the other four.
+     Stating this here rather than on a modifier is what keeps the two
+     shapes visually identical, which is the point: the reader is pressing
+     the same control whether the miner runs on this surface or another. */
+  text-decoration: none;
+}
+
+.cf-mine__ridge {
+  flex: 0 0 auto;
+}
+
+/* The ash ridge, in muted ash — the same construction and the same weight
+   as every `Mark` in this package. It is drawn in EVERY state, so the
+   control has a constant silhouette and only the spark changes. */
+.cf-mine__ridge-line {
+  fill: none;
+  stroke: var(--cf-fg-mute);
+}
+
+/* The one accent element. Present only while this browser is actually
+   contributing work, which makes the running state a change of FORM and
+   not only of hue — the rule the whole status vocabulary here follows, so
+   that the state survives a reader who separates none of the colours. */
+.cf-mine__spark {
+  fill: var(--cf-accent);
+  stroke: none;
+}
+
+/* The measured rate. One step down from the label and in the dim text
+   token: it is a live figure sitting inside a control, and a number that
+   competes with the verb beside it turns the control into a readout. */
+.cf-mine__rate {
+  font-size: var(--cf-text-2xs);
+  color: var(--cf-fg-dim);
+  letter-spacing: 0;
+}
+
+/* THE ONE OUTLINED TRIGGER IN THE BAR, and the only place this component
+   asks for emphasis. Every other control in the row — the switcher, the
+   account menu — rests borderless and grows a border on hover, because
+   they are places you already know are there. This one is the thing the
+   owner reported as unfindable, so at rest it reads as a control rather
+   than as a word between two menus. It is a HAIRLINE and not a fill: a
+   solid button here would outrank "Sign in", which is the only call to
+   action on the estate allowed to wear ember. */
+.cf-mine--signed-out,
+.cf-mine--idle,
+.cf-mine--elsewhere {
+  border-color: var(--cf-line-strong);
+}
+
+.cf-mine--mining {
+  color: var(--cf-fg);
+  background: var(--cf-surface-hover);
+  border-color: var(--cf-line-strong);
+}
+
+/* `aria-disabled`, never `disabled` — the attribute selector is the whole
+   reason this rule is written against ARIA rather than against `:disabled`.
+   A `disabled` button leaves the tab order, so the reader who most needs
+   to be told WHY mining is refused is the one who cannot reach the element
+   carrying the reason. It looks unavailable and it stays reachable.
+
+   The class and the attribute are BOTH in the selector so the rule cannot
+   apply to a refusal that forgot the attribute: styling it from the class
+   alone would let a truly `disabled` button, or one with no state at all,
+   still look correctly greyed out while being unreachable. */
+.cf-mine--unavailable[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.cf-mine--unavailable[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--cf-fg-dim);
+}
+
 /* ======================= dropdown popovers ======================= */
 .cf-pop {
   position: relative;
@@ -427,7 +521,29 @@
   outline-offset: 2px;
   border-radius: var(--cf-radius-sm);
 }
-.cf-menu__item:focus {
+/*
+ * `:focus:not(:focus-visible)`, and the `:not()` is the fix rather than a
+ * tidy-up.
+ *
+ * This rule used to be a bare `:focus`. `useDropdown` moves focus onto the
+ * menu programmatically when it opens, so on a POINTER open the browser
+ * would have drawn a ring around an item nobody was keyboarding to — which
+ * is the case this suppression was written for, and it is a real one.
+ *
+ * But it also matched the keyboard case. `.cf-menu__item:focus` and
+ * `.cf-bar :focus-visible` above both weigh (0,2,0) and this one is later,
+ * so it WON: every item in the product switcher and in the account menu —
+ * the two menus on every page of the estate — had its focus ring removed
+ * while being arrowed through. What was left was `:focus-visible`'s
+ * background tint, which is byte-identical to the `:hover` tint, so the
+ * remaining indicator could not be told from a mouse resting on the row.
+ * That fails WCAG 2.2 SC 2.4.11 on thickness and SC 1.4.1 on channel at the
+ * same time.
+ *
+ * The `:not()` keeps the pointer case suppressed and gives the ring back to
+ * the keyboard, which is the only case that ever wanted it.
+ */
+.cf-menu__item:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -1049,6 +1165,52 @@
   .cf-switch__label,
   .cf-account__handle {
     display: none;
+  }
+  /* The live rate is `aria-hidden` in the markup, so removing it removes
+     nothing a reader could have been told; on a 360px bar it is the
+     difference between the control fitting and the row wrapping. */
+  .cf-mine__rate {
+    display: none;
+  }
+  /* The label is CLIPPED rather than removed, which is not the same choice
+     as the two above it. `display: none` on the only text in a control
+     leaves it with NO ACCESSIBLE NAME — a button announced as "button".
+     The switcher and the account menu each keep a name from elsewhere in
+     their own markup; this control's name is this span. So it goes
+     off-screen and stays in the accessibility tree. */
+  .cf-mine__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .cf-mine {
+    padding-inline: var(--cf-space-sm);
+  }
+  /*
+   * 32px of gutter on each side of a 360px bar spends 64px — a fifth of the
+   * viewport — on nothing, and the row now carries one more control than it
+   * did. The page's own gutter is unchanged; this is the CHROME's, and the
+   * chrome is the one strip where the content is all fixed-width triggers
+   * that cannot reflow.
+   */
+  .cf-bar__inner {
+    padding-inline: var(--cf-space-md);
+  }
+  /*
+   * The menus were wider than a small phone's content box and had no upper
+   * bound, so the account menu — anchored right — pushed off the left edge
+   * of a 320px screen instead of growing a scrollbar. `100vw` minus the two
+   * gutters is exactly what is available.
+   */
+  .cf-menu {
+    min-width: 0;
+    max-width: calc(100vw - (2 * var(--cf-space-md)));
   }
   .cf-chart,
   .cf-tile {
