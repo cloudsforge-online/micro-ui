@@ -31,7 +31,7 @@ export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCE
  * The browser mining control. Re-exported from the root rather than given its own subpath: it is
  * React and it belongs in the bar, so every caller that can use it is already importing from here.
  */
-export { HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, type MiningControlProps, type MiningPhase, type MiningReadout, } from './mining.tsx';
+export { EMBER_CREDITED_CLAUSE, HUB_MINE_PATH, MiningControl, NOT_PAID_CLAUSE, formatHashrate, miningOnHub, type MiningControlProps, type MiningPhase, type MiningReadout, type MiningSubject, } from './mining.tsx';
 /** A single switcher entry, resolved for the current environment. */
 export interface CloudsForgeProduct {
     key: SwitcherKey;

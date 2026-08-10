@@ -55,12 +55,35 @@
  *                  (`POST /v1/pool/ticket`); there is nothing to start without one.
  *   `idle`         signed in, not mining, and this surface hosts the miner. A press starts it.
  *   `mining`       running here. The trigger carries the measured rate and the accepted count.
- *   `elsewhere`    signed in, and the miner does not live on this surface. Renders an ANCHOR to
- *                  the surface that hosts it, so it can be middle-clicked, opened in a new tab and
- *                  read by every check that reads links — the argument `accountSettingsUrl` makes.
+ *   `elsewhere`    the miner does not run from HERE. Renders an ANCHOR to the address that hosts
+ *                  it, so it can be middle-clicked, opened in a new tab and read by every check
+ *                  that reads links — the argument `accountSettingsUrl` makes.
  *
  * Thirteen of the fourteen surfaces render `elsewhere`. That is the correct answer for them and
  * not a degraded one: the reader is told the control exists, told where it works, and taken there.
+ * Since micro-org#362 Forge Hub renders it too, for a different reason and with a `reason` on it —
+ * see {@link MiningSubject} below, and `hub-web/src/mining/bar.ts` for the case.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * TWO SUBJECTS, BECAUSE THE POOL CLAUSE IS TRUE OF THE POOL AND FALSE OF EMBER
+ *
+ * Until micro-org#362 every state of this control described the CloudsForge pool, and that was
+ * accurate because the pool was the only thing a press could start. Forge Hub's bar now starts
+ * EMBER — the estate's own chain, mined directly against the network — for an account with a
+ * watched custodial EMBER deposit address, and two sentences that were true stop being true:
+ *
+ *   * "Mine for the CloudsForge pool" names the wrong thing. EMBER does not go through the pool
+ *     at all; `pool/src/chains.ts` refuses to run one for it.
+ *   * {@link NOT_PAID_CLAUSE} — "nothing is paid out and there is no mechanism by which it could
+ *     be" — is exactly right about pool shares and exactly wrong about EMBER. A block this browser
+ *     finds is paid on chain to a key the tab holds and swept to the account's own deposit
+ *     address, where the estate's ordinary deposit path books it (`hub-web/src/lib/embersweep.ts`).
+ *     There IS a mechanism; it ran for the first time on mainnet on 2026-08-10, at block 10,919.
+ *
+ * So the copy takes a SUBJECT rather than being weakened for both. `pool` is the default and every
+ * existing caller — all thirteen `miningOnHub()` surfaces included — keeps the sentence it had,
+ * clause and all. `ember` gets {@link EMBER_CREDITED_CLAUSE}, which says the true thing about the
+ * true mechanism. Neither clause is ever softened into a sentence that would cover both.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * THE GLYPH IS THE ESTATE'S OWN RIDGE, AND THE SPARK IS THE ONLY THING THAT MOVES
@@ -86,8 +109,32 @@ import { surface } from './surfaces.ts'
 export const NOT_PAID_CLAUSE =
   'Shares are recorded against your account; nothing is paid out and there is no mechanism by which it could be.'
 
+/**
+ * The other sentence, for the other subject. Never a replacement for {@link NOT_PAID_CLAUSE}.
+ *
+ * Present tense and no schedule, the same standard, and it is a statement about a mechanism that
+ * exists rather than one that does not. It carries NO FIGURE for the same reason its neighbour
+ * carries none, and for one more: the confirmation depth (EMBER's is 60, about fifteen minutes at
+ * Hearth's fifteen-second target) is a consensus parameter, and a number restated in a design
+ * system is a number that goes on being rendered after `contracts/packages/chain` changes it. The
+ * mining page states the depth, next to the address, where a reader who wants it will look.
+ */
+export const EMBER_CREDITED_CLAUSE =
+  'Blocks this browser finds are sent to your own CloudsForge EMBER deposit address, and credited once the network has confirmed them.'
+
 /** What the control is showing. See the header for what each one means and why. */
 export type MiningPhase = 'unavailable' | 'signed-out' | 'idle' | 'mining' | 'elsewhere'
+
+/**
+ * WHAT a press mines, which decides which of the two clauses is true.
+ *
+ * Defaulted to `pool` everywhere it is optional, so that a caller who does not know is described
+ * by the sentence the estate has always shown rather than by the new one. Getting this wrong in
+ * the safe direction shows a reader the pool's "nothing is paid out" over an EMBER session, which
+ * understates what happened; getting it wrong in the other direction would promise a credit that
+ * no mechanism produces, which is the failure the honesty regime exists to prevent.
+ */
+export type MiningSubject = 'pool' | 'ember'
 
 /**
  * The live figures, when there are live figures.
@@ -95,7 +142,9 @@ export type MiningPhase = 'unavailable' | 'signed-out' | 'idle' | 'mining' | 'el
  * Both are WORK, and there is deliberately no third field. `hashrate` is hashes per second as the
  * miner measured them over its own rolling window — never the pool's estimate, which is derived
  * from accepted shares and reads as zero for a browser that has not found one yet. `accepted` is
- * the count the pool acknowledged.
+ * the count the OTHER SIDE acknowledged: shares, for a pool session, and blocks the node took, for
+ * an EMBER one. Which of the two words the description uses is decided by {@link MiningSubject};
+ * the field is one field because both are the same fact — work this browser did that was accepted.
  */
 export interface MiningReadout {
   readonly hashrate: number
@@ -120,12 +169,16 @@ export type MiningControlProps =
   | {
       readonly phase: 'idle'
       readonly onStart: () => void
+      /** What the press will start. Omitted means `pool`; see {@link MiningSubject}. */
+      readonly subject?: MiningSubject | undefined
       readonly payoutsImplemented?: boolean | undefined
     }
   | {
       readonly phase: 'mining'
       readonly onStop: () => void
       readonly readout: MiningReadout
+      /** What is running. Omitted means `pool`; see {@link MiningSubject}. */
+      readonly subject?: MiningSubject | undefined
       readonly payoutsImplemented?: boolean | undefined
     }
   | {
@@ -139,6 +192,19 @@ export type MiningControlProps =
       readonly href: string
       /** The surface's registry name, for the description. Never a second name written here. */
       readonly hostSurfaceName: string
+      /** What is being linked to. Omitted means `pool`; see {@link MiningSubject}. */
+      readonly subject?: MiningSubject | undefined
+      /**
+       * Why the press is a journey rather than a start, as a full sentence, when there is a reason
+       * beyond "the miner is not on this surface".
+       *
+       * Thirteen surfaces need none: for them the destination IS the explanation, and a sentence
+       * saying "because you are not on Forge Hub" to somebody who can see they are not on Forge Hub
+       * is noise. Forge Hub itself needs one — micro-org#362 — because there the anchor points at
+       * this surface's own mining page, and a link that goes where the reader already is has to say
+       * what is there. See `hub-web/src/mining/bar.ts` for the four sentences it passes.
+       */
+      readonly reason?: string | undefined
       readonly payoutsImplemented?: boolean | undefined
     }
 
@@ -204,24 +270,49 @@ const LABEL = 'Mine'
  * The sentence is a description and not the accessible NAME on purpose. Folding it into the name
  * would make the button announce as "Mine for the CloudsForge pool in this browser, shares are
  * recorded…" every time focus lands on it, which is a paragraph read aloud on every tab pass.
+ *
+ * ── THE CLAUSE IS CHOSEN BY THE SUBJECT, AND `payoutsImplemented` IS THE POOL'S FLAG ───────────
+ *
+ * `payoutsImplemented` comes from `GET /v1/pool` and describes the POOL. It is deliberately not
+ * consulted for an EMBER subject: a pool that started paying out would not make an EMBER sweep any
+ * more or less credited, and an EMBER state that dropped its clause because the pool's flag flipped
+ * would be reading one system's answer about another system's question.
  */
 function describe(props: MiningControlProps): string {
   const paid = props.payoutsImplemented ?? false
   const clause = paid ? '' : ` ${NOT_PAID_CLAUSE}`
+  const ember = ` ${EMBER_CREDITED_CLAUSE}`
   switch (props.phase) {
     case 'unavailable':
       return `Browser mining is not available here. ${props.reason}`
     case 'signed-out':
+      // No subject. Nothing is known about the account before it has one, and which of the two a
+      // press will start is a fact about the account — see `hub-web/src/mining/bar.ts`. The pool is
+      // what this browser can always be told about truthfully, so it is what the invitation names.
       return `Sign in to mine for the CloudsForge pool in this browser.${clause}`
     case 'idle':
-      return `Mine for the CloudsForge pool in this browser.${clause}`
+      return props.subject === 'ember'
+        ? `Mine EMBER against the CloudsForge network in this browser.${ember}`
+        : `Mine for the CloudsForge pool in this browser.${clause}`
     case 'mining':
-      return (
-        `Mining for the CloudsForge pool in this browser at ${formatHashrate(props.readout.hashrate)}, ` +
-        `${props.readout.accepted} shares accepted. Press to stop.${clause}`
-      )
-    case 'elsewhere':
-      return `Mine for the CloudsForge pool in your browser, on ${props.hostSurfaceName}.${clause}`
+      return props.subject === 'ember'
+        ? `Mining EMBER against the CloudsForge network in this browser at ${formatHashrate(props.readout.hashrate)}, ` +
+            `${props.readout.accepted} blocks accepted. Press to stop.${ember}`
+        : `Mining for the CloudsForge pool in this browser at ${formatHashrate(props.readout.hashrate)}, ` +
+            `${props.readout.accepted} shares accepted. Press to stop.${clause}`
+    case 'elsewhere': {
+      const reason = props.reason === undefined ? '' : ` ${props.reason}`
+      /*
+       * The EMBER arm carries NO clause, and that is the one place either clause is absent.
+       * `EMBER_CREDITED_CLAUSE` promises that a found block reaches the account, and this is
+       * precisely the state in which that cannot be promised — it is why the reader is being sent
+       * somewhere instead of being offered a Start. The `reason` says what is missing; attaching
+       * the promise underneath it would contradict it in the same breath.
+       */
+      return props.subject === 'ember'
+        ? `Mine EMBER in your browser, on ${props.hostSurfaceName}.${reason}`
+        : `Mine for the CloudsForge pool in your browser, on ${props.hostSurfaceName}.${clause}${reason}`
+    }
   }
 }
 

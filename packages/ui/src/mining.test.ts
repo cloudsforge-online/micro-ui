@@ -29,6 +29,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, it } from 'node:test'
 import {
   CloudsForgeBar,
+  EMBER_CREDITED_CLAUSE,
   HUB_MINE_PATH,
   MiningControl,
   NOT_PAID_CLAUSE,
@@ -62,6 +63,9 @@ function control(html: string): { tag: string; attrs: string } {
 
 const REASON = 'This deployment publishes no browser mining endpoint.'
 const HOST_NAME = surface('hub').name
+/** One of the four sentences `hub-web/src/mining/bar.ts` passes. Its shape, not its wording. */
+const EMBER_REASON =
+  'This account has no CloudsForge EMBER deposit address, so the mining page has to ask you where a found block should go.'
 
 /**
  * One render per state, with `payoutsImplemented` left UNSET on four of the five.
@@ -312,6 +316,162 @@ describe('it promises nothing the pool does not pay', () => {
         .replace(REASON, '')
       assert.ok(!/\d/.test(own), `${key}: a number appears with nothing to derive it from: ${own}`)
     }
+  })
+})
+
+/* ══════════════════ 5b. and it says the OTHER true thing about the other chain ════════════════ */
+
+/**
+ * EMBER, which IS credited — micro-org#362.
+ *
+ * The pool's clause and EMBER's clause are opposites and both are true, of different things. The
+ * failing shape this section polices is the tempting one: a single sentence hedged enough to cover
+ * both, which would either promise a credit the pool does not make or deny one the sweep does.
+ *
+ * The mechanism behind the EMBER clause is `hub-web/src/lib/embersweep.ts` and it is not
+ * theoretical: it ran on mainnet from 2026-08-10, block 10,919 onward, sweeping 5.3929 EMBER a
+ * block into the owner's own custodial deposit address.
+ */
+describe('it says what is true of EMBER, which is not what is true of the pool', () => {
+  const EMBER_STATES: Record<string, MiningControlProps> = {
+    idle: { phase: 'idle', onStart: () => {}, subject: 'ember' },
+    mining: {
+      phase: 'mining',
+      onStop: () => {},
+      readout: { hashrate: 412_318, accepted: 9 },
+      subject: 'ember',
+    },
+    elsewhere: {
+      phase: 'elsewhere',
+      href: 'https://example.invalid/mine?chain=ember',
+      hostSurfaceName: HOST_NAME,
+      subject: 'ember',
+      reason: EMBER_REASON,
+    },
+  }
+
+  it('names EMBER and the network, and never the pool, in every state that can mine it', () => {
+    for (const [key, props] of Object.entries(EMBER_STATES)) {
+      const seen = text(render(props))
+      assert.ok(seen.includes('EMBER'), `${key}: the chain being mined is not named`)
+      assert.ok(
+        !/\bpool\b/i.test(seen),
+        `${key}: an EMBER state names the pool. EMBER does not go through it — ` +
+          `\`pool/src/chains.ts\` refuses to run one for it: ${seen}`,
+      )
+    }
+  })
+
+  /*
+   * THE ASSERTION THIS SECTION EXISTS FOR. `NOT_PAID_CLAUSE` says "nothing is paid out and there is
+   * no mechanism by which it could be". Attached to an EMBER session that is sweeping to the
+   * reader's own deposit address, that is not a cautious overstatement — it is false, and it is
+   * false about the one thing the reader most needs to be right.
+   */
+  it('carries the credited clause and NEVER the not-paid one, for the two states that mine', () => {
+    for (const key of ['idle', 'mining']) {
+      const seen = text(render(EMBER_STATES[key] as MiningControlProps))
+      assert.ok(
+        seen.includes(EMBER_CREDITED_CLAUSE),
+        `${key}: an EMBER session does not say where the blocks it finds go`,
+      )
+      assert.ok(
+        !seen.includes(NOT_PAID_CLAUSE),
+        `${key}: an EMBER session claims nothing is paid out. It is: the block is paid on chain ` +
+          `to a key this tab holds and swept to the account's own deposit address`,
+      )
+    }
+  })
+
+  /*
+   * `payoutsImplemented` is `GET /v1/pool` describing the POOL. An EMBER clause that appeared or
+   * vanished with it would be reading one service's answer about another system's question — and it
+   * is the mistake a reader of the code makes first, because every other clause here is gated on it.
+   */
+  it('does not let the pool’s payout flag rewrite either half of EMBER’s sentence', () => {
+    for (const [key, props] of Object.entries(EMBER_STATES)) {
+      const off = text(render({ ...props, payoutsImplemented: false } as MiningControlProps))
+      const on = text(render({ ...props, payoutsImplemented: true } as MiningControlProps))
+      assert.equal(off, on, `${key}: the pool's payout flag changed what an EMBER state says`)
+      assert.ok(!on.includes(NOT_PAID_CLAUSE), `${key}: the pool clause reached an EMBER state`)
+    }
+  })
+
+  /*
+   * A pool session returns SHARES and an EMBER session finds BLOCKS. They are counted in the same
+   * field because they are the same fact — work this browser did that the other side accepted — and
+   * a control that called a block a share would be describing a fraction of a thing as a whole one.
+   */
+  it('counts blocks rather than shares, and still shows nothing but work', () => {
+    const seen = text(render(EMBER_STATES.mining as MiningControlProps))
+    assert.ok(seen.includes('412 kH/s'), `the measured rate is not shown: ${seen}`)
+    assert.ok(seen.includes('9 blocks accepted'), `the accepted count is not shown: ${seen}`)
+    assert.ok(!/\bshares?\b/i.test(seen), `an EMBER session calls its blocks shares: ${seen}`)
+    assert.deepEqual(seen.replace(EMBER_CREDITED_CLAUSE, '').match(/\d+(?:\.\d+)?/g), ['412', '412', '9'])
+  })
+
+  it('puts no figure in the EMBER states that have nothing to measure', () => {
+    for (const key of ['idle', 'elsewhere']) {
+      const own = text(render(EMBER_STATES[key] as MiningControlProps))
+        .replace(EMBER_CREDITED_CLAUSE, '')
+        .replace(EMBER_REASON, '')
+      assert.ok(!/\d/.test(own), `${key}: a number appears with nothing to derive it from: ${own}`)
+    }
+  })
+
+  it('names no currency and no earning either, paid or not', () => {
+    const WORDS = /\b(earn|earned|earnings|reward|rewards|payout|payouts|paid out|profit|revenue|income|balance|wallet|BTC|LTC|DOGE|USD)\b/i
+    const MARKS = /[$€£₿]/
+    for (const [key, props] of Object.entries(EMBER_STATES)) {
+      for (const paid of [false, true]) {
+        const seen = text(render({ ...props, payoutsImplemented: paid } as MiningControlProps))
+        const word = WORDS.exec(seen)
+        assert.ok(!word, `${key} (paid=${paid}): the copy says "${word?.[0]}"`)
+        assert.ok(!MARKS.test(seen), `${key} (paid=${paid}): a currency mark appears`)
+      }
+    }
+  })
+
+  /*
+   * The destination state, which Forge Hub now renders at its own mining page. It has to say WHY,
+   * and it has to stop short of the promise: this is the one state in which a found block would NOT
+   * reach the account, which is the entire reason the reader is being sent somewhere.
+   */
+  it('renders the reason on the destination, and refuses to promise a credit beside it', () => {
+    const html = render(EMBER_STATES.elsewhere as MiningControlProps)
+    const { tag, attrs } = control(html)
+    assert.equal(tag, 'a', 'the destination is not an anchor')
+    assert.match(attrs, /href="https:\/\/example\.invalid\/mine\?chain=ember"/)
+    const seen = text(html)
+    assert.ok(seen.includes(EMBER_REASON), `the reason is not rendered: ${seen}`)
+    assert.ok(
+      !seen.includes(EMBER_CREDITED_CLAUSE),
+      'the destination state promises that blocks reach the account, in the one state where the ' +
+        'reader is being sent away precisely because they would not',
+    )
+    assert.ok(!seen.includes(NOT_PAID_CLAUSE), `the pool clause reached an EMBER destination: ${seen}`)
+  })
+
+  /*
+   * The safe default, proved rather than assumed. `subject` is optional on three arms; thirteen
+   * surfaces and every existing call site omit it, and this is what says their copy did not move.
+   */
+  it('leaves every caller that names no subject exactly where it was', () => {
+    for (const key of ['idle', 'mining', 'elsewhere']) {
+      const props = STATES[key] as MiningControlProps
+      assert.equal(
+        text(render(props)),
+        text(render({ ...props, subject: 'pool' } as MiningControlProps)),
+        `${key}: omitting the subject is not the same as asking for the pool`,
+      )
+    }
+  })
+
+  it('will not compile a subject that is neither', () => {
+    // @ts-expect-error there are two subjects and they are the two clauses. A third would be a
+    // sentence nobody has written and a claim nobody has checked.
+    const bad: MiningControlProps = { phase: 'idle', onStart: () => {}, subject: 'ltc' }
+    assert.ok(bad)
   })
 })
 
