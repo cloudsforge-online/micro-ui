@@ -378,12 +378,132 @@ export function signInRedirect(returnUrl?: string): void {
   window.location.assign(`${accountUrl()}/login?return=${encodeURIComponent(back)}`)
 }
 
+
+/* ---- silent SSO ----------------------------------------------------------------------------- */
+
+/**
+ * The name of the hint. Per environment, because mainnet and testnet share the apex
+ * `cloudsforge.online` and a cookie set by one is sent to the other: without the suffix a
+ * mainnet session would send every testnet surface on a probe that can only come back `none`.
+ */
+function ssoHintName(): string {
+  const host = typeof window === 'undefined' ? '' : window.location.hostname
+  const parts = host.split('.')
+  const env = parts.length > 2 ? splitEnvLabel(parts[0] ?? '') : null
+  return env?.env ? `cf_sso_${env.env}` : 'cf_sso'
+}
+
+/**
+ * The domain the hint is written on: the apex all of this estate's surfaces hang off, so that
+ * `hub.` can set it and `explorer.` can read it. Null wherever a shared cookie is meaningless
+ * (localhost, an IP, a single-label host), which is also every case where the surfaces are on
+ * different PORTS of one origin and share storage anyway.
+ */
+function ssoHintDomain(): string | null {
+  if (typeof window === 'undefined') return null
+  const host = window.location.hostname
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return null
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
+  const parts = host.split('.')
+  if (parts.length < 2) return null
+  const first = parts[0] ?? ''
+  const env = parts.length > 2 ? splitEnvLabel(first) : null
+  if (env) return parts.slice(1).join('.')
+  return parts.length > 2 && KNOWN_SUBS.has(first) ? parts.slice(1).join('.') : host
+}
+
+/**
+ * Record that this browser has a portal session — a BOOLEAN, and deliberately nothing else.
+ *
+ * ── WHY A COOKIE AT ALL, WHEN THE TOKENS LIVE IN `localStorage` ───────────────────────────────
+ *
+ * `localStorage` is scoped to one origin, and every surface in this estate is its own origin.
+ * That is the whole of the defect this closes: a reader who signed in at `hub.` arrived at
+ * `explorer.` and was shown a signed-out page, because `explorer.` had no way to find out
+ * otherwise. The SSO chain to fix it already existed end to end — the portal hands a code back
+ * to any allowlisted origin that asks — and nothing ever ASKED.
+ *
+ * A cookie on the apex is the one thing every subdomain can read, and it is first-party at each
+ * of them, so it survives the third-party cookie rules that make a hidden-iframe silent auth
+ * unreliable. It carries no credential and grants nothing: it says only "asking the portal is
+ * worth a redirect". Losing it costs a click; forging it costs an attacker a wasted round trip.
+ *
+ * `SameSite=Lax` so it survives the portal's top-level redirect back here, which is the entire
+ * journey it exists to inform.
+ */
+export function rememberSignedIn(): void {
+  const domain = ssoHintDomain()
+  if (typeof document === 'undefined' || !domain) return
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${ssoHintName()}=1; Domain=.${domain}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`
+}
+
+/** Forget it: a sign-out anywhere, or a probe the portal answered `none`. */
+export function forgetSignedIn(): void {
+  const domain = ssoHintDomain()
+  if (typeof document === 'undefined' || !domain) return
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${ssoHintName()}=; Domain=.${domain}; Path=/; Max-Age=0; SameSite=Lax${secure}`
+}
+
+/** Is there a hint that this browser has a portal session? */
+export function hasSignedInHint(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.cookie.split('; ').some((c) => c.startsWith(`${ssoHintName()}=1`))
+}
+
+/** Marks that this page load already spent its one probe. Per TAB, so a new tab may try again. */
+const SSO_TRIED = 'cf.ssoProbed'
+
+/**
+ * If this browser has a session somewhere and this surface does not, go and collect one.
+ *
+ * Returns `true` when it has started a navigation, in which case the caller must stop: the
+ * document is going away and rendering a signed-out shell first would be a visible flash of the
+ * wrong state, which is the thing this exists to remove.
+ *
+ * ── THE THREE GUARDS, AND WHY EACH IS LOAD-BEARING ────────────────────────────────────────────
+ *
+ * 1. **`hasLocalSession`** — never probe when this surface already has tokens. Obvious, and it is
+ *    also what keeps the common case free: a signed-in reader navigating within a surface pays
+ *    nothing.
+ * 2. **`hasSignedInHint()`** — never probe for a reader who has not signed in anywhere. Without
+ *    this, every anonymous visitor to the public marketing page would be bounced through the
+ *    portal before seeing it, which is a worse defect than the one being fixed and would be
+ *    measured as a bounce rate rather than as a bug.
+ * 3. **`SSO_TRIED`** — one probe per tab. The portal answers `cf_sso=none` when it has no session,
+ *    and `consumeAuthCallback` clears the hint on that answer; but a hint that fails to clear (a
+ *    cookie the browser refuses to overwrite, a portal that errors) would otherwise loop the tab
+ *    between two origins for ever. This is the guard that makes the loop impossible rather than
+ *    merely unlikely.
+ */
+export function attemptSilentSignIn(hasLocalSession: boolean): boolean {
+  if (typeof window === 'undefined') return false
+  if (hasLocalSession) return false
+  if (!hasSignedInHint()) return false
+  try {
+    if (window.sessionStorage.getItem(SSO_TRIED)) return false
+    window.sessionStorage.setItem(SSO_TRIED, '1')
+  } catch {
+    // A browser that refuses session storage gets no probe rather than an unguarded one.
+    return false
+  }
+  const back = window.location.href
+  window.location.assign(
+    `${accountUrl()}/login?return=${encodeURIComponent(back)}&silent=1`,
+  )
+  return true
+}
+
 /**
  * Redirect the browser to the Account portal to sign out (clearing the shared portal session and
  * revoking the refresh token), then return to `returnUrl`. Clear this app's own local tokens
  * first: the portal cannot reach them.
  */
 export function signOutRedirect(returnUrl?: string): void {
+  // The hint outlives this app's own tokens unless it is dropped here: leaving it set would send
+  // the reader straight back on a probe after they asked to leave.
+  forgetSignedIn()
   const back = returnUrl ?? (typeof window !== 'undefined' ? window.location.href : '')
   window.location.assign(`${accountUrl()}/logout?return=${encodeURIComponent(back)}`)
 }
@@ -495,6 +615,21 @@ export async function consumeAuthCallback(): Promise<AuthCallbackTokens | null> 
   const hash = raw.startsWith('#') ? raw.slice(1) : raw
   if (!hash) return null
   const params = new URLSearchParams(hash)
+
+  // The portal answering a silent probe with "nobody is signed in here". Strip it, drop the hint
+  // that sent us, and report no session — `attemptSilentSignIn` will not ask again this visit.
+  if (params.get('cf_sso') === 'none') {
+    params.delete('cf_sso')
+    forgetSignedIn()
+    const left = params.toString()
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.search + (left ? `#${left}` : ''),
+    )
+    return null
+  }
+
   const code = params.get('cf_code')
   if (!code) return null
 
@@ -515,7 +650,11 @@ export async function consumeAuthCallback(): Promise<AuthCallbackTokens | null> 
     })
     if (!res.ok) return null
     const body: unknown = await res.json()
-    return readCallbackTokens(body)
+    const tokens = readCallbackTokens(body)
+    // This browser now demonstrably has a portal session. Record the hint so the OTHER surfaces
+    // can know to ask for one silently instead of rendering signed-out at a signed-in reader.
+    if (tokens) rememberSignedIn()
+    return tokens
   } catch {
     return null
   }
