@@ -594,13 +594,101 @@ export function AccountMenu({ account, onSignIn, onSignOut, accountHref }) {
                             }, children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", children: "\u23FB" }), _jsx("span", { className: "cf-menu__text", children: _jsx("span", { className: "cf-menu__name", children: "Sign out" }) })] }) })] }))] }));
 }
 /* ========================= CloudsForgeBar ======================== */
-export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, }) {
+export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, networkSwitch, }) {
     // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
     // two routes to one page cost a slot in a list whose whole job is separation.
     const siteUrl = cloudsforgeHosts().site;
     const isAdmin = account.roles?.includes('admin') ?? false;
     const barStyle = { colorScheme: 'dark' };
-    return (_jsx("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: _jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }) }));
+    return (_jsxs("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: [_jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx(NetworkSwitcher, { ...(networkSwitch === undefined ? {} : networkSwitch) }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }), _jsx(TestnetBand, {})] }));
+}
+/* ============================ NetworkSwitcher (micro-org#459) ============================ */
+/**
+ * Which network is this page being served FOR — 'mainnet', 'testnet', or null when the question
+ * has no answer (localhost, a bare IP, an unrecognised host). Read from the hostname, because on
+ * every surface the hostname IS the network: that is the estate's addressing scheme, and it is
+ * why this needs no configuration and cannot drift from where the reader actually is.
+ */
+export function currentNetwork() {
+    if (typeof window === 'undefined')
+        return null;
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local'))
+        return null;
+    const parts = host.split('.');
+    if (parts.length === 2)
+        return 'mainnet'; // the mainnet apex surface
+    if (parts.length < 2)
+        return null;
+    const env = splitEnvLabel(parts[0] ?? '');
+    return env?.env === 'testnet' ? 'testnet' : 'mainnet';
+}
+/**
+ * The address of THIS surface and path on the other network, or null when there is no answer.
+ *
+ * The hash is dropped, deliberately. The hash is where SSO hand-off codes travel
+ * (`consumeAuthCallback`), a code is bound to the origin it was minted for, and carrying one to a
+ * different origin replays a credential at an estate that must refuse it. Path and query survive:
+ * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
+ * the page they were on would make the switcher a hazard instead of a convenience.
+ */
+export function siblingNetworkUrl(target) {
+    if (typeof window === 'undefined')
+        return null;
+    const here = currentNetwork();
+    if (here === null || here === target)
+        return null;
+    const host = window.location.hostname;
+    const parts = host.split('.');
+    let sub;
+    let apex;
+    if (parts.length === 2) {
+        sub = '';
+        apex = host;
+    }
+    else {
+        const env = splitEnvLabel(parts[0] ?? '');
+        sub = env ? env.subdomain : (parts[0] ?? '');
+        apex = parts.slice(1).join('.');
+    }
+    const label = envLabel(sub, target === 'testnet' ? 'testnet' : '');
+    const nextHost = label ? `${label}.${apex}` : apex;
+    return `https://${nextHost}${window.location.pathname}${window.location.search}`;
+}
+/**
+ * Mainnet | Testnet, in the shared bar, on every surface (micro-org#459 stage 1).
+ *
+ * Hidden entirely when the network cannot be determined (localhost): a control that guesses is
+ * worse than none. The active network is not a link — the switcher exists to LEAVE.
+ */
+export function NetworkSwitcher({ onSelect, selected }) {
+    const here = currentNetwork();
+    if (here === null)
+        return null;
+    const active = selected ?? here;
+    const pick = (target) => {
+        if (target === active)
+            return;
+        if (onSelect) {
+            onSelect(target);
+            return;
+        }
+        const url = siblingNetworkUrl(target);
+        if (url)
+            window.location.assign(url);
+    };
+    return (_jsx("div", { className: "cf-netswitch", role: "group", "aria-label": "Network", children: ['mainnet', 'testnet'].map((n) => (_jsx("button", { type: "button", className: `cf-netswitch__opt${n === active ? ' cf-netswitch__opt--active' : ''}${n === 'testnet' ? ' cf-netswitch__opt--testnet' : ''}`, "aria-pressed": n === active, onClick: () => pick(n), children: n === 'mainnet' ? 'Mainnet' : 'Testnet' }, n))) }));
+}
+/**
+ * The band that makes testnet unmistakable. Rendered by the bar whenever the page IS testnet —
+ * a unified experience makes being on the wrong network easier, and the defence is that the wrong
+ * network never looks like the right one. Not dismissible, on purpose: a dismissed warning is a
+ * warning that was shown once, and this one has to hold for the whole session.
+ */
+export function TestnetBand() {
+    if (currentNetwork() !== 'testnet')
+        return null;
+    return (_jsx("div", { className: "cf-testnet-band", role: "note", children: "TESTNET \u2014 coins and balances here have no value" }));
 }
 /**
  * The id the skip link points at, and the id a surface must put on its `<main>`.
