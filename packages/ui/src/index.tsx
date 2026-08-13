@@ -223,6 +223,13 @@ export interface CloudsForgeBarProps {
    * for {@link MiningControl} directly and place it in their own header.
    */
   mining?: MiningControlProps | undefined
+  /**
+   * Stage-3 surfaces (read-only) pass {@link NetworkSwitcherProps} to switch data in place;
+   * everything else omits this and the switcher navigates to the sibling hostname
+   * (micro-org#459 — a money action must never silently target a network the address bar does
+   * not name).
+   */
+  networkSwitch?: NetworkSwitcherProps | undefined
 }
 
 /* ========================= host resolution ======================== */
@@ -1161,6 +1168,7 @@ export function CloudsForgeBar({
   rightSlot,
   accountHref,
   mining,
+  networkSwitch,
 }: CloudsForgeBarProps) {
   // The logo goes to the marketing site, which is why the site is not ALSO a switcher entry:
   // two routes to one page cost a slot in a list whose whole job is separation.
@@ -1176,6 +1184,10 @@ export function CloudsForgeBar({
         </a>
         <span className="cf-bar__sep" aria-hidden="true" />
         <ProductSwitcher current={current} productUrls={productUrls} isAdmin={isAdmin} />
+        {/* Beside the product switcher because they answer the same question — "where am I" —
+            and a control that moves around between surfaces is hidden on every one of them,
+            the argument MiningControl's placement already carries. */}
+        <NetworkSwitcher {...(networkSwitch === undefined ? {} : networkSwitch)} />
         <span className="cf-bar__spacer" />
         {rightSlot && <div className="cf-bar__right">{rightSlot}</div>}
         {/*
@@ -1193,6 +1205,119 @@ export function CloudsForgeBar({
           {...(accountHref === undefined ? {} : { accountHref })}
         />
       </div>
+      <TestnetBand />
+    </div>
+  )
+}
+
+
+/* ============================ NetworkSwitcher (micro-org#459) ============================ */
+
+/**
+ * Which network is this page being served FOR — 'mainnet', 'testnet', or null when the question
+ * has no answer (localhost, a bare IP, an unrecognised host). Read from the hostname, because on
+ * every surface the hostname IS the network: that is the estate's addressing scheme, and it is
+ * why this needs no configuration and cannot drift from where the reader actually is.
+ */
+export function currentNetwork(): 'mainnet' | 'testnet' | null {
+  if (typeof window === 'undefined') return null
+  const host = window.location.hostname
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return null
+  const parts = host.split('.')
+  if (parts.length === 2) return 'mainnet' // the mainnet apex surface
+  if (parts.length < 2) return null
+  const env = splitEnvLabel(parts[0] ?? '')
+  return env?.env === 'testnet' ? 'testnet' : 'mainnet'
+}
+
+/**
+ * The address of THIS surface and path on the other network, or null when there is no answer.
+ *
+ * The hash is dropped, deliberately. The hash is where SSO hand-off codes travel
+ * (`consumeAuthCallback`), a code is bound to the origin it was minted for, and carrying one to a
+ * different origin replays a credential at an estate that must refuse it. Path and query survive:
+ * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
+ * the page they were on would make the switcher a hazard instead of a convenience.
+ */
+export function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null {
+  if (typeof window === 'undefined') return null
+  const here = currentNetwork()
+  if (here === null || here === target) return null
+  const host = window.location.hostname
+  const parts = host.split('.')
+  let sub: string
+  let apex: string
+  if (parts.length === 2) {
+    sub = ''
+    apex = host
+  } else {
+    const env = splitEnvLabel(parts[0] ?? '')
+    sub = env ? env.subdomain : (parts[0] ?? '')
+    apex = parts.slice(1).join('.')
+  }
+  const label = envLabel(sub, target === 'testnet' ? 'testnet' : '')
+  const nextHost = label ? `${label}.${apex}` : apex
+  return `https://${nextHost}${window.location.pathname}${window.location.search}`
+}
+
+export interface NetworkSwitcherProps {
+  /**
+   * Stage-3 surfaces (read-only: explorer, network-site, pool-web) pass this to switch the DATA
+   * in place instead of navigating. Absent — the default, and the permanent behaviour of every
+   * surface with a write path — choosing the other network NAVIGATES to the sibling hostname.
+   */
+  onSelect?: ((network: 'mainnet' | 'testnet') => void) | undefined
+  /** Overrides the highlighted network. Only meaningful with `onSelect` (in-place surfaces). */
+  selected?: 'mainnet' | 'testnet' | undefined
+}
+
+/**
+ * Mainnet | Testnet, in the shared bar, on every surface (micro-org#459 stage 1).
+ *
+ * Hidden entirely when the network cannot be determined (localhost): a control that guesses is
+ * worse than none. The active network is not a link — the switcher exists to LEAVE.
+ */
+export function NetworkSwitcher({ onSelect, selected }: NetworkSwitcherProps) {
+  const here = currentNetwork()
+  if (here === null) return null
+  const active = selected ?? here
+  const pick = (target: 'mainnet' | 'testnet') => {
+    if (target === active) return
+    if (onSelect) {
+      onSelect(target)
+      return
+    }
+    const url = siblingNetworkUrl(target)
+    if (url) window.location.assign(url)
+  }
+  return (
+    <div className="cf-netswitch" role="group" aria-label="Network">
+      {(['mainnet', 'testnet'] as const).map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={`cf-netswitch__opt${n === active ? ' cf-netswitch__opt--active' : ''}${n === 'testnet' ? ' cf-netswitch__opt--testnet' : ''}`}
+          aria-pressed={n === active}
+          onClick={() => pick(n)}
+        >
+          {n === 'mainnet' ? 'Mainnet' : 'Testnet'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The band that makes testnet unmistakable. Rendered by the bar whenever the page IS testnet —
+ * a unified experience makes being on the wrong network easier, and the defence is that the wrong
+ * network never looks like the right one. Not dismissible, on purpose: a dismissed warning is a
+ * warning that was shown once, and this one has to hold for the whole session.
+ */
+export function TestnetBand() {
+  if (currentNetwork() !== 'testnet') return null
+  return (
+    <div className="cf-testnet-band" role="note">
+      TESTNET — coins and balances here have no value
     </div>
   )
 }

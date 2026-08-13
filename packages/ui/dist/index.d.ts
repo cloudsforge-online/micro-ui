@@ -111,6 +111,13 @@ export interface CloudsForgeBarProps {
      * for {@link MiningControl} directly and place it in their own header.
      */
     mining?: MiningControlProps | undefined;
+    /**
+     * Stage-3 surfaces (read-only) pass {@link NetworkSwitcherProps} to switch data in place;
+     * everything else omits this and the switcher navigates to the sibling hostname
+     * (micro-org#459 — a money action must never silently target a network the address bar does
+     * not name).
+     */
+    networkSwitch?: NetworkSwitcherProps | undefined;
 }
 /**
  * Every CloudsForge surface's base URL, resolved for the current environment.
@@ -385,7 +392,48 @@ export declare function CloudsForgeLogo({ size, markOnly }: CloudsForgeLogoProps
  */
 export declare function ProductSwitcher({ current, productUrls, isAdmin }: ProductSwitcherProps): import("react").JSX.Element;
 export declare function AccountMenu({ account, onSignIn, onSignOut, accountHref }: AccountMenuProps): import("react").JSX.Element;
-export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, }: CloudsForgeBarProps): import("react").JSX.Element;
+export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, networkSwitch, }: CloudsForgeBarProps): import("react").JSX.Element;
+/**
+ * Which network is this page being served FOR — 'mainnet', 'testnet', or null when the question
+ * has no answer (localhost, a bare IP, an unrecognised host). Read from the hostname, because on
+ * every surface the hostname IS the network: that is the estate's addressing scheme, and it is
+ * why this needs no configuration and cannot drift from where the reader actually is.
+ */
+export declare function currentNetwork(): 'mainnet' | 'testnet' | null;
+/**
+ * The address of THIS surface and path on the other network, or null when there is no answer.
+ *
+ * The hash is dropped, deliberately. The hash is where SSO hand-off codes travel
+ * (`consumeAuthCallback`), a code is bound to the origin it was minted for, and carrying one to a
+ * different origin replays a credential at an estate that must refuse it. Path and query survive:
+ * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
+ * the page they were on would make the switcher a hazard instead of a convenience.
+ */
+export declare function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null;
+export interface NetworkSwitcherProps {
+    /**
+     * Stage-3 surfaces (read-only: explorer, network-site, pool-web) pass this to switch the DATA
+     * in place instead of navigating. Absent — the default, and the permanent behaviour of every
+     * surface with a write path — choosing the other network NAVIGATES to the sibling hostname.
+     */
+    onSelect?: ((network: 'mainnet' | 'testnet') => void) | undefined;
+    /** Overrides the highlighted network. Only meaningful with `onSelect` (in-place surfaces). */
+    selected?: 'mainnet' | 'testnet' | undefined;
+}
+/**
+ * Mainnet | Testnet, in the shared bar, on every surface (micro-org#459 stage 1).
+ *
+ * Hidden entirely when the network cannot be determined (localhost): a control that guesses is
+ * worse than none. The active network is not a link — the switcher exists to LEAVE.
+ */
+export declare function NetworkSwitcher({ onSelect, selected }: NetworkSwitcherProps): import("react").JSX.Element | null;
+/**
+ * The band that makes testnet unmistakable. Rendered by the bar whenever the page IS testnet —
+ * a unified experience makes being on the wrong network easier, and the defence is that the wrong
+ * network never looks like the right one. Not dismissible, on purpose: a dismissed warning is a
+ * warning that was shown once, and this one has to hold for the whole session.
+ */
+export declare function TestnetBand(): import("react").JSX.Element | null;
 export interface SkipLinkProps {
     /**
      * The `id` of the element focus should land on. Defaults to `main`, which is also the id

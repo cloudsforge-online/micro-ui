@@ -1556,3 +1556,66 @@
   font-weight: 400;
   color: var(--cf-fg-dim);
 }
+
+/* ── NetworkSwitcher + TestnetBand (micro-org#459) ─────────────────────────────────────────── */
+/* Every text-bearing rule is scoped under `.cf-dark`, and that is load-bearing rather than
+   cosmetic: the switcher exists only inside the bar, the bar is dark on every theme, and the
+   contrast rig measures an unscoped class against EVERY page background — where near-white text
+   on a light page reads 1.02:1 and fails the suite, for a pixel that can never render. Scoping
+   tells the rig the truth about where this text lives.
+   Testnet is amber wherever it appears — #92400e, dark enough that #fff7e6 clears AA — so the
+   wrong network never looks like the right one. The band below carries the same pair. */
+.cf-netswitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 999px;
+  margin-inline-start: var(--cf-space-2xs);
+  /* An explicit dark ground, and it is doing two jobs. Visually: a pill slightly deeper than
+     the bar's gradient, which is how the control reads as one unit. For the contrast rig: the
+     pairing walks to the nearest enclosing BEM block that declares a background, and without
+     one here the near-white option text is measured against the PAGE — 1.03:1 on the light
+     themes, for a pixel that can never render there. This solid is the ground the text is
+     actually painted on. */
+  background: #16181a;
+}
+.cf-dark .cf-netswitch__opt {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(244, 240, 232, 0.72);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+.cf-dark .cf-netswitch__opt:hover { color: #f4f0e8; }
+.cf-dark .cf-netswitch__opt--active {
+  background: rgba(244, 240, 232, 0.14);
+  color: #f4f0e8;
+  cursor: default;
+}
+.cf-dark .cf-netswitch__opt--testnet.cf-netswitch__opt--active {
+  background: #92400e;
+  color: #fff7e6;
+}
+.cf-dark .cf-testnet-band {
+  background: #92400e;
+  color: #fff7e6;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+}
+@media (max-width: 640px) {
+  /* The band survives on mobile; the switcher compresses rather than disappears — a control
+     that vanishes on the phone is the "hidden deep in a page" defect in a new coat. */
+  .cf-dark .cf-netswitch__opt { padding: 2px 7px; font-size: 10px; }
+}
