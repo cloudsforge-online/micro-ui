@@ -439,6 +439,12 @@ export declare function NetworkSwitcher({ onSelect, selected }: NetworkSwitcherP
  */
 export declare function networkOrigin(target: 'mainnet' | 'testnet'): string;
 /**
+ * The network the reader has CHOSEN in this tab — the stage-3 sessionStorage choice when one
+ * exists, the hostname's network otherwise. The non-React read, for API layers that compute a
+ * base URL outside the component tree.
+ */
+export declare function chosenNetwork(): 'mainnet' | 'testnet';
+/**
  * The reader's chosen network, held per tab and offered to the bar.
  *
  * sessionStorage rather than localStorage, deliberately: a persisted choice would make a reader
@@ -456,7 +462,9 @@ export declare function useNetworkChoice(): {
  * network never looks like the right one. Not dismissible, on purpose: a dismissed warning is a
  * warning that was shown once, and this one has to hold for the whole session.
  */
-export declare function TestnetBand(): import("react").JSX.Element | null;
+export declare function TestnetBand({ network }?: {
+    network?: 'mainnet' | 'testnet' | undefined;
+}): import("react").JSX.Element | null;
 export interface SkipLinkProps {
     /**
      * The `id` of the element focus should land on. Defaults to `main`, which is also the id

@@ -1206,7 +1206,7 @@ export function CloudsForgeBar({
           {...(accountHref === undefined ? {} : { accountHref })}
         />
       </div>
-      <TestnetBand />
+      <TestnetBand {...(networkSwitch?.selected === undefined ? {} : { network: networkSwitch.selected })} />
     </div>
   )
 }
@@ -1326,6 +1326,21 @@ export function networkOrigin(target: 'mainnet' | 'testnet'): string {
 }
 
 /**
+ * The network the reader has CHOSEN in this tab — the stage-3 sessionStorage choice when one
+ * exists, the hostname's network otherwise. The non-React read, for API layers that compute a
+ * base URL outside the component tree.
+ */
+export function chosenNetwork(): 'mainnet' | 'testnet' {
+  try {
+    const kept = window.sessionStorage.getItem('cf.network')
+    if (kept === 'mainnet' || kept === 'testnet') return kept
+  } catch {
+    /* the hostname's network */
+  }
+  return currentNetwork() ?? 'mainnet'
+}
+
+/**
  * The reader's chosen network, held per tab and offered to the bar.
  *
  * sessionStorage rather than localStorage, deliberately: a persisted choice would make a reader
@@ -1364,8 +1379,11 @@ export function useNetworkChoice(): {
  * network never looks like the right one. Not dismissible, on purpose: a dismissed warning is a
  * warning that was shown once, and this one has to hold for the whole session.
  */
-export function TestnetBand() {
-  if (currentNetwork() !== 'testnet') return null
+export function TestnetBand({ network }: { network?: 'mainnet' | 'testnet' | undefined } = {}) {
+  // A stage-3 surface passes the network the reader is VIEWING, which the hostname no longer
+  // determines — mainnet-hosted pages showing testnet data must carry the band, and the reverse
+  // must not. Everything else omits the prop and the hostname decides, as before.
+  if ((network ?? currentNetwork()) !== 'testnet') return null
   return (
     <div className="cf-testnet-band" role="note">
       TESTNET — coins and balances here have no value
