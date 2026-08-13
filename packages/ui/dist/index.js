@@ -13,7 +13,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  *
  * Chart primitives live in ./charts.tsx, published as `@cloudsforge/ui/charts`.
  */
-import { Fragment, useEffect, useId, useRef, useState, } from 'react';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, } from 'react';
 import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
 import { MiningControl } from "./mining.js";
 import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsentChange, readConsent, revokeConsent, } from "./consent.js";
@@ -678,6 +678,56 @@ export function NetworkSwitcher({ onSelect, selected }) {
             window.location.assign(url);
     };
     return (_jsx("div", { className: "cf-netswitch", role: "group", "aria-label": "Network", children: ['mainnet', 'testnet'].map((n) => (_jsx("button", { type: "button", className: `cf-netswitch__opt${n === active ? ' cf-netswitch__opt--active' : ''}${n === 'testnet' ? ' cf-netswitch__opt--testnet' : ''}`, "aria-pressed": n === active, onClick: () => pick(n), children: n === 'mainnet' ? 'Mainnet' : 'Testnet' }, n))) }));
+}
+/**
+ * The origin of THIS surface on `target` — or the empty string when `target` IS this page's own
+ * network, because same-network requests must stay relative (that is the contract every surface's
+ * `resolveApiBase` already keeps, and an absolute same-origin URL would be a second spelling of
+ * it that drifts).
+ *
+ * Stage 3 of micro-org#459: a read-only surface computes its API base as
+ * `networkOrigin(chosen)`, so the SAME bundle reads either estate. Only read-only surfaces may do
+ * this; a write path stays relative forever, which pins it to the network the address bar names.
+ */
+export function networkOrigin(target) {
+    if (currentNetwork() === target)
+        return '';
+    const url = siblingNetworkUrl(target);
+    if (!url)
+        return '';
+    return new URL(url).origin;
+}
+/**
+ * The reader's chosen network, held per tab and offered to the bar.
+ *
+ * sessionStorage rather than localStorage, deliberately: a persisted choice would make a reader
+ * who explored testnet LAST WEEK open the explorer today onto testnet data under a mainnet
+ * address bar, which is the confusion this whole design exists to prevent. A tab's choice dies
+ * with the tab; every fresh tab starts on the network the hostname names.
+ */
+export function useNetworkChoice() {
+    const here = currentNetwork() ?? 'mainnet';
+    const [network, setNetwork] = useState(() => {
+        try {
+            const kept = window.sessionStorage.getItem('cf.network');
+            if (kept === 'mainnet' || kept === 'testnet')
+                return kept;
+        }
+        catch {
+            /* a browser that refuses storage gets the hostname's network */
+        }
+        return here;
+    });
+    const pick = useCallback((target) => {
+        try {
+            window.sessionStorage.setItem('cf.network', target);
+        }
+        catch {
+            /* held in state alone; the choice still works, it just dies on reload */
+        }
+        setNetwork(target);
+    }, []);
+    return { network, switcher: { onSelect: pick, selected: network } };
 }
 /**
  * The band that makes testnet unmistakable. Rendered by the bar whenever the page IS testnet —

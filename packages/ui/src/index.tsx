@@ -14,6 +14,7 @@
  */
 import {
   Fragment,
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -1305,6 +1306,56 @@ export function NetworkSwitcher({ onSelect, selected }: NetworkSwitcherProps) {
       ))}
     </div>
   )
+}
+
+/**
+ * The origin of THIS surface on `target` — or the empty string when `target` IS this page's own
+ * network, because same-network requests must stay relative (that is the contract every surface's
+ * `resolveApiBase` already keeps, and an absolute same-origin URL would be a second spelling of
+ * it that drifts).
+ *
+ * Stage 3 of micro-org#459: a read-only surface computes its API base as
+ * `networkOrigin(chosen)`, so the SAME bundle reads either estate. Only read-only surfaces may do
+ * this; a write path stays relative forever, which pins it to the network the address bar names.
+ */
+export function networkOrigin(target: 'mainnet' | 'testnet'): string {
+  if (currentNetwork() === target) return ''
+  const url = siblingNetworkUrl(target)
+  if (!url) return ''
+  return new URL(url).origin
+}
+
+/**
+ * The reader's chosen network, held per tab and offered to the bar.
+ *
+ * sessionStorage rather than localStorage, deliberately: a persisted choice would make a reader
+ * who explored testnet LAST WEEK open the explorer today onto testnet data under a mainnet
+ * address bar, which is the confusion this whole design exists to prevent. A tab's choice dies
+ * with the tab; every fresh tab starts on the network the hostname names.
+ */
+export function useNetworkChoice(): {
+  network: 'mainnet' | 'testnet'
+  switcher: NetworkSwitcherProps
+} {
+  const here = currentNetwork() ?? 'mainnet'
+  const [network, setNetwork] = useState<'mainnet' | 'testnet'>(() => {
+    try {
+      const kept = window.sessionStorage.getItem('cf.network')
+      if (kept === 'mainnet' || kept === 'testnet') return kept
+    } catch {
+      /* a browser that refuses storage gets the hostname's network */
+    }
+    return here
+  })
+  const pick = useCallback((target: 'mainnet' | 'testnet') => {
+    try {
+      window.sessionStorage.setItem('cf.network', target)
+    } catch {
+      /* held in state alone; the choice still works, it just dies on reload */
+    }
+    setNetwork(target)
+  }, [])
+  return { network, switcher: { onSelect: pick, selected: network } }
 }
 
 /**
