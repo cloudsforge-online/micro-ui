@@ -642,6 +642,40 @@ export const SURFACES = [
         servesUi: true,
         inSwitcher: false,
     },
+    {
+        // ── FORGE EXCHANGE IS PLANNED, AND THIS ROW SAYS EXACTLY THAT MUCH ────────────────────────
+        //
+        // A decentralised exchange running as contracts on Hearth's own EVM, swapping EMBER against
+        // bridged Bitcoin, Litecoin and Dogecoin. The plan is public — docs/ecosystem/39 in
+        // micro-docs, and the umbrella issue in micro-org — and NO CODE RUNS ANYWHERE. This row
+        // exists so the marketing site can publish the plan as a card without inventing a surface:
+        // the site's content model refuses a page whose key the registry does not know.
+        //
+        // `kind: 'service'` and not 'product', on the pool's precedent and for the pool's reason plus
+        // one more: the accent guard holds PRODUCTS to a strict bijection with PRODUCT_ACCENTS, and a
+        // seventh product means choosing a seventh accent by the documented dE procedure — design
+        // work that belongs in the phase where the frontend actually ships, not in the row that
+        // announces a plan. The flip to 'product' with its own accent is that phase's named step.
+        //
+        // `servesUi: false` is a measurement, not modesty: nothing serves this hostname, so a `true`
+        // here would put a dead link in every footer in the estate. `inSwitcher: false` for the same
+        // reason. Both flip ON THE MEASUREMENT, as lantern and beacon did — quoted above.
+        key: 'exchange',
+        name: 'Forge Exchange',
+        verb: null,
+        kind: 'service',
+        subdomain: 'exchange',
+        devPort: 4150,
+        // Gold, shared with `create` and `pool` rather than newly invented — the same reasoning as
+        // the pool row above, and doubly so for a surface that is not yet rendered anywhere a second
+        // accent could disambiguate.
+        accent: '#b28e1e',
+        glyph: '⇄',
+        markId: null,
+        blurb: 'A decentralised exchange on the chain itself — planned, and the plan is public',
+        servesUi: false,
+        inSwitcher: false,
+    },
     /* --- hostnames with no UI of their own ------------------------------ */
     {
         key: 'explorer',
