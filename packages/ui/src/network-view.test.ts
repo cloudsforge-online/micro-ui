@@ -425,3 +425,144 @@ describe('createNetworkView', () => {
     assert.equal(view.viewedSurfaceUrl('wallet'), 'https://hub-testnet.cloudsforge.online/wallet')
   })
 })
+
+/**
+ * THE RELOAD, which used to undo the switch.
+ *
+ *     "if we have testnet selected and we refresh the page it goes to mainnet"   — 2026-08-14
+ *
+ * Everything above this point passed while that was true, and could not have caught it: the choice
+ * lived in module memory, every assertion here reads that same memory, and a reload is precisely
+ * the event that throws it away. The address bar is the only thing a reload keeps, so these cases
+ * check what is written there — and then reload for real, by building a second view at the URL the
+ * first one left behind.
+ *
+ * `atBrowser` is `atUrl` plus the two history writers, because that is the whole mechanism.
+ */
+interface FakeBrowser {
+  /** Everything `history` was asked to do, in order: `push:/url` and `replace:/url`. */
+  writes: string[]
+  /** What the address bar reads now — what a reload would be given. */
+  url(): string
+  /** A router navigating, exactly as react-router does it. */
+  navigate(to: string): void
+}
+
+function atBrowser(url: string): FakeBrowser {
+  const parsed = new URL(url)
+  const writes: string[] = []
+  const location = {
+    hostname: parsed.hostname,
+    pathname: parsed.pathname,
+    search: parsed.search,
+    hash: parsed.hash,
+    href: parsed.href,
+  }
+  const apply = (kind: string, next: string): void => {
+    writes.push(`${kind}:${next}`)
+    const resolved = new URL(next, parsed.origin)
+    location.pathname = resolved.pathname
+    location.search = resolved.search
+    location.hash = resolved.hash
+    location.href = resolved.href
+  }
+  const history = {
+    state: null as unknown,
+    pushState(state: unknown, _title: string, next: string) {
+      history.state = state
+      apply('push', next)
+    },
+    replaceState(state: unknown, _title: string, next: string) {
+      history.state = state
+      apply('replace', next)
+    },
+  }
+  g.window = { location, history, addEventListener: () => undefined }
+  return {
+    writes,
+    url: () => `${location.pathname}${location.search}${location.hash}`,
+    navigate: (to: string) => {
+      // The router writes what it meant to write. It has never heard of `?net=`.
+      ;(g.window as { history: typeof history }).history.pushState({ key: to }, '', to)
+    },
+  }
+}
+
+describe('the viewed network survives a reload', () => {
+  it('is written into the address bar when the reader switches', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet')
+    const view = createNetworkView()
+    assert.equal(browser.writes.length, 0, 'an untouched page is not rewritten')
+    view.setViewedNetwork('testnet')
+    assert.equal(browser.url(), '/wallet?net=testnet')
+    // In place. A switch is not a place in the reader's history, and adding one would make Back
+    // mean "un-switch" on one page and "go back" everywhere else.
+    assert.deepEqual(browser.writes, ['replace:/wallet?net=testnet'])
+  })
+
+  it('and F5 then reproduces what was on screen — the whole report', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet')
+    createNetworkView().setViewedNetwork('testnet')
+    // The reload: a brand-new bundle, with nothing but the address bar to go on.
+    const reloaded = atBrowser(`https://hub.cloudsforge.online${browser.url()}`)
+    const after = createNetworkView()
+    assert.equal(after.viewedNetwork(), 'testnet')
+    assert.equal(after.viewedApiOrigin(), 'https://hub-testnet.cloudsforge.online')
+    assert.equal(reloaded.writes.length, 0, 'and it does not rewrite what it just read')
+  })
+
+  it('and switching back leaves the URL as it found it', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet')
+    const view = createNetworkView()
+    view.setViewedNetwork('testnet')
+    view.setViewedNetwork('mainnet')
+    assert.equal(browser.url(), '/wallet')
+    // Not `?net=mainnet`: the parameter means "not what the hostname says", so on a mainnet page
+    // its absence IS mainnet, and a reader who switches back has the URL they arrived with.
+    assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
+  })
+
+  it('and an in-app navigation does not quietly drop it', () => {
+    // The defect one navigation later, which is the one a reader actually hits: switch, click
+    // through the nav, refresh. The router composes `/mine` and has never heard of `?net=`.
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet')
+    createNetworkView().setViewedNetwork('testnet')
+    browser.navigate('/mine')
+    assert.equal(browser.url(), '/mine?net=testnet')
+    assert.equal(createNetworkView().viewedNetwork(), 'testnet')
+    // The router's own entry is kept and then edited in place, so the history depth is the
+    // router's: one push for the navigation, never two.
+    assert.equal(browser.writes.filter((w) => w.startsWith('push:')).length, 1)
+  })
+
+  it('and the router keeps its state, so Back still works', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet')
+    createNetworkView().setViewedNetwork('testnet')
+    browser.navigate('/mine')
+    // react-router stores its location key in `history.state`; replacing it with null loses the
+    // scroll position and the router's place in its own stack.
+    assert.deepEqual((g.window as { history: { state: unknown } }).history.state, { key: '/mine' })
+  })
+
+  it('writes nothing at all on a page nobody has switched', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet?asset=ltc')
+    createNetworkView()
+    assert.deepEqual(browser.writes, [])
+    assert.equal(browser.url(), '/wallet?asset=ltc')
+  })
+
+  it('leaves the rest of the query and the fragment exactly as they are', () => {
+    const browser = atBrowser('https://hub.cloudsforge.online/wallet?asset=ltc#send')
+    createNetworkView().setViewedNetwork('testnet')
+    assert.equal(browser.url(), '/wallet?asset=ltc&net=testnet#send')
+  })
+
+  it('never writes off-registry, where there is no sibling estate to name', () => {
+    const browser = atBrowser('http://localhost:3000/wallet')
+    const view = createNetworkView()
+    // `NetworkSwitcher` hides itself here, so this cannot come from a click — but nothing should
+    // put a live estate's name in a development address bar even if it could.
+    view.setViewedNetwork('testnet')
+    assert.deepEqual(browser.writes, [])
+  })
+})
