@@ -165,6 +165,49 @@ export interface CloudsForgeSurface {
    * quietly outliving the thing it warned about is how a marketing page starts lying by omission.
    */
   readonly incomplete?: string
+  /**
+   * True when this surface's bundle can render ANOTHER network's data in place — a `src/lib/
+   * viewed.ts`, the in-app network context of micro-org#459's combined view.
+   *
+   * ── WHY THIS HAS TO BE A FIELD, AND WHY IT IS THE FIELD THE SWITCHERS READ ────────────────────
+   *
+   * The combined view retired the testnet FRONTENDS and kept the testnet ESTATE. There is one set
+   * of bundles now, on the mainnet hostnames, and every `-testnet` web hostname 302s to its
+   * mainnet sibling — path and query preserved — while `-testnet/v1` still answers from the
+   * testnet services. Measured 2026-08-14:
+   *
+   *   $ curl -o /dev/null -w '%{http_code} -> %{redirect_url}' \
+   *       'https://market-testnet.cloudsforge.online/products?net=testnet&x=1'
+   *   302 -> https://market.cloudsforge.online/products?net=testnet&x=1
+   *
+   * So "show me testnet" is no longer a hostname a reader can be sent to. It is a capability the
+   * BUNDLE either has or has not, and today three have it: Forge Hub, the explorer and the Network
+   * site. That is not a property of `kind`, of `servesUi`, or of anything else already here —
+   * `market` and `hub` are indistinguishable on every other field in this row and differ on
+   * exactly this one.
+   *
+   * Two controls read it, and both were lying without it:
+   *
+   *   - The NETWORK switcher on a surface without it used to navigate to `<sub>-testnet.<apex>`,
+   *     which now redirects straight back. You pressed Testnet and arrived on mainnet, with the
+   *     bar reading Mainnet. That is the owner's report, verbatim.
+   *   - The PRODUCT switcher composed every entry on the reader's own hostname, so switching
+   *     product from a testnet view dropped the view with no indication it had gone.
+   *
+   * ── IT IS A CLAIM ABOUT A FILE IN ANOTHER REPOSITORY, AND THAT IS CHECKED ─────────────────────
+   *
+   * `micro-deploy`'s `scripts/surface-routes.py` check 10 already governs the other end of this:
+   * the cross-environment CORS grant in `gateway/dynamic/policy.yml` must name exactly the bundles
+   * that view in place — it fails on a bundle that gains a `viewed.ts` without a grant AND on a
+   * grant no bundle earns. It holds that set in a table of its own today. This field is the
+   * declaration that table should read, so the estate stops keeping the answer in two places.
+   *
+   * Setting it true here without shipping the bundle half is therefore not a harmless
+   * over-declaration: it puts an entry in the product switcher that promises a view the bundle
+   * cannot render, and it widens a credentialed cross-origin grant to an origin that performs no
+   * such read.
+   */
+  readonly viewsAnyNetwork?: boolean
 }
 
 /**
@@ -293,6 +336,8 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     blurb: 'Mine EMBER in a browser tab, and explore the chain it lands on',
     servesUi: true,
     inSwitcher: true,
+    // `network-site/src/lib/viewed.ts`. The chain pages read either estate in place.
+    viewsAnyNetwork: true,
   },
   {
     key: 'foresight',
@@ -544,6 +589,10 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     blurb: 'Your account: balances, wallet, activity and settings',
     servesUi: true,
     inSwitcher: false,
+    // `hub-web/src/lib/viewed.ts`. The one viewing bundle whose reads are AUTHENTICATED — the
+    // bearer rides along, which is why the deploy-side grant is asymmetric (testnet accepts the
+    // mainnet frontends; mainnet accepts nothing from testnet).
+    viewsAnyNetwork: true,
   },
   {
     /**
@@ -908,6 +957,8 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     blurb: 'Look up any block, transaction or address on the chain',
     servesUi: true,
     inSwitcher: false,
+    // `explorer-web/src/lib/viewed.ts` — the bundle that established the shape the other two copy.
+    viewsAnyNetwork: true,
   },
   {
     key: 'nimbus',
@@ -1208,6 +1259,17 @@ export const FOOTER_GROUPS: readonly {
   { kind: 'surface', title: 'Platform', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'surface') },
   { kind: 'service', title: 'More', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'service') },
 ]
+
+/**
+ * The bundles that can show another network's data in place — the combined view's viewing set.
+ *
+ * Three today: Forge Hub, the explorer and the Network site. Derived rather than listed, so the
+ * fourth is a `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a
+ * premature `true` costs, and for the check in micro-deploy that reads the other end of it.
+ */
+export const VIEWING_SURFACES: readonly CloudsForgeSurface[] = SURFACES.filter(
+  (s) => s.viewsAnyNetwork === true,
+)
 
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
 export const KNOWN_SUBS: ReadonlySet<string> = new Set(

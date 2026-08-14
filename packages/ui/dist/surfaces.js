@@ -135,6 +135,8 @@ export const SURFACES = [
         blurb: 'Mine EMBER in a browser tab, and explore the chain it lands on',
         servesUi: true,
         inSwitcher: true,
+        // `network-site/src/lib/viewed.ts`. The chain pages read either estate in place.
+        viewsAnyNetwork: true,
     },
     {
         key: 'foresight',
@@ -383,6 +385,10 @@ export const SURFACES = [
         blurb: 'Your account: balances, wallet, activity and settings',
         servesUi: true,
         inSwitcher: false,
+        // `hub-web/src/lib/viewed.ts`. The one viewing bundle whose reads are AUTHENTICATED — the
+        // bearer rides along, which is why the deploy-side grant is asymmetric (testnet accepts the
+        // mainnet frontends; mainnet accepts nothing from testnet).
+        viewsAnyNetwork: true,
     },
     {
         /**
@@ -746,6 +752,8 @@ export const SURFACES = [
         blurb: 'Look up any block, transaction or address on the chain',
         servesUi: true,
         inSwitcher: false,
+        // `explorer-web/src/lib/viewed.ts` — the bundle that established the shape the other two copy.
+        viewsAnyNetwork: true,
     },
     {
         key: 'nimbus',
@@ -1034,6 +1042,14 @@ export const FOOTER_GROUPS = [
     { kind: 'surface', title: 'Platform', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'surface') },
     { kind: 'service', title: 'More', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'service') },
 ];
+/**
+ * The bundles that can show another network's data in place — the combined view's viewing set.
+ *
+ * Three today: Forge Hub, the explorer and the Network site. Derived rather than listed, so the
+ * fourth is a `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a
+ * premature `true` costs, and for the check in micro-deploy that reads the other end of it.
+ */
+export const VIEWING_SURFACES = SURFACES.filter((s) => s.viewsAnyNetwork === true);
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
 export const KNOWN_SUBS = new Set(SURFACES.map((s) => s.subdomain)
     .filter(Boolean)
