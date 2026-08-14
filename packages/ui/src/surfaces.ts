@@ -40,6 +40,8 @@ export type SurfaceKey =
   // `service` in this registry that serves a UI anybody may open, so it belongs in neither the
   // product switcher nor the operator one. See its row for why it is not a `ProductKey` either.
   | 'pool'
+  // Planned — no code runs anywhere. See the registry row for why the key exists already.
+  | 'exchange'
   | 'explorer'
   | 'nimbus'
   | 'account'
@@ -766,6 +768,40 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     markId: null,
     blurb: 'Point real mining hardware at CloudsForge and be credited for the work',
     servesUi: true,
+    inSwitcher: false,
+  },
+  {
+    // ── FORGE EXCHANGE IS PLANNED, AND THIS ROW SAYS EXACTLY THAT MUCH ────────────────────────
+    //
+    // A decentralised exchange running as contracts on Hearth's own EVM, swapping EMBER against
+    // bridged Bitcoin, Litecoin and Dogecoin. The plan is public — docs/ecosystem/39 in
+    // micro-docs, and the umbrella issue in micro-org — and NO CODE RUNS ANYWHERE. This row
+    // exists so the marketing site can publish the plan as a card without inventing a surface:
+    // the site's content model refuses a page whose key the registry does not know.
+    //
+    // `kind: 'service'` and not 'product', on the pool's precedent and for the pool's reason plus
+    // one more: the accent guard holds PRODUCTS to a strict bijection with PRODUCT_ACCENTS, and a
+    // seventh product means choosing a seventh accent by the documented dE procedure — design
+    // work that belongs in the phase where the frontend actually ships, not in the row that
+    // announces a plan. The flip to 'product' with its own accent is that phase's named step.
+    //
+    // `servesUi: false` is a measurement, not modesty: nothing serves this hostname, so a `true`
+    // here would put a dead link in every footer in the estate. `inSwitcher: false` for the same
+    // reason. Both flip ON THE MEASUREMENT, as lantern and beacon did — quoted above.
+    key: 'exchange',
+    name: 'Forge Exchange',
+    verb: null,
+    kind: 'service',
+    subdomain: 'exchange',
+    devPort: 4150,
+    // Gold, shared with `create` and `pool` rather than newly invented — the same reasoning as
+    // the pool row above, and doubly so for a surface that is not yet rendered anywhere a second
+    // accent could disambiguate.
+    accent: '#b28e1e',
+    glyph: '⇄',
+    markId: null,
+    blurb: 'A decentralised exchange on the chain itself — planned, and the plan is public',
+    servesUi: false,
     inSwitcher: false,
   },
 
