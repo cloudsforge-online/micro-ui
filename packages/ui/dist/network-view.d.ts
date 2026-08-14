@@ -23,10 +23,15 @@
  *
  * ── THE THREE PROPERTIES, WHICH ARE THE WHOLE SAFETY ARGUMENT ─────────────────────────────────
  *
- *   1. **Nothing is persisted.** Module state, in memory, per tab. The estate's no-stored-network
- *      invariant exists because a stored default once made the MAINNET explorer look up pasted
- *      hashes on a halted testnet and tell readers their real transactions did not exist. An
- *      in-memory choice made by a click on this page load cannot survive anything.
+ *   1. **Nothing is stored — the choice lives in the address bar and in module memory.** The
+ *      estate's no-stored-network invariant exists because a stored default once made the MAINNET
+ *      explorer look up pasted hashes on a halted testnet and tell readers their real transactions
+ *      did not exist. What that closed was a choice made once, invisibly, OUTLIVING the reader's
+ *      intent. So there is no `localStorage`, no cookie and no server-side preference here: close
+ *      the tab and the estate has forgotten. A switch does write `?net=` into the URL
+ *      ({@link keepNetworkInTheAddressBar}), because otherwise F5 silently undid it — but that is
+ *      the opposite of a stored default: it is on screen, it is scoped to the address it is part
+ *      of, and opening any other address is already free of it.
  *   2. **The default is the hostname's own network.** Until the reader touches the switcher this
  *      module is invisible and every answer is the one the address bar implies.
  *   3. **The viewed network is always on screen.** `CloudsForgeBar` shows the selection and
@@ -35,10 +40,11 @@
  * ── AND `?net=` IS WHAT CARRIES IT BETWEEN PRODUCTS ───────────────────────────────────────────
  *
  * Every surface is its own ORIGIN, so the module state below stops at the hostname. `?net=` is the
- * one channel that survives a cross-origin navigation without being storage: it is READ once at
- * load by {@link createNetworkView} and written by nobody, and `resolveProducts` attaches it to
- * the switcher's links. It survives the retirement redirect too — `market-testnet.<apex>` 302s to
- * `market.<apex>` preserving path and query.
+ * one channel that survives a cross-origin navigation without being storage: it is READ at load by
+ * {@link createNetworkView}, WRITTEN INTO THE ADDRESS BAR by {@link keepNetworkInTheAddressBar}
+ * when the reader switches, and `resolveProducts` attaches it to the switcher's links. It survives
+ * the retirement redirect too — `market-testnet.<apex>` 302s to `market.<apex>` preserving path
+ * and query.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 import { type CloudsForgeHosts } from './index.tsx';
@@ -87,6 +93,54 @@ export interface NetworkView {
      */
     viewedHosts(): CloudsForgeHosts;
 }
+/**
+ * Put the viewed network in the ADDRESS BAR, and keep it there.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE REPORT, in the owner's words:
+ *
+ *     "if we have testnet selected and we refresh the page it goes to mainnet"
+ *
+ * Exactly so, and by construction: the choice was module memory and nothing else, and a reload
+ * discards module memory. Property 1 above — nothing is persisted — was answering a question
+ * nobody asked. The scar it guards is a choice made WEEKS AGO deciding, invisibly, that a pasted
+ * mainnet hash does not exist. A reader pressing F5 on a page whose address says `?net=testnet` is
+ * not that: the choice is on screen, in the one place a browser shows on every page, and it is
+ * gone the moment they open a different address.
+ *
+ * So the rule tightens rather than loosening. The address bar must say what the reader is viewing:
+ *
+ *   - an override in force  →  `?net=` names it, so a RELOAD, a BOOKMARK and a COPIED LINK all
+ *     reproduce what is on screen;
+ *   - no override           →  no parameter at all, so the URL of a plain mainnet page is the URL
+ *     it has always been, and `?net=mainnet` left over from a switch back is cleaned up.
+ *
+ * Still nothing is stored. There is no `localStorage`, no cookie and no server-side preference:
+ * close the tab and the estate has forgotten. What changed is only that the choice is now written
+ * where the reader can read it, which is strictly more honest than memory they cannot.
+ *
+ * ── WHY THIS PATCHES `history`, WHICH IS NOT A THING TO DO LIGHTLY ────────────────────────────
+ *
+ * Writing the parameter once, on the click, fixes a reload taken immediately and nothing else: the
+ * router owns the address bar afterwards, and its very next `pushState` composes a path with no
+ * idea this parameter exists. The reader switches to testnet, opens Wallet from the nav, refreshes
+ * — and is on mainnet again, having done nothing wrong. That is the same defect one navigation
+ * later, and it is the one they would actually hit.
+ *
+ * Nineteen bundles across four routers cannot each be taught to carry a query parameter without
+ * nineteen chances to do it differently, and `@cloudsforge/ui` cannot import a router — several of
+ * these surfaces have none. What every one of them DOES share is `window.history`. So the two
+ * writers are wrapped: whatever the app meant to write is written first, unchanged, and then the
+ * network is re-asserted in place with `replaceState`, which adds no entry and leaves the Back
+ * button exactly as the app built it.
+ *
+ * The wrappers call the CAPTURED originals, never the patched pair, so nothing here can recurse.
+ * Installed at most once per bundle, and never where there is no `window` (SSR, the test runners).
+ *
+ * @param read the current override — `null` when the reader is on the hostname's own network.
+ * @returns the sync, to call after every change to what `read` answers.
+ */
+export declare function keepNetworkInTheAddressBar(read: () => ViewedNetwork | null): () => void;
 export interface NetworkViewOptions {
     /**
      * The bundle's own `hosts()`, when it is not simply `cloudsforgeHosts`.
