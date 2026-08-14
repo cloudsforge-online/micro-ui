@@ -1642,6 +1642,19 @@
   background: #92400e;
   color: #fff7e6;
 }
+/* The option that LEAVES. On a surface whose bundle cannot re-point its reads there is no in-place
+   view and no separate frontend to visit, so this option is a navigation to a surface that can —
+   Forge Network. The arrow is the same promise a external-link glyph makes anywhere else: press
+   this and you are somewhere else. Without it the control looked identical to the in-place switch
+   on the three surfaces that have one, which is how "press Testnet, arrive on mainnet" read as a
+   broken toggle rather than a trip that went nowhere. The `title` carries the sentence. */
+.cf-dark .cf-netswitch__opt--away { color: rgba(244, 240, 232, 0.55); }
+.cf-dark .cf-netswitch__opt--away:hover { color: #f4f0e8; }
+.cf-dark .cf-netswitch__away {
+  margin-inline-start: 3px;
+  font-size: 9px;
+  vertical-align: 1px;
+}
 .cf-dark .cf-testnet-band {
   background: #92400e;
   color: #fff7e6;

@@ -14,7 +14,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  * Chart primitives live in ./charts.tsx, published as `@cloudsforge/ui/charts`.
  */
 import { Fragment, useCallback, useEffect, useId, useRef, useState, } from 'react';
-import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
+import { FOOTER_GROUPS, KNOWN_SUBS, SURFACES, SWITCHER_SURFACES, VIEWING_SURFACES, envLabel, splitEnvLabel, surface, } from "./surfaces.js";
 import { MiningControl } from "./mining.js";
 import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsentChange, readConsent, revokeConsent, } from "./consent.js";
 /**
@@ -637,7 +637,12 @@ export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productU
     const siteUrl = cloudsforgeHosts().site;
     const isAdmin = account.roles?.includes('admin') ?? false;
     const barStyle = { colorScheme: 'dark' };
-    return (_jsxs("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: [_jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin, ...(networkSwitch?.selected === undefined ? {} : { viewedNetwork: networkSwitch.selected }) }), _jsx(NetworkSwitcher, { ...(networkSwitch === undefined ? {} : networkSwitch) }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }), _jsx(TestnetBand, { ...(networkSwitch?.selected === undefined ? {} : { network: networkSwitch.selected }) })] }));
+    return (_jsxs("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: [_jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin, ...(networkSwitch?.selected === undefined ? {} : { viewedNetwork: networkSwitch.selected }) }), _jsx(NetworkSwitcher, { ...(networkSwitch === undefined ? {} : networkSwitch), ...(networkSwitch?.onSelect
+                            ? {}
+                            : (() => {
+                                const to = viewingSurfaceUrl(current, currentNetwork() === 'testnet' ? 'mainnet' : 'testnet', productUrls);
+                                return to === null ? {} : { elsewhere: to };
+                            })()) }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }), _jsx(TestnetBand, { ...(networkSwitch?.selected === undefined ? {} : { network: networkSwitch.selected }) })] }));
 }
 /* ============================ NetworkSwitcher (micro-org#459) ============================ */
 /**
@@ -769,12 +774,61 @@ export function siblingNetworkUrl(target) {
     return withNetwork(`https://${nextHost}${window.location.pathname}${window.location.search}`, target);
 }
 /**
+ * Where a reader on a surface that CANNOT show `target` should be sent to see it — or null when
+ * this surface is itself the answer.
+ *
+ * `viewsAnyNetwork` on the registry row is the declaration that a bundle re-points its reads in
+ * place. A surface without it has no in-app view AND no separate frontend to visit: the combined
+ * view retired the `-testnet` hostnames, so composing one is a redirect back to where the reader
+ * started. Both halves of that were already written down in `surfaces.ts`; what was missing was
+ * anything acting on the first half.
+ *
+ * The preference order is deliberate and not registry order. Forge Network is the estate's own
+ * overview — chain height, difficulty, the service table — so it is the page that means the most
+ * to a reader who just asked "show me testnet" from somewhere that cannot. The explorer is the
+ * same answer one level down, and Forge Hub is last because it is behind a sign-in.
+ */
+export function viewingSurfaceUrl(current, target, productUrls) {
+    if (VIEWING_SURFACES.some((s) => s.key === current))
+        return null;
+    const hosts = cloudsforgeHosts();
+    for (const key of ['network', 'explorer', 'hub']) {
+        if (!VIEWING_SURFACES.some((s) => s.key === key))
+            continue;
+        // `hub` is not a switcher entry, so it can never appear in `productUrls`; the two others can,
+        // and an operator override there must win over the hostname-derived default exactly as it does
+        // everywhere else in this file.
+        const override = productUrls?.[key];
+        const url = override ?? hosts[key];
+        if (url)
+            return withNetwork(url, target);
+    }
+    return null;
+}
+/**
  * Mainnet | Testnet, in the shared bar, on every surface (micro-org#459 stage 1).
  *
  * Hidden entirely when the network cannot be determined (localhost): a control that guesses is
  * worse than none. The active network is not a link — the switcher exists to LEAVE.
+ *
+ * ── THE THIRD STATE, AND THE REPORT THAT MADE IT NECESSARY ───────────────────────────────────
+ *
+ *     "after your latest change im not able at all to change to testnet. reload directly to
+ *      mainnet"
+ *
+ * There were two states here and there are three cases. A surface that re-points its reads passes
+ * `onSelect` and switches in place. A surface that does not had no branch of its own: it fell
+ * through to `siblingNetworkUrl`, which composes `<sub>-testnet.<apex>` — a hostname the combined
+ * view retired. The browser followed the 302 back to the mainnet page it started on, and the bar,
+ * reading the hostname, said Mainnet. Sixteen of the nineteen surfaces behaved that way, including
+ * the marketing site, which is where a reader is most likely to press it first.
+ *
+ * The third state is a LINK, not a disabled button. Disabling would be honest and useless: the
+ * reader asked to see testnet and the estate can show them testnet, just not from this bundle.
+ * So the option carries them to a surface that can — named in the label, so the navigation is
+ * announced before the click rather than discovered after it.
  */
-export function NetworkSwitcher({ onSelect, selected }) {
+export function NetworkSwitcher({ onSelect, selected, elsewhere }) {
     const here = currentNetwork();
     if (here === null)
         return null;
@@ -786,11 +840,21 @@ export function NetworkSwitcher({ onSelect, selected }) {
             onSelect(target);
             return;
         }
-        const url = siblingNetworkUrl(target);
+        // `elsewhere` first: this surface cannot show `target`, and the sibling hostname that used to
+        // be the answer is a round trip back to here. Only when the registry offers no viewing surface
+        // at all does the old composition run, which is the local-estate case where both really exist.
+        const url = elsewhere ?? siblingNetworkUrl(target);
         if (url)
             window.location.assign(url);
     };
-    return (_jsx("div", { className: "cf-netswitch", role: "group", "aria-label": "Network", children: ['mainnet', 'testnet'].map((n) => (_jsx("button", { type: "button", className: `cf-netswitch__opt${n === active ? ' cf-netswitch__opt--active' : ''}${n === 'testnet' ? ' cf-netswitch__opt--testnet' : ''}`, "aria-pressed": n === active, onClick: () => pick(n), children: n === 'mainnet' ? 'Mainnet' : 'Testnet' }, n))) }));
+    return (_jsx("div", { className: "cf-netswitch", role: "group", "aria-label": "Network", children: ['mainnet', 'testnet'].map((n) => {
+            const away = n !== active && !onSelect && elsewhere !== undefined;
+            return (_jsxs("button", { type: "button", className: `cf-netswitch__opt${n === active ? ' cf-netswitch__opt--active' : ''}${n === 'testnet' ? ' cf-netswitch__opt--testnet' : ''}${away ? ' cf-netswitch__opt--away' : ''}`, "aria-pressed": n === active, ...(away
+                    ? {
+                        title: `This page shows ${active} only. Opens Forge Network on ${n}.`,
+                    }
+                    : {}), onClick: () => pick(n), children: [n === 'mainnet' ? 'Mainnet' : 'Testnet', away && (_jsx("span", { className: "cf-netswitch__away", "aria-hidden": "true", children: "\u2197" }))] }, n));
+        }) }));
 }
 /**
  * The origin of THIS surface on `target` — or the empty string when `target` IS this page's own

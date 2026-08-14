@@ -6,6 +6,7 @@ import {
   networkFromQuery,
   resolveProducts,
   siblingNetworkUrl,
+  viewingSurfaceUrl,
   withNetwork,
 } from './index.tsx'
 import { SURFACES, VIEWING_SURFACES } from './surfaces.ts'
@@ -209,5 +210,66 @@ describe('the viewing registry', () => {
     // Hard-coded on purpose. A fourth bundle gaining an in-place view is a deploy-side CORS grant
     // and a product-menu link, so it should be a line someone changed, not a list that grew.
     assert.deepEqual(VIEWING_SURFACES.map((s) => s.key), ['network', 'hub', 'explorer'])
+  })
+})
+
+/**
+ * THE SECOND REPORT, which the first fix did not reach:
+ *
+ *     "after your latest change im not able at all to change to testnet. reload directly to
+ *      mainnet"
+ *
+ * The product switcher learned about `viewsAnyNetwork`; the NETWORK switcher did not. On the
+ * sixteen surfaces without an in-place view it still fell through to `siblingNetworkUrl`, which
+ * composes a retired hostname — so pressing Testnet was a 302 back to the page you were on. These
+ * pin the escape route that replaces it.
+ */
+describe('the escape route from a surface that cannot show the other network', () => {
+  it('sends a pinned surface to Forge Network, carrying the choice', () => {
+    atUrl('cloudsforge.online')
+    assert.equal(
+      viewingSurfaceUrl('site', 'testnet'),
+      'https://network.cloudsforge.online/?net=testnet',
+    )
+    atUrl('market.cloudsforge.online', '/listings')
+    assert.equal(
+      viewingSurfaceUrl('market', 'testnet'),
+      'https://network.cloudsforge.online/?net=testnet',
+    )
+  })
+
+  it('answers null on a surface that views in place, which keeps its own switch', () => {
+    // These three pass `onSelect` and switch the DATA without navigating. An escape URL here would
+    // be a second, worse answer to a question the bundle already answers correctly.
+    atUrl('network.cloudsforge.online')
+    for (const key of ['network', 'hub', 'explorer'] as const) {
+      assert.equal(viewingSurfaceUrl(key, 'testnet'), null)
+    }
+  })
+
+  it('is a real destination on both estates, and never the retired hostname', () => {
+    // The whole point: whatever this returns must not be a `-testnet` host, because that is the
+    // hostname the combined view redirects and the redirect is what produced the report.
+    atUrl('wallet.cloudsforge.online', '/deposit')
+    const url = viewingSurfaceUrl('wallet', 'testnet')
+    assert.ok(url !== null)
+    assert.ok(!new URL(url).hostname.includes('-testnet'))
+    assert.equal(networkFromQuery(new URL(url).search), 'testnet')
+  })
+
+  it('honours an operator override for the surface it sends to', () => {
+    atUrl('cloudsforge.online')
+    assert.equal(
+      viewingSurfaceUrl('site', 'testnet', { network: 'https://net.example/' }),
+      'https://net.example/?net=testnet',
+    )
+  })
+
+  it('carries mainnet the same way, for a reader who got there on a testnet link', () => {
+    atUrl('cloudsforge.online', '/', '?net=testnet')
+    assert.equal(
+      viewingSurfaceUrl('site', 'mainnet'),
+      'https://network.cloudsforge.online/?net=mainnet',
+    )
   })
 })

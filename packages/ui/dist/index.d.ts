@@ -485,7 +485,32 @@ export declare function withNetwork(url: string, network: 'mainnet' | 'testnet')
  * the parameter and it is a no-op.
  */
 export declare function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null;
+/**
+ * Where a reader on a surface that CANNOT show `target` should be sent to see it — or null when
+ * this surface is itself the answer.
+ *
+ * `viewsAnyNetwork` on the registry row is the declaration that a bundle re-points its reads in
+ * place. A surface without it has no in-app view AND no separate frontend to visit: the combined
+ * view retired the `-testnet` hostnames, so composing one is a redirect back to where the reader
+ * started. Both halves of that were already written down in `surfaces.ts`; what was missing was
+ * anything acting on the first half.
+ *
+ * The preference order is deliberate and not registry order. Forge Network is the estate's own
+ * overview — chain height, difficulty, the service table — so it is the page that means the most
+ * to a reader who just asked "show me testnet" from somewhere that cannot. The explorer is the
+ * same answer one level down, and Forge Hub is last because it is behind a sign-in.
+ */
+export declare function viewingSurfaceUrl(current: SurfaceKey, target: 'mainnet' | 'testnet', productUrls?: ProductUrls): string | null;
 export interface NetworkSwitcherProps {
+    /**
+     * Where to send a reader who picks a network this surface cannot show. Supplied by
+     * {@link CloudsForgeBar} from the registry; see {@link viewingSurfaceUrl}.
+     *
+     * Set, and the inactive option is a LINK to a surface that can show that network, labelled so
+     * the reader knows they are leaving before they click. Unset — which is what a surface that
+     * passes `onSelect` gets, because it needs no escape — and nothing changes.
+     */
+    elsewhere?: string | undefined;
     /**
      * Stage-3 surfaces (read-only: explorer, network-site, pool-web) pass this to switch the DATA
      * in place instead of navigating. Absent — the default, and the permanent behaviour of every
@@ -500,8 +525,25 @@ export interface NetworkSwitcherProps {
  *
  * Hidden entirely when the network cannot be determined (localhost): a control that guesses is
  * worse than none. The active network is not a link — the switcher exists to LEAVE.
+ *
+ * ── THE THIRD STATE, AND THE REPORT THAT MADE IT NECESSARY ───────────────────────────────────
+ *
+ *     "after your latest change im not able at all to change to testnet. reload directly to
+ *      mainnet"
+ *
+ * There were two states here and there are three cases. A surface that re-points its reads passes
+ * `onSelect` and switches in place. A surface that does not had no branch of its own: it fell
+ * through to `siblingNetworkUrl`, which composes `<sub>-testnet.<apex>` — a hostname the combined
+ * view retired. The browser followed the 302 back to the mainnet page it started on, and the bar,
+ * reading the hostname, said Mainnet. Sixteen of the nineteen surfaces behaved that way, including
+ * the marketing site, which is where a reader is most likely to press it first.
+ *
+ * The third state is a LINK, not a disabled button. Disabling would be honest and useless: the
+ * reader asked to see testnet and the estate can show them testnet, just not from this bundle.
+ * So the option carries them to a surface that can — named in the label, so the navigation is
+ * announced before the click rather than discovered after it.
  */
-export declare function NetworkSwitcher({ onSelect, selected }: NetworkSwitcherProps): import("react").JSX.Element | null;
+export declare function NetworkSwitcher({ onSelect, selected, elsewhere }: NetworkSwitcherProps): import("react").JSX.Element | null;
 /**
  * The origin of THIS surface on `target` — or the empty string when `target` IS this page's own
  * network, because same-network requests must stay relative (that is the contract every surface's
