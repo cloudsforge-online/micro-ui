@@ -476,6 +476,7 @@ export function resolveProducts(productUrls, isAdmin = false) {
             accent: p.accent,
             url: productUrls?.[key] ?? hosts[p.key],
             ...(p.adminOnly ? { adminOnly: true } : {}),
+            ...(p.incomplete ? { incomplete: p.incomplete } : {}),
         };
     });
 }
@@ -569,7 +570,7 @@ export function ProductSwitcher({ current, productUrls, isAdmin = false }) {
                         return (
                         // A Fragment, not a wrapper element: a <div> between <ul> and <li> is invalid and
                         // makes assistive technology stop counting the list.
-                        _jsxs(Fragment, { children: [p.key === firstAdminKey && (_jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) })), _jsx("li", { role: "none", children: _jsxs("a", { className: "cf-menu__item", role: "menuitem", href: p.url, "aria-current": isCurrent || undefined, onClick: () => setOpen(false), children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", style: { color: p.accent }, children: hasMark(p.key) ? (_jsx(Mark, { surface: p.key, size: 18, accent: p.accent })) : (p.glyph) }), _jsxs("span", { className: "cf-menu__text", children: [_jsx("span", { className: "cf-menu__name", children: p.label }), _jsx("span", { className: "cf-menu__blurb", children: p.blurb })] }), isCurrent && (_jsx("span", { className: "cf-menu__check", "aria-hidden": "true", children: "\u25CF" }))] }) })] }, p.key));
+                        _jsxs(Fragment, { children: [p.key === firstAdminKey && (_jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) })), _jsx("li", { role: "none", children: _jsxs("a", { className: "cf-menu__item", role: "menuitem", href: p.url, "aria-current": isCurrent || undefined, onClick: () => setOpen(false), children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", style: { color: p.accent }, children: hasMark(p.key) ? (_jsx(Mark, { surface: p.key, size: 18, accent: p.accent })) : (p.glyph) }), _jsxs("span", { className: "cf-menu__text", children: [_jsxs("span", { className: "cf-menu__head", children: [_jsx("span", { className: "cf-menu__name", children: p.label }), p.incomplete && _jsx("span", { className: "cf-menu__tag", children: "Incomplete" })] }), _jsx("span", { className: "cf-menu__blurb", children: p.blurb }), p.incomplete && _jsx("span", { className: "cf-menu__note", children: p.incomplete })] }), isCurrent && (_jsx("span", { className: "cf-menu__check", "aria-hidden": "true", children: "\u25CF" }))] }) })] }, p.key));
                     })] }))] }));
 }
 /* =========================== AccountMenu ========================= */

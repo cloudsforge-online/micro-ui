@@ -98,6 +98,38 @@ export interface CloudsForgeSurface {
     readonly inSwitcher: boolean;
     /** Hidden from the switcher unless the viewer holds the `admin` role. */
     readonly adminOnly?: boolean;
+    /**
+     * Set when a person can open this surface and the thing it exists for is switched off.
+     *
+     * The string is the reason in one sentence, and it is rendered — never a bare flag, and never a
+     * word like "soon". Every surface that offers this one (the switcher, the marketing grid, a
+     * product page) shows the sentence, so a reader finds out before the click rather than after it.
+     *
+     * ── WHY THIS IS NOT A STAGE ───────────────────────────────────────────────────────────────────
+     *
+     * The marketing site already grades every surface on a scale — `site/src/content/stages.ts`,
+     * "Built, not shipped" → "Running in-house" → "Open to the public" → "Planned, not built" — and
+     * the obvious move was a fifth rung. It is the wrong move, and that file argues against it in
+     * its own header: those four values answer HOW FAR INTO THE ESTATE a surface has got, and each
+     * names an event in the estate. `trade` has had every one of those events. It is deployed, the
+     * smoke tier drives it through the real gateway, and it answers on the public internet under a
+     * publicly trusted certificate. On that scale it is `open`, and saying anything quieter would be
+     * false.
+     *
+     * This is a DIFFERENT AXIS: can you do the thing the product is named after? Those two questions
+     * have different answers for exactly one surface today, which is precisely when conflating them
+     * into one scale starts producing sentences nobody can check. So `open` keeps meaning "a
+     * stranger can reach the address", this keeps meaning "and there is nothing here for them yet",
+     * and a card carries both.
+     *
+     * ── IT IS DERIVED, IN BOTH DIRECTIONS ─────────────────────────────────────────────────────────
+     *
+     * `site/test/estate-stages.test.ts` reads the estate's own deployment file. A product marked
+     * incomplete whose switch has been thrown fails the build, and so does a product that is missing
+     * the marker while its switch is off. The failure that matters is the first one: a warning
+     * quietly outliving the thing it warned about is how a marketing page starts lying by omission.
+     */
+    readonly incomplete?: string;
 }
 /**
  * The company colour. It is CHROME — the logo mark, the primary call to action, the bar seam and
@@ -127,9 +159,14 @@ export declare const CLOUDSFORGE_EMBER = "#e8622c";
  * | worst ADJACENT pair | dE 36.1 | **dE 36.1 — unchanged** |
  * | all-pairs floor | dE 5.6 | **dE 5.6 — unchanged** |
  *
- * It is first in the array because that is the insertion point the search chose: its only
- * neighbour is then `network`'s red, which it clears by dE 50 normal and dE 65 deuteranopic. Any
- * other position puts it beside `trade` or `market` and the adjacent guarantee collapses to dE 8.
+ * It was first in the array because that is the insertion point the search chose: its only
+ * neighbour was then `network`'s red, which it clears by dE 50 normal and dE 65 deuteranopic. Any
+ * other position put it beside `trade` or `market` and the adjacent guarantee collapsed to dE 8.
+ *
+ * **It is second now, and the constraint that moved it is recorded above `SURFACES`.** Blue's
+ * neighbours are `network`'s red and `worlds`' green; the green pair is the palette's worst
+ * adjacency at dE 35.6 deuteranopic, and the sentence below is the reason the search was rerun
+ * rather than the order nudged by hand.
  *
  * **The one thing to know before using it elsewhere:** blue sits dE 7.1 from `trade`'s teal and
  * dE 8.1 from `market`'s purple under deuteranopia, because deuteranopia collapses the whole
@@ -145,7 +182,7 @@ export declare const CLOUDSFORGE_EMBER = "#e8622c";
  * columns of the table use one metric, so the *relative* guarantee is sound. But the two absolute
  * sets of numbers cannot both be right, and nobody has yet established which is.
  */
-export declare const PRODUCT_ACCENTS: readonly ["#1e89c7", "#d6412f", "#2a9e93", "#b28e1e", "#9b7bf0", "#6d9a49"];
+export declare const PRODUCT_ACCENTS: readonly ["#d6412f", "#1e89c7", "#6d9a49", "#9b7bf0", "#b28e1e", "#2a9e93"];
 /**
  * Accents that were retired, and must never reappear anywhere in the registry.
  *
@@ -158,16 +195,38 @@ export declare const RETIRED_ACCENTS: readonly ["#ff5a1e", "#ff8a1f", "#d9812f",
 /**
  * Every surface, products first IN SWITCHER ORDER.
  *
- * THE ORDER OF THE FIRST FIVE ENTRIES IS LORE-BEARING. It is network, trade, create, market,
- * worlds — the order that maximises the separation of neighbouring accents, not the order the
- * product story is told in ("mine it, trade it, make it, sell it, play in it" happens to be
- * close, but that is a coincidence and must not be relied on).
- *
- * The switcher is a vertical list, so only NEIGHBOURS ever touch, which makes adjacent
+ * THE ORDER OF THE FIRST SIX ENTRIES IS LORE-BEARING, and it is not the order the product story
+ * is told in. The switcher is a vertical list, so only NEIGHBOURS ever touch, which makes adjacent
  * separation the honest gate; requiring all-pairs separation across eight brand-faithful hues is
- * unachievable and was verified so exhaustively. In this order the worst adjacent pair measures
- * dE 12.9 under deuteranopia and dE 17.0 under normal vision. Reorder the array for narrative
- * reasons and that guarantee is gone — a switcher is a lookup list, not a story.
+ * unachievable and was verified so exhaustively. Reorder the array for narrative reasons and that
+ * guarantee is gone — a switcher is a lookup list, not a story.
+ *
+ * ── `trade` IS LAST BY INSTRUCTION, AND THAT COST THE OTHER FIVE THEIR POSITIONS ───────────────
+ *
+ * The owner asked for Forge Trade at the end of the list, because it is the one product with
+ * nothing for a visitor to do (see its `incomplete` note below). That is a product decision and it
+ * is not negotiable by a palette. What IS negotiable is where the other five stand — and they had
+ * to move, because `trade`'s teal was load-bearing:
+ *
+ *   before  foresight  network  TRADE  create  market  worlds     worst adjacent dE 36.1
+ *   naive   foresight  network  create  market  worlds  TRADE     worst adjacent dE  5.6
+ *
+ * Teal sat between `network`'s red and `create`'s gold, which are the palette's worst all-pairs
+ * neighbours at dE 5.6 under deuteranopia. Lift teal out and they close up: the naive move — the
+ * one that touches a single line — silently hands two adjacent products the one pair of accents
+ * this palette cannot separate. It was measured before it was written, not after.
+ *
+ * So the search was rerun under the new constraint. All 120 permutations of the other five with
+ * `trade` pinned last, scored on the same metric as the original (CIEDE2000 over a Viénot
+ * dichromat simulation, normal + deuteranopia + protanopia); EIGHT clear the dE 30 gate and 112 do
+ * not. The best is dE 37.6 (worlds market create foresight network trade). This order measures
+ * **dE 35.6**, and it is the one chosen out of the eight because it leads with Forge Network —
+ * the chain the other five settle on — where the maximum leads with Forge Worlds. A 2.0 dE
+ * difference at that magnitude is not a difference a reader can see; which product is first is.
+ *
+ * All-pairs is untouched at dE 5.6 (red|gold), still never adjacent, still recorded rather than
+ * hidden. Reproduce either figure with `ui/scripts/validate_palette.mjs`; `surfaces.test.ts` runs
+ * it against this array on every build, so the numbers in this paragraph cannot drift from it.
  *
  * The marketing site is deliberately absent from the switcher: the logo in the bar already links
  * there, and a second route to the same page costs a slot. Forge Hub is absent for a different

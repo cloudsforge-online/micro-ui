@@ -881,7 +881,16 @@
    the company ember in silence — the exact failure recorded in the `admin`
    note below. */
 [data-cf-product='create'],
-[data-cf-product='pool'] {
+[data-cf-product='pool'],
+/* `exchange` joined the same block on 2026-08-14, for the same two reasons and
+   with the same condition. It is not a switcher entry either (`inSwitcher:
+   false`, because nothing serves it), so it is never in a list beside `create`;
+   and the marketing site scopes it — the "rest of it" strip on every product
+   page draws its chip in this hue — so an undeclared key would fall through to
+   the company ember exactly as `pool` did. The day it becomes a product with a
+   frontend, it takes an accent of its own by the dE procedure in `surfaces.ts`,
+   and the switcher assertion is what will demand it. */
+[data-cf-product='exchange'] {
   --cf-accent-dark: #b28e1e;
   --cf-accent-hover-dark: #d4ad35;
   --cf-accent-ink-dark: #1a1404;

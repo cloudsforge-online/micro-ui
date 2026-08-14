@@ -42,6 +42,13 @@ export interface CloudsForgeProduct {
     url: string;
     /** Hidden from the switcher unless the viewer holds the `admin` role. */
     adminOnly?: boolean;
+    /**
+     * The registry's `incomplete` sentence, when the surface has one: a person can open this and
+     * the thing it is named after is switched off. Carried through rather than dropped because the
+     * switcher is where the click starts, and a warning that arrives on the far side of a
+     * navigation has already failed.
+     */
+    incomplete?: string;
 }
 /** Optional override map for surface URLs (e.g. production hosts from env). */
 export type ProductUrls = Partial<Record<SwitcherKey, string>>;
