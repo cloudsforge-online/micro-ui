@@ -26,7 +26,7 @@ import { analyticsAllowedHere, analyticsId, denyConsent, grantConsent, onConsent
 export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AGE_SECONDS, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, consentCookieDomains, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, } from "./consent.js";
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, } from "./seo.js";
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, } from "./sitemap.js";
-export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
+export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, VIEWING_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, } from "./surfaces.js";
 /**
  * The browser mining control. Re-exported from the root rather than given its own subpath: it is
  * React and it belongs in the bar, so every caller that can use it is already importing from here.
@@ -463,20 +463,52 @@ function readCallbackTokens(body) {
  * Operator-only surfaces are omitted unless `isAdmin`. Hiding is not the security boundary — each
  * service verifies the `admin` role on the token itself — it just keeps a menu entry nobody can
  * open out of every player's face.
+ *
+ * ── `viewedNetwork`, AND THE TWO ANSWERS IT PRODUCES ─────────────────────────────────────────
+ *
+ * Pass the network the reader is VIEWING and every entry is resolved against it:
+ *
+ *   - a surface whose bundle can show it (`viewsAnyNetwork` on the registry row) is linked with
+ *     the choice attached, so the reader arrives still looking at it;
+ *   - a surface whose bundle cannot is linked EXACTLY AS BEFORE and marked `pinnedNetwork`, so
+ *     the menu says which network it will show before the click rather than after it.
+ *
+ * The second case is the honest half and it is not a stopgap. There is nowhere to send a reader
+ * to see testnet Forge Market: the combined view retired the testnet frontends, `market-testnet.
+ * <apex>` 302s to `market.<apex>`, and a bundle with no `viewed.ts` reads its own origin. The
+ * alternatives are to link it anyway and let the network vanish silently — the reported bug — or
+ * to attach a parameter that surface will ignore, which is the same silence with a longer URL.
+ *
+ * Omit the argument and this is byte-for-byte what it always was, which is what keeps every
+ * surface that has not adopted the in-app switcher unchanged.
  */
-export function resolveProducts(productUrls, isAdmin = false) {
+export function resolveProducts(productUrls, isAdmin = false, viewedNetwork) {
     const hosts = cloudsforgeHosts();
+    const here = currentNetwork();
+    // Only when the two DIFFER. A reader viewing the network they are already served is in the
+    // ordinary case, and marking every entry "Mainnet only" on a mainnet page would be a label on
+    // nineteen surfaces that says nothing. `here` is null off-registry (localhost), where there is
+    // no other network to be viewing and the switcher is hidden anyway.
+    // The pair, or nothing: `target` is what the reader is looking at, `served` is what a surface
+    // that cannot follow will show them instead. Kept together because each entry needs exactly one
+    // of the two and picking the wrong one silently produces the bug this fixes.
+    const viewing = viewedNetwork !== undefined && here !== null && viewedNetwork !== here
+        ? { target: viewedNetwork, served: here }
+        : null;
     return SWITCHER_SURFACES.filter((p) => isAdmin || !p.adminOnly).map((p) => {
         const key = p.key;
+        const url = productUrls?.[key] ?? hosts[p.key];
+        const follows = p.viewsAnyNetwork === true;
         return {
             key,
             label: p.name,
             blurb: p.blurb,
             glyph: p.glyph,
             accent: p.accent,
-            url: productUrls?.[key] ?? hosts[p.key],
+            url: viewing && follows ? withNetwork(url, viewing.target) : url,
             ...(p.adminOnly ? { adminOnly: true } : {}),
             ...(p.incomplete ? { incomplete: p.incomplete } : {}),
+            ...(viewing && !follows ? { pinnedNetwork: viewing.served } : {}),
         };
     });
 }
@@ -559,18 +591,22 @@ export function CloudsForgeLogo({ size = 20, markOnly = false }) {
  * entries apart. The operator tools render below a separator, which is also what keeps their
  * accents from ever being adjacent to a product's.
  */
-export function ProductSwitcher({ current, productUrls, isAdmin = false }) {
+export function ProductSwitcher({ current, productUrls, isAdmin = false, viewedNetwork, }) {
     const { open, setOpen, rootRef, triggerRef } = useDropdown();
-    const products = resolveProducts(productUrls, isAdmin);
+    const products = resolveProducts(productUrls, isAdmin, viewedNetwork);
     const active = products.find((p) => p.key === current);
     const menuId = useId();
     const firstAdminKey = products.find((p) => p.adminOnly)?.key;
     return (_jsxs("div", { className: "cf-pop", ref: rootRef, children: [_jsxs("button", { ref: triggerRef, type: "button", className: "cf-btn", "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": menuId, onClick: () => setOpen((v) => !v), children: [_jsx("span", { className: "cf-dot", "aria-hidden": "true" }), _jsx("span", { className: "cf-switch__label", children: active ? active.label : 'Products' }), _jsx(Caret, {})] }), open && (_jsxs("ul", { className: "cf-menu cf-menu--left", id: menuId, role: "menu", "aria-label": "CloudsForge products", children: [_jsx("li", { className: "cf-menu__label", "aria-hidden": "true", children: "CloudsForge" }), products.map((p) => {
                         const isCurrent = p.key === current;
+                        // Both halves of the sentence come from one field: `pinnedNetwork` is the network this
+                        // entry WILL show, and it is only ever set when the reader is viewing the other one.
+                        const pinned = p.pinnedNetwork;
+                        const leaving = pinned === 'testnet' ? 'mainnet' : 'testnet';
                         return (
                         // A Fragment, not a wrapper element: a <div> between <ul> and <li> is invalid and
                         // makes assistive technology stop counting the list.
-                        _jsxs(Fragment, { children: [p.key === firstAdminKey && (_jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) })), _jsx("li", { role: "none", children: _jsxs("a", { className: "cf-menu__item", role: "menuitem", href: p.url, "aria-current": isCurrent || undefined, onClick: () => setOpen(false), children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", style: { color: p.accent }, children: hasMark(p.key) ? (_jsx(Mark, { surface: p.key, size: 18, accent: p.accent })) : (p.glyph) }), _jsxs("span", { className: "cf-menu__text", children: [_jsxs("span", { className: "cf-menu__head", children: [_jsx("span", { className: "cf-menu__name", children: p.label }), p.incomplete && _jsx("span", { className: "cf-menu__tag", children: "Incomplete" })] }), _jsx("span", { className: "cf-menu__blurb", children: p.blurb }), p.incomplete && _jsx("span", { className: "cf-menu__note", children: p.incomplete })] }), isCurrent && (_jsx("span", { className: "cf-menu__check", "aria-hidden": "true", children: "\u25CF" }))] }) })] }, p.key));
+                        _jsxs(Fragment, { children: [p.key === firstAdminKey && (_jsx("li", { role: "none", "aria-hidden": "true", children: _jsx("hr", { className: "cf-menu__sep" }) })), _jsx("li", { role: "none", children: _jsxs("a", { className: "cf-menu__item", role: "menuitem", href: p.url, "aria-current": isCurrent || undefined, onClick: () => setOpen(false), children: [_jsx("span", { className: "cf-menu__icon", "aria-hidden": "true", style: { color: p.accent }, children: hasMark(p.key) ? (_jsx(Mark, { surface: p.key, size: 18, accent: p.accent })) : (p.glyph) }), _jsxs("span", { className: "cf-menu__text", children: [_jsxs("span", { className: "cf-menu__head", children: [_jsx("span", { className: "cf-menu__name", children: p.label }), p.incomplete && _jsx("span", { className: "cf-menu__tag", children: "Incomplete" }), pinned && (_jsxs("span", { className: "cf-menu__tag", children: [pinned === 'testnet' ? 'Testnet' : 'Mainnet', " only"] }))] }), _jsx("span", { className: "cf-menu__blurb", children: p.blurb }), p.incomplete && _jsx("span", { className: "cf-menu__note", children: p.incomplete }), pinned && (_jsxs("span", { className: "cf-menu__note", children: ["Opens on ", pinned, ". This surface cannot show ", leaving, "."] }))] }), isCurrent && (_jsx("span", { className: "cf-menu__check", "aria-hidden": "true", children: "\u25CF" }))] }) })] }, p.key));
                     })] }))] }));
 }
 /* =========================== AccountMenu ========================= */
@@ -601,7 +637,7 @@ export function CloudsForgeBar({ current, account, onSignIn, onSignOut, productU
     const siteUrl = cloudsforgeHosts().site;
     const isAdmin = account.roles?.includes('admin') ?? false;
     const barStyle = { colorScheme: 'dark' };
-    return (_jsxs("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: [_jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin }), _jsx(NetworkSwitcher, { ...(networkSwitch === undefined ? {} : networkSwitch) }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }), _jsx(TestnetBand, { ...(networkSwitch?.selected === undefined ? {} : { network: networkSwitch.selected }) })] }));
+    return (_jsxs("div", { className: "cf-bar cf-dark", style: barStyle, role: "banner", children: [_jsxs("div", { className: "cf-bar__inner", children: [_jsx("a", { className: "cf-logo", href: siteUrl, "aria-label": "CloudsForge home", children: _jsx(CloudsForgeLogo, { size: 20 }) }), _jsx("span", { className: "cf-bar__sep", "aria-hidden": "true" }), _jsx(ProductSwitcher, { current: current, productUrls: productUrls, isAdmin: isAdmin, ...(networkSwitch?.selected === undefined ? {} : { viewedNetwork: networkSwitch.selected }) }), _jsx(NetworkSwitcher, { ...(networkSwitch === undefined ? {} : networkSwitch) }), _jsx("span", { className: "cf-bar__spacer" }), rightSlot && _jsx("div", { className: "cf-bar__right", children: rightSlot }), mining && _jsx(MiningControl, { ...mining }), _jsx(AccountMenu, { account: account, onSignIn: onSignIn, onSignOut: onSignOut, ...(accountHref === undefined ? {} : { accountHref }) })] }), _jsx(TestnetBand, { ...(networkSwitch?.selected === undefined ? {} : { network: networkSwitch.selected }) })] }));
 }
 /* ============================ NetworkSwitcher (micro-org#459) ============================ */
 /**
@@ -624,6 +660,72 @@ export function currentNetwork() {
     const env = splitEnvLabel(parts[0] ?? '');
     return env?.env === 'testnet' ? 'testnet' : 'mainnet';
 }
+/* ── THE NETWORK CARRIES IN THE QUERY, BECAUSE IT CANNOT CARRY ANYWHERE ELSE (micro-org#459) ──
+ *
+ * Every surface in this estate is its own ORIGIN, so `sessionStorage`, `localStorage` and module
+ * memory all stop at the hostname. The reader's chosen network is held in module memory by each
+ * viewing bundle's `lib/viewed.ts` — which is right, and which is exactly why a link from Forge Hub
+ * to the explorer used to arrive with the choice gone. The owner's report:
+ *
+ *     "if you select testnet and switch product you are back to mainnet"
+ *
+ * A query parameter is the one channel that survives a cross-origin navigation without being
+ * storage. It is a CARRIER and not a store: a viewing bundle reads it once on load to seed its
+ * in-memory choice, nothing writes it back, and no reload re-reads it unless the address still has
+ * it. So the estate's no-stored-network invariant is untouched — nothing persists — while a link
+ * from one surface to another can say which network it was followed FROM.
+ *
+ * It also survives the combined view's retirement redirect, which matters because that redirect is
+ * what makes the old hostname-based carry impossible. Measured 2026-08-14:
+ *
+ *   $ curl -o /dev/null -w '%{http_code} -> %{redirect_url}' \
+ *       'https://market-testnet.cloudsforge.online/products?net=testnet&x=1'
+ *   302 -> https://market.cloudsforge.online/products?net=testnet&x=1
+ *
+ * ── WHAT MUST NOT READ IT, AND WHY THAT IS THE WHOLE SAFETY ARGUMENT ─────────────────────────
+ *
+ * `NetworkSwitcher` does NOT read this, and neither does `TestnetBand`. A surface with no
+ * `viewed.ts` cannot re-point its reads, so honouring `?net=testnet` there would put an amber
+ * TESTNET band over live mainnet data — the precise hazard `hub-web/src/lib/viewed.ts` was written
+ * to prevent, and a strictly worse outcome than the bug being fixed. Only a bundle that can
+ * actually serve the other network's data may adopt it, which is what `viewsAnyNetwork` on the
+ * registry row declares and what the product switcher below reads before it composes a link.
+ */
+export const NETWORK_QUERY_PARAM = 'net';
+/**
+ * The network named in a URL's query, or null when it names none or names nonsense.
+ *
+ * Null rather than a default on an unrecognised value: `?net=maiinet` is a typo or a probe, and
+ * the honest reading is "this URL says nothing", which leaves the bundle on the hostname's own
+ * network. Defaulting a bad value to mainnet would be the same answer by accident, and defaulting
+ * it to testnet would let a malformed link change what a page shows.
+ */
+export function networkFromQuery(search) {
+    const raw = search ?? (typeof window === 'undefined' ? '' : window.location.search);
+    const value = new URLSearchParams(raw).get(NETWORK_QUERY_PARAM);
+    return value === 'mainnet' || value === 'testnet' ? value : null;
+}
+/**
+ * `url` with the viewed network attached — the carrier above, applied to one link.
+ *
+ * Idempotent, and it OVERWRITES rather than appends: composing a link from a page that already
+ * carries `?net=testnet` must not produce `?net=testnet&net=mainnet`, whose meaning depends on
+ * which one the reader's browser hands back first.
+ *
+ * Returns `url` untouched when it is not absolute, since a relative link stays on this origin,
+ * where the network is already whatever this page decided.
+ */
+export function withNetwork(url, network) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    }
+    catch {
+        return url;
+    }
+    parsed.searchParams.set(NETWORK_QUERY_PARAM, network);
+    return parsed.toString();
+}
 /**
  * The address of THIS surface and path on the other network, or null when there is no answer.
  *
@@ -632,6 +734,16 @@ export function currentNetwork() {
  * different origin replays a credential at an estate that must refuse it. Path and query survive:
  * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
  * the page they were on would make the switcher a hazard instead of a convenience.
+ *
+ * ── IT CARRIES `?net=`, WHICH IS WHAT MAKES IT STILL WORK AFTER THE RETIREMENT ───────────────
+ *
+ * This composes `<sub>-testnet.<apex>`, and under the combined view that hostname 302s straight
+ * back to `<sub>.<apex>` — so on a surface with no in-place view, pressing Testnet used to be a
+ * round trip that landed the reader exactly where they started, on mainnet, with the bar reading
+ * Mainnet. Adding the parameter makes the round trip carry the request through the redirect: a
+ * bundle that can honour it does, and one that cannot is unchanged and still honest. In a local
+ * estate, where both frontends really exist, the destination's own hostname already agrees with
+ * the parameter and it is a no-op.
  */
 export function siblingNetworkUrl(target) {
     if (typeof window === 'undefined')
@@ -654,7 +766,7 @@ export function siblingNetworkUrl(target) {
     }
     const label = envLabel(sub, target === 'testnet' ? 'testnet' : '');
     const nextHost = label ? `${label}.${apex}` : apex;
-    return `https://${nextHost}${window.location.pathname}${window.location.search}`;
+    return withNetwork(`https://${nextHost}${window.location.pathname}${window.location.search}`, target);
 }
 /**
  * Mainnet | Testnet, in the shared bar, on every surface (micro-org#459 stage 1).

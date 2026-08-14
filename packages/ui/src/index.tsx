@@ -111,6 +111,7 @@ export {
   RETIRED_ACCENTS,
   SURFACES,
   SWITCHER_SURFACES,
+  VIEWING_SURFACES,
   ENV_LABELS,
   KNOWN_SUBS,
   envLabel,
@@ -156,6 +157,16 @@ export interface CloudsForgeProduct {
    * navigation has already failed.
    */
   incomplete?: string
+  /**
+   * The network this entry will show, set ONLY when the reader is viewing a different one and this
+   * surface's bundle cannot follow them (no `viewsAnyNetwork` on its registry row).
+   *
+   * The same argument as `incomplete` one field up, applied to a different fact: the switcher is
+   * where the click starts. Leaving it unmarked is what the owner reported — the choice vanished
+   * on arrival with nothing having said it would — and marking it on the far side would be a
+   * notice about a navigation that has already happened.
+   */
+  pinnedNetwork?: 'mainnet' | 'testnet'
 }
 
 /** Optional override map for surface URLs (e.g. production hosts from env). */
@@ -191,6 +202,15 @@ export interface ProductSwitcherProps {
   productUrls?: ProductUrls | undefined
   /** Reveals operator-only surfaces. Defaults to hidden. */
   isAdmin?: boolean | undefined
+  /**
+   * The network the reader is looking at, when it is not the one this page is served from.
+   *
+   * Passed by {@link CloudsForgeBar} from `networkSwitch.selected`, so a surface that already
+   * declares its in-app network context gets this for free and one that does not is unchanged.
+   * Every entry that can follow the reader is linked WITH the choice; every entry that cannot is
+   * marked as staying behind. See {@link resolveProducts}.
+   */
+  viewedNetwork?: 'mainnet' | 'testnet' | undefined
 }
 
 export interface AccountMenuProps {
@@ -704,20 +724,57 @@ function readCallbackTokens(body: unknown): AuthCallbackTokens | null {
  * Operator-only surfaces are omitted unless `isAdmin`. Hiding is not the security boundary — each
  * service verifies the `admin` role on the token itself — it just keeps a menu entry nobody can
  * open out of every player's face.
+ *
+ * ── `viewedNetwork`, AND THE TWO ANSWERS IT PRODUCES ─────────────────────────────────────────
+ *
+ * Pass the network the reader is VIEWING and every entry is resolved against it:
+ *
+ *   - a surface whose bundle can show it (`viewsAnyNetwork` on the registry row) is linked with
+ *     the choice attached, so the reader arrives still looking at it;
+ *   - a surface whose bundle cannot is linked EXACTLY AS BEFORE and marked `pinnedNetwork`, so
+ *     the menu says which network it will show before the click rather than after it.
+ *
+ * The second case is the honest half and it is not a stopgap. There is nowhere to send a reader
+ * to see testnet Forge Market: the combined view retired the testnet frontends, `market-testnet.
+ * <apex>` 302s to `market.<apex>`, and a bundle with no `viewed.ts` reads its own origin. The
+ * alternatives are to link it anyway and let the network vanish silently — the reported bug — or
+ * to attach a parameter that surface will ignore, which is the same silence with a longer URL.
+ *
+ * Omit the argument and this is byte-for-byte what it always was, which is what keeps every
+ * surface that has not adopted the in-app switcher unchanged.
  */
-export function resolveProducts(productUrls?: ProductUrls, isAdmin = false): CloudsForgeProduct[] {
+export function resolveProducts(
+  productUrls?: ProductUrls,
+  isAdmin = false,
+  viewedNetwork?: 'mainnet' | 'testnet',
+): CloudsForgeProduct[] {
   const hosts = cloudsforgeHosts()
+  const here = currentNetwork()
+  // Only when the two DIFFER. A reader viewing the network they are already served is in the
+  // ordinary case, and marking every entry "Mainnet only" on a mainnet page would be a label on
+  // nineteen surfaces that says nothing. `here` is null off-registry (localhost), where there is
+  // no other network to be viewing and the switcher is hidden anyway.
+  // The pair, or nothing: `target` is what the reader is looking at, `served` is what a surface
+  // that cannot follow will show them instead. Kept together because each entry needs exactly one
+  // of the two and picking the wrong one silently produces the bug this fixes.
+  const viewing =
+    viewedNetwork !== undefined && here !== null && viewedNetwork !== here
+      ? { target: viewedNetwork, served: here }
+      : null
   return SWITCHER_SURFACES.filter((p) => isAdmin || !p.adminOnly).map((p) => {
     const key = p.key as SwitcherKey
+    const url = productUrls?.[key] ?? hosts[p.key]
+    const follows = p.viewsAnyNetwork === true
     return {
       key,
       label: p.name,
       blurb: p.blurb,
       glyph: p.glyph,
       accent: p.accent,
-      url: productUrls?.[key] ?? hosts[p.key],
+      url: viewing && follows ? withNetwork(url, viewing.target) : url,
       ...(p.adminOnly ? { adminOnly: true as const } : {}),
       ...(p.incomplete ? { incomplete: p.incomplete } : {}),
+      ...(viewing && !follows ? { pinnedNetwork: viewing.served } : {}),
     }
   })
 }
@@ -998,9 +1055,14 @@ export function CloudsForgeLogo({ size = 20, markOnly = false }: CloudsForgeLogo
  * entries apart. The operator tools render below a separator, which is also what keeps their
  * accents from ever being adjacent to a product's.
  */
-export function ProductSwitcher({ current, productUrls, isAdmin = false }: ProductSwitcherProps) {
+export function ProductSwitcher({
+  current,
+  productUrls,
+  isAdmin = false,
+  viewedNetwork,
+}: ProductSwitcherProps) {
   const { open, setOpen, rootRef, triggerRef } = useDropdown()
-  const products = resolveProducts(productUrls, isAdmin)
+  const products = resolveProducts(productUrls, isAdmin, viewedNetwork)
   const active = products.find((p) => p.key === current)
   const menuId = useId()
   const firstAdminKey = products.find((p) => p.adminOnly)?.key
@@ -1027,6 +1089,10 @@ export function ProductSwitcher({ current, productUrls, isAdmin = false }: Produ
           </li>
           {products.map((p) => {
             const isCurrent = p.key === current
+            // Both halves of the sentence come from one field: `pinnedNetwork` is the network this
+            // entry WILL show, and it is only ever set when the reader is viewing the other one.
+            const pinned = p.pinnedNetwork
+            const leaving = pinned === 'testnet' ? 'mainnet' : 'testnet'
             return (
               // A Fragment, not a wrapper element: a <div> between <ul> and <li> is invalid and
               // makes assistive technology stop counting the list.
@@ -1069,9 +1135,19 @@ export function ProductSwitcher({ current, productUrls, isAdmin = false }: Produ
                       <span className="cf-menu__head">
                         <span className="cf-menu__name">{p.label}</span>
                         {p.incomplete && <span className="cf-menu__tag">Incomplete</span>}
+                        {pinned && (
+                          <span className="cf-menu__tag">
+                            {pinned === 'testnet' ? 'Testnet' : 'Mainnet'} only
+                          </span>
+                        )}
                       </span>
                       <span className="cf-menu__blurb">{p.blurb}</span>
                       {p.incomplete && <span className="cf-menu__note">{p.incomplete}</span>}
+                      {pinned && (
+                        <span className="cf-menu__note">
+                          Opens on {pinned}. This surface cannot show {leaving}.
+                        </span>
+                      )}
                     </span>
                     {isCurrent && (
                       <span className="cf-menu__check" aria-hidden="true">
@@ -1210,7 +1286,18 @@ export function CloudsForgeBar({
           <CloudsForgeLogo size={20} />
         </a>
         <span className="cf-bar__sep" aria-hidden="true" />
-        <ProductSwitcher current={current} productUrls={productUrls} isAdmin={isAdmin} />
+        {/*
+          `viewedNetwork` comes from the SAME state the network switcher renders, which is what
+          makes the two controls agree: pick Testnet on the left and every entry in the product
+          menu is resolved against that pick, either carrying it or saying it will not. A surface
+          that passes no `networkSwitch` passes nothing here, and its menu is unchanged.
+        */}
+        <ProductSwitcher
+          current={current}
+          productUrls={productUrls}
+          isAdmin={isAdmin}
+          {...(networkSwitch?.selected === undefined ? {} : { viewedNetwork: networkSwitch.selected })}
+        />
         {/* Beside the product switcher because they answer the same question — "where am I" —
             and a control that moves around between surfaces is hidden on every one of them,
             the argument MiningControl's placement already carries. */}
@@ -1257,6 +1344,74 @@ export function currentNetwork(): 'mainnet' | 'testnet' | null {
   return env?.env === 'testnet' ? 'testnet' : 'mainnet'
 }
 
+/* ── THE NETWORK CARRIES IN THE QUERY, BECAUSE IT CANNOT CARRY ANYWHERE ELSE (micro-org#459) ──
+ *
+ * Every surface in this estate is its own ORIGIN, so `sessionStorage`, `localStorage` and module
+ * memory all stop at the hostname. The reader's chosen network is held in module memory by each
+ * viewing bundle's `lib/viewed.ts` — which is right, and which is exactly why a link from Forge Hub
+ * to the explorer used to arrive with the choice gone. The owner's report:
+ *
+ *     "if you select testnet and switch product you are back to mainnet"
+ *
+ * A query parameter is the one channel that survives a cross-origin navigation without being
+ * storage. It is a CARRIER and not a store: a viewing bundle reads it once on load to seed its
+ * in-memory choice, nothing writes it back, and no reload re-reads it unless the address still has
+ * it. So the estate's no-stored-network invariant is untouched — nothing persists — while a link
+ * from one surface to another can say which network it was followed FROM.
+ *
+ * It also survives the combined view's retirement redirect, which matters because that redirect is
+ * what makes the old hostname-based carry impossible. Measured 2026-08-14:
+ *
+ *   $ curl -o /dev/null -w '%{http_code} -> %{redirect_url}' \
+ *       'https://market-testnet.cloudsforge.online/products?net=testnet&x=1'
+ *   302 -> https://market.cloudsforge.online/products?net=testnet&x=1
+ *
+ * ── WHAT MUST NOT READ IT, AND WHY THAT IS THE WHOLE SAFETY ARGUMENT ─────────────────────────
+ *
+ * `NetworkSwitcher` does NOT read this, and neither does `TestnetBand`. A surface with no
+ * `viewed.ts` cannot re-point its reads, so honouring `?net=testnet` there would put an amber
+ * TESTNET band over live mainnet data — the precise hazard `hub-web/src/lib/viewed.ts` was written
+ * to prevent, and a strictly worse outcome than the bug being fixed. Only a bundle that can
+ * actually serve the other network's data may adopt it, which is what `viewsAnyNetwork` on the
+ * registry row declares and what the product switcher below reads before it composes a link.
+ */
+export const NETWORK_QUERY_PARAM = 'net'
+
+/**
+ * The network named in a URL's query, or null when it names none or names nonsense.
+ *
+ * Null rather than a default on an unrecognised value: `?net=maiinet` is a typo or a probe, and
+ * the honest reading is "this URL says nothing", which leaves the bundle on the hostname's own
+ * network. Defaulting a bad value to mainnet would be the same answer by accident, and defaulting
+ * it to testnet would let a malformed link change what a page shows.
+ */
+export function networkFromQuery(search?: string): 'mainnet' | 'testnet' | null {
+  const raw = search ?? (typeof window === 'undefined' ? '' : window.location.search)
+  const value = new URLSearchParams(raw).get(NETWORK_QUERY_PARAM)
+  return value === 'mainnet' || value === 'testnet' ? value : null
+}
+
+/**
+ * `url` with the viewed network attached — the carrier above, applied to one link.
+ *
+ * Idempotent, and it OVERWRITES rather than appends: composing a link from a page that already
+ * carries `?net=testnet` must not produce `?net=testnet&net=mainnet`, whose meaning depends on
+ * which one the reader's browser hands back first.
+ *
+ * Returns `url` untouched when it is not absolute, since a relative link stays on this origin,
+ * where the network is already whatever this page decided.
+ */
+export function withNetwork(url: string, network: 'mainnet' | 'testnet'): string {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+  parsed.searchParams.set(NETWORK_QUERY_PARAM, network)
+  return parsed.toString()
+}
+
 /**
  * The address of THIS surface and path on the other network, or null when there is no answer.
  *
@@ -1265,6 +1420,16 @@ export function currentNetwork(): 'mainnet' | 'testnet' | null {
  * different origin replays a credential at an estate that must refuse it. Path and query survive:
  * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
  * the page they were on would make the switcher a hazard instead of a convenience.
+ *
+ * ── IT CARRIES `?net=`, WHICH IS WHAT MAKES IT STILL WORK AFTER THE RETIREMENT ───────────────
+ *
+ * This composes `<sub>-testnet.<apex>`, and under the combined view that hostname 302s straight
+ * back to `<sub>.<apex>` — so on a surface with no in-place view, pressing Testnet used to be a
+ * round trip that landed the reader exactly where they started, on mainnet, with the bar reading
+ * Mainnet. Adding the parameter makes the round trip carry the request through the redirect: a
+ * bundle that can honour it does, and one that cannot is unchanged and still honest. In a local
+ * estate, where both frontends really exist, the destination's own hostname already agrees with
+ * the parameter and it is a no-op.
  */
 export function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null {
   if (typeof window === 'undefined') return null
@@ -1284,7 +1449,10 @@ export function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null 
   }
   const label = envLabel(sub, target === 'testnet' ? 'testnet' : '')
   const nextHost = label ? `${label}.${apex}` : apex
-  return `https://${nextHost}${window.location.pathname}${window.location.search}`
+  return withNetwork(
+    `https://${nextHost}${window.location.pathname}${window.location.search}`,
+    target,
+  )
 }
 
 export interface NetworkSwitcherProps {

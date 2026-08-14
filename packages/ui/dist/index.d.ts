@@ -26,7 +26,7 @@ export type { ProductKey, SurfaceKey, SwitcherKey, CloudsForgeSurface };
 export { ANALYTICS_META_NAME, CONSENT_COOKIE_NAME, CONSENT_EVENT, CONSENT_MAX_AGE_SECONDS, CONSENT_STORAGE_KEY, analyticsAllowedHere, analyticsId, clearConsent, consentCookieDomains, deleteAnalyticsCookies, denyConsent, grantConsent, initAnalytics, initConsentDefaults, onConsentChange, readConsent, revokeConsent, writeConsent, type ConsentDecision, } from './consent.ts';
 export { COMPANY_LINE, DEFAULT_OG_IMAGE, HTML_LANG, INDEXABLE_SURFACES, SITE_NAME, applyHead, canonicalHref, descriptionFor, metaTags, normalisePath, robotsDirective, surfaceMeta, type MetaTag, type PageMetaInput, type SurfaceMeta, type TagKind, } from './seo.ts';
 export { SITEMAP_SURFACES, robotsTxt, sitemapUrls, sitemapXml, type SitemapUrl, } from './sitemap.ts';
-export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, type SurfaceKind, } from './surfaces.ts';
+export { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, PRODUCT_ACCENTS, RETIRED_ACCENTS, SURFACES, SWITCHER_SURFACES, VIEWING_SURFACES, ENV_LABELS, KNOWN_SUBS, envLabel, splitEnvLabel, surface, CLOUDSFORGE_EMBER, type SurfaceKind, } from './surfaces.ts';
 /**
  * The browser mining control. Re-exported from the root rather than given its own subpath: it is
  * React and it belongs in the bar, so every caller that can use it is already importing from here.
@@ -49,6 +49,16 @@ export interface CloudsForgeProduct {
      * navigation has already failed.
      */
     incomplete?: string;
+    /**
+     * The network this entry will show, set ONLY when the reader is viewing a different one and this
+     * surface's bundle cannot follow them (no `viewsAnyNetwork` on its registry row).
+     *
+     * The same argument as `incomplete` one field up, applied to a different fact: the switcher is
+     * where the click starts. Leaving it unmarked is what the owner reported — the choice vanished
+     * on arrival with nothing having said it would — and marking it on the far side would be a
+     * notice about a navigation that has already happened.
+     */
+    pinnedNetwork?: 'mainnet' | 'testnet';
 }
 /** Optional override map for surface URLs (e.g. production hosts from env). */
 export type ProductUrls = Partial<Record<SwitcherKey, string>>;
@@ -80,6 +90,15 @@ export interface ProductSwitcherProps {
     productUrls?: ProductUrls | undefined;
     /** Reveals operator-only surfaces. Defaults to hidden. */
     isAdmin?: boolean | undefined;
+    /**
+     * The network the reader is looking at, when it is not the one this page is served from.
+     *
+     * Passed by {@link CloudsForgeBar} from `networkSwitch.selected`, so a surface that already
+     * declares its in-app network context gets this for free and one that does not is unchanged.
+     * Every entry that can follow the reader is linked WITH the choice; every entry that cannot is
+     * marked as staying behind. See {@link resolveProducts}.
+     */
+    viewedNetwork?: 'mainnet' | 'testnet' | undefined;
 }
 export interface AccountMenuProps {
     account: AccountState;
@@ -365,8 +384,26 @@ export declare function consumeAuthCallback(): Promise<AuthCallbackTokens | null
  * Operator-only surfaces are omitted unless `isAdmin`. Hiding is not the security boundary — each
  * service verifies the `admin` role on the token itself — it just keeps a menu entry nobody can
  * open out of every player's face.
+ *
+ * ── `viewedNetwork`, AND THE TWO ANSWERS IT PRODUCES ─────────────────────────────────────────
+ *
+ * Pass the network the reader is VIEWING and every entry is resolved against it:
+ *
+ *   - a surface whose bundle can show it (`viewsAnyNetwork` on the registry row) is linked with
+ *     the choice attached, so the reader arrives still looking at it;
+ *   - a surface whose bundle cannot is linked EXACTLY AS BEFORE and marked `pinnedNetwork`, so
+ *     the menu says which network it will show before the click rather than after it.
+ *
+ * The second case is the honest half and it is not a stopgap. There is nowhere to send a reader
+ * to see testnet Forge Market: the combined view retired the testnet frontends, `market-testnet.
+ * <apex>` 302s to `market.<apex>`, and a bundle with no `viewed.ts` reads its own origin. The
+ * alternatives are to link it anyway and let the network vanish silently — the reported bug — or
+ * to attach a parameter that surface will ignore, which is the same silence with a longer URL.
+ *
+ * Omit the argument and this is byte-for-byte what it always was, which is what keeps every
+ * surface that has not adopted the in-app switcher unchanged.
  */
-export declare function resolveProducts(productUrls?: ProductUrls, isAdmin?: boolean): CloudsForgeProduct[];
+export declare function resolveProducts(productUrls?: ProductUrls, isAdmin?: boolean, viewedNetwork?: 'mainnet' | 'testnet'): CloudsForgeProduct[];
 export interface MarkProps {
     /** Which surface's mark to draw. A surface with no mark of its own renders nothing. */
     surface: SurfaceKey;
@@ -397,7 +434,7 @@ export declare function CloudsForgeLogo({ size, markOnly }: CloudsForgeLogoProps
  * entries apart. The operator tools render below a separator, which is also what keeps their
  * accents from ever being adjacent to a product's.
  */
-export declare function ProductSwitcher({ current, productUrls, isAdmin }: ProductSwitcherProps): import("react").JSX.Element;
+export declare function ProductSwitcher({ current, productUrls, isAdmin, viewedNetwork, }: ProductSwitcherProps): import("react").JSX.Element;
 export declare function AccountMenu({ account, onSignIn, onSignOut, accountHref }: AccountMenuProps): import("react").JSX.Element;
 export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, productUrls, rightSlot, accountHref, mining, networkSwitch, }: CloudsForgeBarProps): import("react").JSX.Element;
 /**
@@ -407,6 +444,27 @@ export declare function CloudsForgeBar({ current, account, onSignIn, onSignOut, 
  * why this needs no configuration and cannot drift from where the reader actually is.
  */
 export declare function currentNetwork(): 'mainnet' | 'testnet' | null;
+export declare const NETWORK_QUERY_PARAM = "net";
+/**
+ * The network named in a URL's query, or null when it names none or names nonsense.
+ *
+ * Null rather than a default on an unrecognised value: `?net=maiinet` is a typo or a probe, and
+ * the honest reading is "this URL says nothing", which leaves the bundle on the hostname's own
+ * network. Defaulting a bad value to mainnet would be the same answer by accident, and defaulting
+ * it to testnet would let a malformed link change what a page shows.
+ */
+export declare function networkFromQuery(search?: string): 'mainnet' | 'testnet' | null;
+/**
+ * `url` with the viewed network attached — the carrier above, applied to one link.
+ *
+ * Idempotent, and it OVERWRITES rather than appends: composing a link from a page that already
+ * carries `?net=testnet` must not produce `?net=testnet&net=mainnet`, whose meaning depends on
+ * which one the reader's browser hands back first.
+ *
+ * Returns `url` untouched when it is not absolute, since a relative link stays on this origin,
+ * where the network is already whatever this page decided.
+ */
+export declare function withNetwork(url: string, network: 'mainnet' | 'testnet'): string;
 /**
  * The address of THIS surface and path on the other network, or null when there is no answer.
  *
@@ -415,6 +473,16 @@ export declare function currentNetwork(): 'mainnet' | 'testnet' | null;
  * different origin replays a credential at an estate that must refuse it. Path and query survive:
  * `/wallet?asset=ltc` means the same thing on both networks, and landing the reader anywhere but
  * the page they were on would make the switcher a hazard instead of a convenience.
+ *
+ * ── IT CARRIES `?net=`, WHICH IS WHAT MAKES IT STILL WORK AFTER THE RETIREMENT ───────────────
+ *
+ * This composes `<sub>-testnet.<apex>`, and under the combined view that hostname 302s straight
+ * back to `<sub>.<apex>` — so on a surface with no in-place view, pressing Testnet used to be a
+ * round trip that landed the reader exactly where they started, on mainnet, with the bar reading
+ * Mainnet. Adding the parameter makes the round trip carry the request through the redirect: a
+ * bundle that can honour it does, and one that cannot is unchanged and still honest. In a local
+ * estate, where both frontends really exist, the destination's own hostname already agrees with
+ * the parameter and it is a no-op.
  */
 export declare function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string | null;
 export interface NetworkSwitcherProps {
