@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import {
   NETWORK_QUERY_PARAM,
+  cloudsforgeHosts,
   currentNetwork,
   networkFromQuery,
   resolveProducts,
@@ -9,6 +10,7 @@ import {
   viewingSurfaceUrl,
   withNetwork,
 } from './index.tsx'
+import { createNetworkView } from './network-view.ts'
 import { SURFACES, VIEWING_SURFACES } from './surfaces.ts'
 
 /**
@@ -147,24 +149,40 @@ describe('resolveProducts and the viewed network', () => {
     assert.equal(network?.pinnedNetwork, undefined)
   })
 
-  it('marks the surfaces whose bundle cannot, instead of linking them silently', () => {
-    // The honest half, and not a stopgap: there is nowhere to send a reader to see testnet Forge
-    // Market. Linking it anyway is the reported bug; attaching a parameter it ignores is the same
-    // silence with a longer URL.
+  it('carries it to every product, now that every product bundle can honour it', () => {
+    // This assertion USED to be its opposite: `market` was marked "mainnet only" because there was
+    // nowhere to send a reader to see testnet Forge Market. The owner's reply to that arrangement —
+    // "in every page when you press testnet it take you to network page testet and if you switch
+    // product its reset to mainnet" — is why every bundle now views in place instead.
     atUrl('cloudsforge.online')
     const market = resolveProducts(undefined, false, 'testnet').find((p) => p.key === 'market')
-    assert.equal(market?.url, 'https://market.cloudsforge.online')
-    assert.equal(market?.pinnedNetwork, 'mainnet')
+    assert.equal(market?.url, 'https://market.cloudsforge.online/?net=testnet')
+    assert.equal(market?.pinnedNetwork, undefined)
   })
 
-  it('marks them with the network they WILL show, from either estate', () => {
+  it('marks nothing in the switcher any more, and links everything', () => {
+    // "Mainnet only" is a real state and `pinnedNetwork` keeps rendering it — but no entry is in it
+    // now, because every switcher surface is a bundle and every bundle views in place. This is the
+    // menu the owner will see: nine products, all nine following the choice they just made.
+    atUrl('cloudsforge.online')
+    for (const p of resolveProducts(undefined, true, 'testnet')) {
+      assert.equal(p.pinnedNetwork, undefined, p.key)
+      assert.equal(networkFromQuery(new URL(p.url).search), 'testnet', p.key)
+    }
+  })
+
+  it('carries it from either estate', () => {
     atUrl('testnet.cloudsforge.online')
     const products = resolveProducts(undefined, false, 'mainnet')
     assert.equal(
       products.find((p) => p.key === 'network')?.url,
       'https://network-testnet.cloudsforge.online/?net=mainnet',
     )
-    assert.equal(products.find((p) => p.key === 'market')?.pinnedNetwork, 'testnet')
+    assert.equal(
+      products.find((p) => p.key === 'market')?.url,
+      'https://market-testnet.cloudsforge.online/?net=mainnet',
+    )
+    assert.equal(products.find((p) => p.key === 'market')?.pinnedNetwork, undefined)
   })
 
   it('marks nothing when the viewed network is the one being served', () => {
@@ -206,52 +224,68 @@ describe('the viewing registry', () => {
     )
   })
 
-  it('names the three bundles that carry a lib/viewed.ts', () => {
-    // Hard-coded on purpose. A fourth bundle gaining an in-place view is a deploy-side CORS grant
-    // and a product-menu link, so it should be a line someone changed, not a list that grew.
-    assert.deepEqual(VIEWING_SURFACES.map((s) => s.key), ['network', 'hub', 'explorer'])
+  it('is every bundle that serves a UI on a hostname of its own', () => {
+    // The escape route is gone, so this is no longer a short list somebody curates: a frontend that
+    // cannot show the other network has no answer for a reader who presses Testnet. Anything here
+    // that is NOT flagged is a bundle that will fall back to `viewingSurfaceUrl`, which is the
+    // behaviour the owner reported as a bug.
+    const bundles = SURFACES.filter((s) => s.servesUi && !s.basePath).map((s) => s.key)
+    assert.deepEqual(VIEWING_SURFACES.map((s) => s.key), bundles)
+  })
+
+  it('leaves the basePath rows out, because their bundle already views', () => {
+    // `wallet` and `signin` are routes inside Forge Hub; `faucet` is a route on the Network site.
+    // A row of their own would put a DUPLICATE origin in the cross-environment CORS grant — the
+    // grant is keyed by subdomain, and all three share one with the bundle that serves them.
+    for (const key of ['wallet', 'signin', 'faucet'] as const) {
+      assert.equal(SURFACES.find((s) => s.key === key)?.viewsAnyNetwork, undefined)
+    }
+    const subs = VIEWING_SURFACES.map((s) => s.subdomain)
+    assert.equal(new Set(subs).size, subs.length)
   })
 })
 
 /**
- * THE SECOND REPORT, which the first fix did not reach:
+ * THE ESCAPE ROUTE, WHICH IS NOW UNREACHABLE FROM ANY SHIPPED BUNDLE — and these are what say so.
  *
- *     "after your latest change im not able at all to change to testnet. reload directly to
- *      mainnet"
+ * It was the answer to the second report ("after your latest change im not able at all to change
+ * to testnet. reload directly to mainnet"): a surface that could not view sent the reader to Forge
+ * Network on testnet instead of composing a retired hostname. It fixed the 302, and the owner
+ * measured what it was actually like:
  *
- * The product switcher learned about `viewsAnyNetwork`; the NETWORK switcher did not. On the
- * sixteen surfaces without an in-place view it still fell through to `siblingNetworkUrl`, which
- * composes a retired hostname — so pressing Testnet was a 302 back to the page you were on. These
- * pin the escape route that replaces it.
+ *     "i see basically that in every page when you press testnet it take you to network page
+ *      testet and if you switch product its reset to mainnet"
+ *
+ * So every frontend gained the in-place view and `viewingSurfaceUrl` answers null for all of them.
+ * The function STAYS, and the first test below is the reason: the day a twentieth bundle joins the
+ * estate without a `lib/viewed.ts`, its Testnet button needs to do something better than reload the
+ * page it is on. What must never come back is a shipped surface reaching it.
  */
 describe('the escape route from a surface that cannot show the other network', () => {
-  it('sends a pinned surface to Forge Network, carrying the choice', () => {
+  it('is reached by nothing that serves a UI', () => {
+    // The regression guard for the whole change. If this fails, some frontend has lost its
+    // in-place view and its Testnet button is a navigation to a different product again.
     atUrl('cloudsforge.online')
-    assert.equal(
-      viewingSurfaceUrl('site', 'testnet'),
-      'https://network.cloudsforge.online/?net=testnet',
-    )
-    atUrl('market.cloudsforge.online', '/listings')
-    assert.equal(
-      viewingSurfaceUrl('market', 'testnet'),
-      'https://network.cloudsforge.online/?net=testnet',
-    )
-  })
-
-  it('answers null on a surface that views in place, which keeps its own switch', () => {
-    // These three pass `onSelect` and switch the DATA without navigating. An escape URL here would
-    // be a second, worse answer to a question the bundle already answers correctly.
-    atUrl('network.cloudsforge.online')
-    for (const key of ['network', 'hub', 'explorer'] as const) {
-      assert.equal(viewingSurfaceUrl(key, 'testnet'), null)
+    for (const s of SURFACES.filter((s) => s.servesUi && !s.basePath)) {
+      assert.equal(viewingSurfaceUrl(s.key, 'testnet'), null, s.key)
     }
   })
 
+  it('still answers for a surface with no bundle of its own', () => {
+    // `exchange` is `servesUi: false`: nothing is served on that hostname in either environment,
+    // so it cannot view in place and this is the honest destination for it.
+    atUrl('cloudsforge.online')
+    assert.equal(
+      viewingSurfaceUrl('exchange', 'testnet'),
+      'https://network.cloudsforge.online/?net=testnet',
+    )
+  })
+
   it('is a real destination on both estates, and never the retired hostname', () => {
-    // The whole point: whatever this returns must not be a `-testnet` host, because that is the
-    // hostname the combined view redirects and the redirect is what produced the report.
-    atUrl('wallet.cloudsforge.online', '/deposit')
-    const url = viewingSurfaceUrl('wallet', 'testnet')
+    // Whatever this returns must not be a `-testnet` host, because that is the hostname the
+    // combined view redirects and the redirect is what produced the original report.
+    atUrl('exchange.cloudsforge.online', '/')
+    const url = viewingSurfaceUrl('exchange', 'testnet')
     assert.ok(url !== null)
     assert.ok(!new URL(url).hostname.includes('-testnet'))
     assert.equal(networkFromQuery(new URL(url).search), 'testnet')
@@ -260,7 +294,7 @@ describe('the escape route from a surface that cannot show the other network', (
   it('honours an operator override for the surface it sends to', () => {
     atUrl('cloudsforge.online')
     assert.equal(
-      viewingSurfaceUrl('site', 'testnet', { network: 'https://net.example/' }),
+      viewingSurfaceUrl('exchange', 'testnet', { network: 'https://net.example/' }),
       'https://net.example/?net=testnet',
     )
   })
@@ -268,8 +302,126 @@ describe('the escape route from a surface that cannot show the other network', (
   it('carries mainnet the same way, for a reader who got there on a testnet link', () => {
     atUrl('cloudsforge.online', '/', '?net=testnet')
     assert.equal(
-      viewingSurfaceUrl('site', 'mainnet'),
+      viewingSurfaceUrl('exchange', 'mainnet'),
       'https://network.cloudsforge.online/?net=mainnet',
     )
+  })
+})
+
+/**
+ * `createNetworkView` — the module every frontend's `src/lib/viewed.ts` is now two lines of.
+ *
+ * The three properties it has to keep are the estate's no-stored-network invariant, restated: the
+ * default is the hostname's own network, nothing is written anywhere, and a choice re-points the
+ * bundle's reads rather than moving the reader. The fourth is the one that made this a shared
+ * module instead of a sixteenth copy — the self-check, which is what stops it composing a sibling
+ * hostname for a deployment whose naming it does not understand.
+ */
+describe('createNetworkView', () => {
+  it('defaults to the hostname, on both estates and off-registry', () => {
+    atUrl('market.cloudsforge.online')
+    assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
+    atUrl('market-testnet.cloudsforge.online')
+    assert.equal(createNetworkView().viewedNetwork(), 'testnet')
+    atUrl('localhost')
+    assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
+  })
+
+  it('keeps same-network reads relative, and re-points the others', () => {
+    atUrl('market.cloudsforge.online')
+    const view = createNetworkView()
+    // The contract every `resolveApiBase` keeps: this estate's own reads are same-origin, and an
+    // absolute same-origin URL would be a second spelling of that which drifts.
+    assert.equal(view.viewedApiOrigin(), '')
+    view.setViewedNetwork('testnet')
+    assert.equal(view.viewedApiOrigin(), 'https://market-testnet.cloudsforge.online')
+    // Choosing the hostname's own network CLEARS the override rather than recording agreement.
+    view.setViewedNetwork('mainnet')
+    assert.equal(view.viewedApiOrigin(), '')
+  })
+
+  it('seeds itself from a link, once, and never writes one', () => {
+    // `?net=` is the only channel that survives a cross-origin product switch without being
+    // storage, and it survives the retirement redirect: `market-testnet.<apex>/x?net=testnet` 302s
+    // to `market.<apex>/x?net=testnet`.
+    atUrl('market.cloudsforge.online', '/listings', '?net=testnet')
+    assert.equal(createNetworkView().viewedNetwork(), 'testnet')
+    // Agreement is not an override: `?net=mainnet` on mainnet must leave reads relative.
+    atUrl('market.cloudsforge.online', '/listings', '?net=mainnet')
+    assert.equal(createNetworkView().viewedApiOrigin(), '')
+    // Nonsense says nothing, rather than defaulting to either network.
+    atUrl('market.cloudsforge.online', '/listings', '?net=maiinet')
+    assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
+  })
+
+  it('refuses a link that would point a DEV bundle at the live testnet estate', () => {
+    // `NetworkSwitcher` hides itself off-registry so no CLICK can produce an override here — but a
+    // link can, and a development host reads as mainnet, so `?net=testnet` would have looked like
+    // a real choice.
+    atUrl('localhost', '/', '?net=testnet')
+    const view = createNetworkView()
+    assert.equal(view.viewedNetwork(), 'mainnet')
+    assert.equal(view.viewedApiOrigin(), '')
+  })
+
+  it('re-points the whole host map, and pins identity and telemetry', () => {
+    atUrl('market.cloudsforge.online')
+    const view = createNetworkView()
+    // Byte-identical until something is being viewed — which is what makes the one-word change at
+    // each `apiBase()` call site safe in dev, in a preview deployment and on the apex.
+    assert.deepEqual(view.viewedHosts(), cloudsforgeHosts())
+    view.setViewedNetwork('testnet')
+    const hosts = view.viewedHosts()
+    assert.equal(hosts.market, 'https://market-testnet.cloudsforge.online')
+    assert.equal(hosts.explorer, 'https://explorer-testnet.cloudsforge.online')
+    // One identity is the PREMISE of the combined view, not something it re-points per switch: the
+    // reader's token was minted by the estate serving this page and is refreshed there. Telemetry
+    // is about THIS bundle on THIS deployment, so filing it under testnet would make both estates'
+    // error rates fiction.
+    assert.equal(hosts.nimbus, cloudsforgeHosts().nimbus)
+    assert.equal(hosts.lantern, cloudsforgeHosts().lantern)
+    assert.equal(hosts.signin, cloudsforgeHosts().signin)
+  })
+
+  it('lets the observability surface view its own service, because there it is the subject', () => {
+    // `lantern-web` IS the dashboard. Pinning `lantern` for it would mean the one bundle whose job
+    // is showing telemetry could not show the other estate's.
+    atUrl('lantern.cloudsforge.online')
+    const view = createNetworkView({ pinned: ['nimbus', 'account', 'signin'] })
+    view.setViewedNetwork('testnet')
+    assert.equal(view.viewedHosts().lantern, 'https://lantern-testnet.cloudsforge.online')
+    assert.equal(view.viewedHosts().nimbus, cloudsforgeHosts().nimbus)
+  })
+
+  it('does not invent a sibling for a hostname it does not understand', () => {
+    // A preview deployment at `pr-42.example.dev` HAS three labels and a first label that is not an
+    // environment, and `cloudsforgeHosts()` deliberately treats it as its own apex. The first
+    // version of this in hub-web stripped it and produced `https://pay-testnet.example.dev`, an
+    // address that resolves nowhere — a link that fails tells the reader the service is gone rather
+    // than that the page is confused. The rule is CHECKED, not enumerated: compose for the network
+    // the page is already on, and fall back unless that reproduces `hosts()` exactly.
+    atUrl('pr-42.example.dev', '/', '?net=testnet')
+    const view = createNetworkView()
+    assert.deepEqual(view.viewedHosts(), cloudsforgeHosts())
+    assert.equal(view.viewedSurfaceUrl('market'), cloudsforgeHosts().market)
+  })
+
+  it('composes a single label, because the wildcard certificate covers one', () => {
+    // `hub` + `testnet` is `hub-testnet`, never `hub.testnet`. Cloudflare's Universal SSL is a
+    // wildcard over ONE label of the apex, so the nested form fails the TLS handshake at the edge
+    // before a request is ever made.
+    atUrl('cloudsforge.online')
+    const view = createNetworkView()
+    view.setViewedNetwork('testnet')
+    assert.equal(view.viewedSurfaceUrl('hub'), 'https://hub-testnet.cloudsforge.online')
+    // The apex itself has no label to prefix, so the testnet site is a label of its own.
+    assert.equal(view.viewedSurfaceUrl('site'), 'https://testnet.cloudsforge.online')
+  })
+
+  it('carries the basePath, so a deep link stays a deep link', () => {
+    atUrl('cloudsforge.online')
+    const view = createNetworkView()
+    view.setViewedNetwork('testnet')
+    assert.equal(view.viewedSurfaceUrl('wallet'), 'https://hub-testnet.cloudsforge.online/wallet')
   })
 })

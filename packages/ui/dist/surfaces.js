@@ -155,6 +155,7 @@ export const SURFACES = [
         markId: 'mark-foresight',
         blurb: 'Bet on what you think will happen, with the crypto you already hold',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
     },
     {
@@ -169,6 +170,7 @@ export const SURFACES = [
         markId: 'mark-worlds',
         blurb: 'Play games in your browser, and really own what you win in them',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
     },
     {
@@ -183,6 +185,7 @@ export const SURFACES = [
         markId: 'mark-market',
         blurb: 'Buy and sell anything on chain, with the money held until it arrives',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
     },
     {
@@ -197,6 +200,7 @@ export const SURFACES = [
         markId: 'mark-create',
         blurb: 'Launch your own token, on our chain or on Ethereum or Solana',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
     },
     {
@@ -213,6 +217,7 @@ export const SURFACES = [
         markId: 'mark-trade',
         blurb: 'Trade crypto natively, on chain, with no exchange in the middle',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
         /*
          * ── THE SENTENCE, AND WHY IT IS THIS SENTENCE ─────────────────────────────────────────────
@@ -260,6 +265,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'Operator console; every action is written to an audit log',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
         adminOnly: true,
     },
@@ -327,6 +333,7 @@ export const SURFACES = [
         // not have been evidence: the console rendered the account chip and "Open issues … Lantern
         // answered with an empty list", read live from `GET /v1/issues` on this same origin.
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
         adminOnly: true,
     },
@@ -368,6 +375,7 @@ export const SURFACES = [
         // `cf-api-status-public`. Two different surfaces read the same service; only this one is
         // `adminOnly`.
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: true,
         adminOnly: true,
     },
@@ -446,6 +454,7 @@ export const SURFACES = [
         markId: 'mark-cloudsforge',
         blurb: 'Mine, hold, bet, trade, launch, sell and play — on one account',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -500,6 +509,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'API keys, projects, usage limits and documentation',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -525,6 +535,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'A monster-collecting RPG, played through Forge Worlds',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -548,6 +559,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'A sky-island strategy MMO, played through Forge Worlds',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -594,6 +606,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'A world you build in a browser tab, played through Forge Worlds',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -610,6 +623,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'Is CloudsForge working right now? No account needed',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -689,6 +703,7 @@ export const SURFACES = [
         markId: null,
         blurb: 'Point real mining hardware at CloudsForge and be credited for the work',
         servesUi: true,
+        viewsAnyNetwork: true,
         inSwitcher: false,
     },
     {
@@ -1045,9 +1060,15 @@ export const FOOTER_GROUPS = [
 /**
  * The bundles that can show another network's data in place — the combined view's viewing set.
  *
- * Three today: Forge Hub, the explorer and the Network site. Derived rather than listed, so the
- * fourth is a `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a
- * premature `true` costs, and for the check in micro-deploy that reads the other end of it.
+ * Every frontend, since the escape route was removed: eighteen rows, one per bundle that serves a
+ * UI on a hostname of its own. Derived rather than listed, so a new frontend joins by setting
+ * `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a premature
+ * `true` costs, and for the check in micro-deploy that reads the other end of it.
+ *
+ * The three `basePath` rows — `wallet`, `signin`, `faucet` — are deliberately NOT here. They are
+ * routes inside `hub` and `network`, so their bundles already view; a row of their own would put a
+ * duplicate origin in the cross-environment CORS grant, and in the faucet's case would claim a
+ * view for a page that is pinned on purpose because it pays out.
  */
 export const VIEWING_SURFACES = SURFACES.filter((s) => s.viewsAnyNetwork === true);
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
