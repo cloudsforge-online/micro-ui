@@ -23,16 +23,27 @@ import {
  * the registry for narrative reasons fails here and has to be argued with the specification.
  */
 const DOCUMENTED_SWITCHER_ORDER: readonly SurfaceKey[] = [
-  // Foresight is FIRST, and that is a measured position rather than a product-story one: it is the
-  // only slot where its blue is not adjacent to trade's teal or market's purple, which under
-  // deuteranopia sit dE 7-8 away from it. Beside network's red it clears dE 50. See the note above
-  // PRODUCT_ACCENTS in surfaces.ts.
-  'foresight',
+  // ── ONE POSITION IS A PRODUCT DECISION AND THE OTHER FIVE ARE A MEASUREMENT ──────────────────
+  //
+  // `trade` is LAST because the owner asked for it there: it is the one product with nothing for a
+  // visitor to do, and it carries an `incomplete` sentence saying so. Everything else in this list
+  // is the answer a search gave once that position was fixed.
+  //
+  // The five moved because they had to. `trade`'s teal was sitting between `network`'s red and
+  // `create`'s gold, which are the one pair this palette cannot separate — dE 5.6 under
+  // deuteranopia — so the single-line version of "move trade to the end" closes them up and hands
+  // two adjacent products indistinguishable accents. Of the 120 permutations with `trade` pinned,
+  // eight clear the dE 30 gate. This is the one that leads with Forge Network, at dE 35.6.
+  //
+  // Foresight's blue is second rather than first for the same reason it was first before: it must
+  // not touch teal or purple, which sit dE 7-8 from it under deuteranopia. Here it touches red and
+  // green. See the note above PRODUCT_ACCENTS in surfaces.ts.
   'network',
-  'trade',
-  'create',
-  'market',
+  'foresight',
   'worlds',
+  'market',
+  'create',
+  'trade',
   'admin',
   'lantern',
   'beacon',
@@ -70,6 +81,36 @@ describe('the switcher', () => {
     for (const s of SWITCHER_SURFACES) {
       assert.ok(s.subdomain.length > 0, `${s.key} is in the switcher with no subdomain`)
     }
+  })
+})
+
+describe('the incompleteness marker', () => {
+  const marked = SURFACES.filter((s) => s.incomplete !== undefined)
+
+  it('is only ever on a surface a person can actually open', () => {
+    // The marker means "you can open this and there is nothing here". On a surface that serves no
+    // page it would be a caveat about a door nobody can reach, which is noise rather than honesty.
+    for (const s of marked) {
+      assert.ok(s.servesUi, `${s.key} is marked incomplete and serves no page`)
+    }
+  })
+
+  it('carries a sentence rather than a word', () => {
+    // A bare "Coming soon" is the failure this field exists against: it is a promise with no fact
+    // and no date behind it. Every marker has to say what a person cannot do.
+    for (const s of marked) {
+      assert.ok(s.incomplete!.length > 40, `${s.key}'s marker is too short to say anything`)
+      assert.match(s.incomplete!, /\.$/, `${s.key}'s marker is not a sentence`)
+      assert.doesNotMatch(s.incomplete!, /\bsoon\b/i, `${s.key}'s marker promises "soon"`)
+    }
+  })
+
+  it('sorts every marked product below every unmarked one', () => {
+    // Not a rule the registry invents: the owner asked for the one product with nothing to show to
+    // be last. Written as an ordering INVARIANT rather than as `trade` by name, so a second
+    // incomplete product cannot be quietly slotted in above five working ones.
+    const flags = PRODUCTS.map((p) => p.incomplete !== undefined)
+    assert.deepEqual([...flags].sort((a, b) => Number(a) - Number(b)), flags)
   })
 })
 
@@ -281,7 +322,19 @@ describe('the palette is measured, not asserted', () => {
     // narrative reason.
     const out = run(PRODUCTS.map((p) => p.accent).join(','))
     const worst = Number(/worst ADJACENT : dE ([\d.]+)/.exec(out)?.[1])
-    assert.ok(worst >= 30, `worst adjacent dE ${worst} — the recorded guarantee is 36.1`)
+    assert.ok(worst >= 30, `worst adjacent dE ${worst} — the recorded guarantee is 35.6`)
+  })
+
+  it('does not let moving a product for a product reason close up red and gold', () => {
+    // The regression this suite exists for, made concrete. `trade`'s teal was between `network`'s
+    // red and `create`'s gold — the one pair the palette cannot separate, dE 5.6 under
+    // deuteranopia — so "move trade to the end" is a one-line edit that costs the guarantee above
+    // and looks like nothing in a diff. Asserting the FLOOR alone would not have caught it as an
+    // argument, only as a number, so the pair is named here.
+    const order = PRODUCTS.map((p) => p.key)
+    const red = order.indexOf('network')
+    const gold = order.indexOf('create')
+    assert.ok(Math.abs(red - gold) > 1, 'network and create are adjacent: dE 5.6 under deuteranopia')
   })
 
   it('records the all-pairs weakness rather than pretending it is not there', () => {

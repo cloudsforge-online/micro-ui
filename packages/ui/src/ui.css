@@ -450,6 +450,17 @@
   gap: 1px;
   min-width: 0;
 }
+/*
+ * The name's row. Present on every entry, not only the marked ones, so the name sits at the same
+ * baseline whether or not anything follows it — a wrapper that appears with the tag would move the
+ * text of one menu entry by however much the tag's line-height rounded to.
+ */
+.cf-menu__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cf-space-xs);
+  min-width: 0;
+}
 .cf-menu__name {
   font-weight: 600;
   line-height: 1.15;
@@ -459,6 +470,32 @@
   font-size: var(--cf-text-xs);
   line-height: 1.25;
   color: var(--cf-fg-dim);
+}
+/*
+ * The incompleteness marker: a tag beside the name and the reason under the blurb.
+ *
+ * Deliberately NOT in an accent, and deliberately not amber. It is a caveat rather than a warning
+ * — the surface works, there is just nothing in it — and the palette's warning colour is already
+ * spoken for by the testnet band, which is a statement about money being fake. Two different
+ * things in one colour is how a reader learns to ignore both. So this is the muted foreground on
+ * a hairline, which reads as "footnote" everywhere else in this stylesheet too.
+ */
+.cf-menu__tag {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  font-size: var(--cf-text-xs);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--cf-fg-mute);
+  white-space: nowrap;
+}
+.cf-menu__note {
+  margin-top: 2px;
+  font-size: var(--cf-text-xs);
+  line-height: 1.25;
+  color: var(--cf-fg-mute);
 }
 .cf-menu__check {
   margin-left: auto;

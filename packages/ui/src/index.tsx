@@ -149,6 +149,13 @@ export interface CloudsForgeProduct {
   url: string
   /** Hidden from the switcher unless the viewer holds the `admin` role. */
   adminOnly?: boolean
+  /**
+   * The registry's `incomplete` sentence, when the surface has one: a person can open this and
+   * the thing it is named after is switched off. Carried through rather than dropped because the
+   * switcher is where the click starts, and a warning that arrives on the far side of a
+   * navigation has already failed.
+   */
+  incomplete?: string
 }
 
 /** Optional override map for surface URLs (e.g. production hosts from env). */
@@ -710,6 +717,7 @@ export function resolveProducts(productUrls?: ProductUrls, isAdmin = false): Clo
       accent: p.accent,
       url: productUrls?.[key] ?? hosts[p.key],
       ...(p.adminOnly ? { adminOnly: true as const } : {}),
+      ...(p.incomplete ? { incomplete: p.incomplete } : {}),
     }
   })
 }
@@ -1044,8 +1052,26 @@ export function ProductSwitcher({ current, productUrls, isAdmin = false }: Produ
                       )}
                     </span>
                     <span className="cf-menu__text">
-                      <span className="cf-menu__name">{p.label}</span>
+                      {/*
+                        The tag is a SIBLING of the name, in a row of its own, rather than a child
+                        of it. `cf-menu__name` is a published hook — the site's switcher journey
+                        reads it to assert what a reader is offered — and a name element that
+                        sometimes contains a second word means every consumer of that hook has to
+                        know about this feature. It reads "Forge TradeIncomplete" to anything that
+                        does not.
+
+                        Not `aria-hidden`, and not a coloured dot: a reader using a screen reader
+                        hears "Forge Trade, Incomplete" before choosing it, which is the entire
+                        point of putting this in the MENU rather than on the page it leads to. The
+                        sentence underneath says what is missing; the tag alone would be a word
+                        with no fact behind it.
+                      */}
+                      <span className="cf-menu__head">
+                        <span className="cf-menu__name">{p.label}</span>
+                        {p.incomplete && <span className="cf-menu__tag">Incomplete</span>}
+                      </span>
                       <span className="cf-menu__blurb">{p.blurb}</span>
+                      {p.incomplete && <span className="cf-menu__note">{p.incomplete}</span>}
                     </span>
                     {isCurrent && (
                       <span className="cf-menu__check" aria-hidden="true">
