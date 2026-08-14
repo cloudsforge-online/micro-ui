@@ -146,10 +146,8 @@ export interface CloudsForgeSurface {
      *   302 -> https://market.cloudsforge.online/products?net=testnet&x=1
      *
      * So "show me testnet" is no longer a hostname a reader can be sent to. It is a capability the
-     * BUNDLE either has or has not, and today three have it: Forge Hub, the explorer and the Network
-     * site. That is not a property of `kind`, of `servesUi`, or of anything else already here —
-     * `market` and `hub` are indistinguishable on every other field in this row and differ on
-     * exactly this one.
+     * BUNDLE either has or has not. That is not a property of `kind`, of `servesUi`, or of anything
+     * else already here.
      *
      * Two controls read it, and both were lying without it:
      *
@@ -158,6 +156,27 @@ export interface CloudsForgeSurface {
      *     bar reading Mainnet. That is the owner's report, verbatim.
      *   - The PRODUCT switcher composed every entry on the reader's own hostname, so switching
      *     product from a testnet view dropped the view with no indication it had gone.
+     *
+     * ── IT IS NOW TRUE ON EVERY BUNDLE, AND THAT IS THE POINT ─────────────────────────────────────
+     *
+     * It was true on three — Forge Hub, the explorer, the Network site — and the answer for the other
+     * sixteen was an ESCAPE ROUTE: pressing Testnet navigated to Forge Network on testnet. The owner
+     * measured what that is actually like to use:
+     *
+     *     "i see basically that in every page when you press testnet it take you to network page
+     *      testet and if you switch product its reset to mainnet"
+     *
+     * Both halves are the same defect. A reader who presses Testnet on Forge Market is asking to see
+     * Forge Market on testnet, and being moved to a different product is a worse answer than the bug
+     * it replaced; and leaving from a page that cannot view meant arriving at one that could, from
+     * which every onward product link led back to one that could not.
+     *
+     * So the capability was given to all of them — `@cloudsforge/ui/network-view` is the module that
+     * made that cheap, one `createNetworkView()` per bundle instead of nineteen hand-written copies —
+     * and this field stops being a discriminator between surfaces. It stays a field, and it stays
+     * read rather than assumed, because it is still a claim about a FILE in another repository that
+     * `surface-routes.py` check 10 verifies in both directions. A surface that serves a UI and has
+     * not shipped `src/lib/viewed.ts` must still be able to say so here.
      *
      * ── IT IS A CLAIM ABOUT A FILE IN ANOTHER REPOSITORY, AND THAT IS CHECKED ─────────────────────
      *
@@ -314,9 +333,15 @@ export declare const FOOTER_GROUPS: readonly {
 /**
  * The bundles that can show another network's data in place — the combined view's viewing set.
  *
- * Three today: Forge Hub, the explorer and the Network site. Derived rather than listed, so the
- * fourth is a `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a
- * premature `true` costs, and for the check in micro-deploy that reads the other end of it.
+ * Every frontend, since the escape route was removed: eighteen rows, one per bundle that serves a
+ * UI on a hostname of its own. Derived rather than listed, so a new frontend joins by setting
+ * `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a premature
+ * `true` costs, and for the check in micro-deploy that reads the other end of it.
+ *
+ * The three `basePath` rows — `wallet`, `signin`, `faucet` — are deliberately NOT here. They are
+ * routes inside `hub` and `network`, so their bundles already view; a row of their own would put a
+ * duplicate origin in the cross-environment CORS grant, and in the faucet's case would claim a
+ * view for a page that is pinned on purpose because it pays out.
  */
 export declare const VIEWING_SURFACES: readonly CloudsForgeSurface[];
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */

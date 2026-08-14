@@ -495,6 +495,21 @@ export declare function siblingNetworkUrl(target: 'mainnet' | 'testnet'): string
  * started. Both halves of that were already written down in `surfaces.ts`; what was missing was
  * anything acting on the first half.
  *
+ * ── NOTHING SHIPPED REACHES THIS ANY MORE, AND THAT IS THE POINT OF KEEPING IT ────────────────
+ *
+ * This was the answer for sixteen surfaces. The owner used it and reported what it is actually
+ * like — "in every page when you press testnet it take you to network page testet and if you
+ * switch product its reset to mainnet" — which is correct: a reader who presses Testnet on Forge
+ * Market is asking for Forge Market, and moving them to a different product is a worse answer than
+ * the redirect it replaced. So every frontend gained an in-place view
+ * (`@cloudsforge/ui/network-view`) and this now returns null for all of them, which
+ * `network-view.test.ts` asserts surface by surface.
+ *
+ * It stays because the estate gains surfaces. The day a twentieth bundle arrives without a
+ * `lib/viewed.ts`, its Testnet button needs to do something better than reload the page it is on,
+ * and the alternative — deleting this and rediscovering the need — is how the original defect got
+ * shipped.
+ *
  * The preference order is deliberate and not registry order. Forge Network is the estate's own
  * overview — chain height, difficulty, the service table — so it is the page that means the most
  * to a reader who just asked "show me testnet" from somewhere that cannot. The explorer is the
@@ -542,6 +557,14 @@ export interface NetworkSwitcherProps {
  * reader asked to see testnet and the estate can show them testnet, just not from this bundle.
  * So the option carries them to a surface that can — named in the label, so the navigation is
  * announced before the click rather than discovered after it.
+ *
+ * ── AND THE THIRD STATE IS NOW EMPTY, BECAUSE THE SECOND ONE COVERS EVERY FRONTEND ───────────
+ *
+ * A link that leaves is still a link that leaves, and the owner's next report was exactly that.
+ * Every bundle in the estate now passes `onSelect` — see `@cloudsforge/ui/network-view` — so the
+ * press switches the DATA and the reader stays on the page they were reading. The `elsewhere`
+ * branch is unreachable from anything shipped and is kept for the surface that has not been built
+ * yet, not for one that has.
  */
 export declare function NetworkSwitcher({ onSelect, selected, elsewhere }: NetworkSwitcherProps): import("react").JSX.Element | null;
 /**

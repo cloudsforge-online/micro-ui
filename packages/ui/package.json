@@ -12,6 +12,7 @@
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./charts": { "types": "./dist/charts.d.ts", "default": "./dist/charts.js" },
     "./surfaces": { "types": "./dist/surfaces.d.ts", "default": "./dist/surfaces.js" },
+    "./network-view": { "types": "./dist/network-view.d.ts", "default": "./dist/network-view.js" },
     "./seo": { "types": "./dist/seo.d.ts", "default": "./dist/seo.js" },
     "./sitemap": { "types": "./dist/sitemap.d.ts", "default": "./dist/sitemap.js" },
     "./consent": { "types": "./dist/consent.d.ts", "default": "./dist/consent.js" },
