@@ -880,17 +880,16 @@
    `data-cf-product='pool'`, which matched no selector here and fell through to
    the company ember in silence — the exact failure recorded in the `admin`
    note below. */
+/* `exchange` shared this block from 2026-08-14 to 2026-08-16, on the condition
+   written into it: "the day it becomes a product with a frontend, it takes an
+   accent of its own by the dE procedure in `surfaces.ts`, and the switcher
+   assertion is what will demand it." That day arrived — the owner reported the
+   exchange missing from the product menu, `inSwitcher` flipped to true, and the
+   distinct-accent guard did demand it, exactly as predicted. Its own block is
+   below, under the non-product surfaces. Nothing here changed but the removal:
+   `create` and `pool` still share the brass for the reasons above. */
 [data-cf-product='create'],
-[data-cf-product='pool'],
-/* `exchange` joined the same block on 2026-08-14, for the same two reasons and
-   with the same condition. It is not a switcher entry either (`inSwitcher:
-   false`, because nothing serves it), so it is never in a list beside `create`;
-   and the marketing site scopes it — the "rest of it" strip on every product
-   page draws its chip in this hue — so an undeclared key would fall through to
-   the company ember exactly as `pool` did. The day it becomes a product with a
-   frontend, it takes an accent of its own by the dE procedure in `surfaces.ts`,
-   and the switcher assertion is what will demand it. */
-[data-cf-product='exchange'] {
+[data-cf-product='pool'] {
   --cf-accent-dark: #b28e1e;
   --cf-accent-hover-dark: #d4ad35;
   --cf-accent-ink-dark: #1a1404;
@@ -946,6 +945,35 @@
  * company's colour by accident rather than by decision. A silent
  * fallthrough is a latent bug, so every key an app may set is declared.
  * ------------------------------------------------------------------- */
+
+/* Token exchange — lime. Listed first here because it is first here in the
+   switcher too: `exchange` is the only `kind: 'service'` surface that is a
+   switcher entry and not `adminOnly`, so it renders at the end of the
+   customer-facing run, above `admin`. This section's order follows that.
+
+   The hue was not picked. `scripts/find_exchange_accent.mjs` swept 720
+   candidates in the existing set's lightness and chroma band and scored every
+   one through `validate_palette.mjs` — never a second copy of CIEDE2000 — on
+   the metric the switcher actually imposes: separation from the two rows it
+   TOUCHES, `trade` teal above and `admin` clay below. #dcde5e wins at dE 21.2
+   to both across normal, deuteranopia and protanopia, and still holds dE 16.0
+   against all fifteen existing, retired and company hues. Yellow-green is the
+   one empty region of this palette, which is why two independent scorings
+   converged on it; the registry's twice-recorded claim that a well-separated
+   seventh ALL-PAIRS hue does not exist survives intact, and is why the gate
+   that matters is the adjacent one. See `surfaces.ts` for the full argument.
+
+   It is bright enough that no text step is needed: 13.11:1 on the tightest
+   dark ground is the widest margin any accent in this file has. */
+[data-cf-product='exchange'] {
+  --cf-accent-dark: #dcde5e;
+  --cf-accent-hover-dark: #e3e580;
+  --cf-accent-ink-dark: #171803;
+  --cf-accent-text-dark: var(--cf-accent-dark); /* #dcde5e already clears, at 13.11:1 */
+  --cf-accent-glow-dark: rgba(220, 222, 94, 0.26);
+  --cf-accent-light: #525310; /* 5.95:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #3f400b; /* 7.94:1 */
+}
 
 /* Operator console — clay */
 [data-cf-product='admin'] {

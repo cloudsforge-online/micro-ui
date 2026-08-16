@@ -234,6 +234,140 @@ export const SURFACES = [
          */
         incomplete: 'Nothing here trades with real money yet — you can backtest a strategy and run it on live prices, and no bot can be funded.',
     },
+    {
+        /*
+         * ── 2026-08-16: THE OWNER REVERSED THE SWITCHER DECISION, AND THIS ROW MOVED HERE ──────────
+         *
+         *     "forge exchange is not available in the product menu. i tried url directly its open but
+         *      it has no login bar on top"
+         *
+         * This row sat below, among the surfaces that serve a page without being in the menu, and it
+         * argued `inSwitcher: false` on the pool's grounds: the switcher is what a signed-in customer
+         * opens to choose between products they hold an account on, and there is no account here —
+         * every read is an anonymous `eth_call` and every write is signed by the reader's own wallet.
+         * The exchange was therefore somewhere people are SENT: from the footer, from Forge Create,
+         * from a token's page.
+         *
+         * The argument was sound about accounts and wrong about menus. Nobody opens a product menu to
+         * enumerate the surfaces they hold a session on; they open it to find out what CloudsForge has.
+         * Being reachable only from a footer and from a sibling product made the one surface that needs
+         * strangers most the one surface absent from the estate's own index of itself — and the proof
+         * is the sentence above, in which the owner had to type the hostname. "The URL works if you
+         * know it" is the definition of the problem, not an answer to it.
+         *
+         * WHAT THE REVERSAL COST, PAID RATHER THAN WAIVED. `surfaces.test.ts`'s "gives every entry a
+         * distinct accent" asserts that SWITCHER_SURFACES holds no two entries of one hue, and this row
+         * wore `create`'s gold — which is why the note below used to say a switcher slot meant either
+         * inventing a seventh accent or weakening a colour-accessibility guard. Only the first of those
+         * was ever on the table, and it turned out to be cheaper than it read: the two guards that make
+         * a new accent expensive — the dE 30 adjacency gate and "every accent is one of the validated
+         * set" — both iterate PRODUCTS, and this is `kind: 'service'`. So what was owed was one hue that
+         * separates from the rows it would actually TOUCH. It was searched for, not chosen; see the
+         * accent below for the method and the numbers.
+         *
+         * ── WHY THE ROW IS HERE AND NOT THREE HUNDRED LINES DOWN ──────────────────────────────────
+         *
+         * Array order IS switcher order — `SWITCHER_SURFACES` is a filter, nothing re-sorts it — so a
+         * row left in place below would have rendered BELOW the operator tools, reading to every reader
+         * as a fourth operator tool. Here it is last in the customer-facing run and first-adjacent to
+         * the separator, which is exactly what it is: the last thing a visitor can open, and not a
+         * product.
+         *
+         * It is NOT inserted between two products, which would have been the other tempting spot (the
+         * tokens here are Forge Create's). The dE 30 adjacency gate is computed over PRODUCTS alone, so
+         * a service wedged between two of them would leave the gate measuring an adjacency that no
+         * longer exists on screen — the guard would stay green while the list it guards changed. A gate
+         * that passes because it is looking at the wrong list is worse than no gate.
+         *
+         * `adminOnly` is absent, so `resolveProducts` shows this to everybody; for a signed-out reader
+         * it is the LAST visible entry, and its only neighbour is `trade`. For an operator it also
+         * touches `admin`. Both pairs were measured.
+         *
+         * ── FORGE EXCHANGE SERVES A PAGE, AND THAT IS WHAT FLIPPED `servesUi` ─────────────────────
+         *
+         * A decentralised exchange running as contracts on Hearth's own EVM: constant-product pools,
+         * EMBER against Forge Create's tokens. The contracts are deployed and booked (phase F), and
+         * `micro-exchange-web` serves `exchange.<apex>` through the gateway (phase H). The plan is
+         * still public — docs/ecosystem/39 in micro-docs — but it has stopped being only a plan.
+         *
+         * THIS ROW USED TO SAY `servesUi: false`, AND SAID SO AS A MEASUREMENT RATHER THAN AS
+         * MODESTY: nothing answered the hostname, so a `true` would have put a dead link in every
+         * footer in the estate. It flipped on the measurement, as lantern and beacon did, and the flip
+         * is one commit with the router entry, the compose service and the `EXPECTED_UNROUTED` deletion
+         * in `deploy/scripts/surface-routes.py`, which fails in BOTH directions and is what makes the
+         * flag falsifiable rather than aspirational.
+         *
+         * `viewsAnyNetwork: true`: the bundle carries `src/lib/viewed.ts` and composes its JSON-RPC
+         * endpoint from the viewed network, so one deployment reads mainnet or testnet on request.
+         * `surface-routes.py` check 10 derives the CORS viewer list from this flag and REQUIRES the
+         * named repository to actually contain that file, so this cannot be set out of optimism.
+         *
+         * `kind: 'service'` and not 'product'. The accent guard holds PRODUCTS to a strict bijection
+         * with PRODUCT_ACCENTS, and a seventh product would mean a seventh PRODUCT accent clearing the
+         * dE 30 adjacency gate against the other six — a much harder search than the one below, and one
+         * the note above PRODUCT_ACCENTS records as close to unachievable. Nothing about being in the
+         * menu makes this a product: it has no `verb`, no mark, and CloudsForge operates none of it.
+         */
+        key: 'exchange',
+        name: 'Forge Exchange',
+        verb: null,
+        kind: 'service',
+        subdomain: 'exchange',
+        // 5194 — `exchange-web/vite.config.ts`, the port the BUNDLE's dev server binds, and the only
+        // number in this registry that names a vite server rather than a service.
+        //
+        // The standing rule is that a devPort is a fact about the thing you CALL, restated three times
+        // in this file because three rows got it wrong. Here there is nothing to call: an AMM's whole
+        // state is four numbers in a pair contract, there is no `micro-exchange` and there is not
+        // going to be one. The previous value, 4150, was a reservation in the SERVICE block, and a
+        // reservation reads exactly like a fact — `cloudsforgeHosts()` composed `localhost:4150` for
+        // anything that linked to the exchange from a local checkout, and nothing has ever listened
+        // there. 5194 is the one port that answers for this surface on a developer's machine, which is
+        // the only thing devPort is used for.
+        devPort: 5194,
+        /*
+         * ── THE SEVENTH SWITCHER HUE, FOUND BY THE DOCUMENTED SWEEP RATHER THAN PICKED ────────────
+         *
+         * It was `#b28e1e` — `create`'s gold, shared deliberately while this row was out of the menu,
+         * as `pool` still shares it. Two entries of one hue in SWITCHER_SURFACES is what "gives every
+         * entry a distinct accent" forbids, so entering the menu meant finding a hue.
+         *
+         * The method is the one the note above PRODUCT_ACCENTS records for the sixth product accent —
+         * hue swept across four saturations and four lightnesses, held inside the existing set's band,
+         * kept clear of every RETIRED_ACCENT and of the company orange, and scored on the metric that
+         * governs this palette. `scripts/find_exchange_accent.mjs` runs it. It does not reimplement
+         * CIEDE2000-over-Viénot: every number comes out of `scripts/validate_palette.mjs` as a
+         * subprocess, interleaving the candidate between the existing accents so that the validator's
+         * own "worst ADJACENT" line IS the candidate's minimum separation across normal, deuteranopia
+         * and protanopia.
+         *
+         * The gate is separation from the NEIGHBOURS, which is this palette's own doctrine: the
+         * switcher is a vertical list, only adjacent entries ever touch, and the note above
+         * PRODUCT_ACCENTS records that all-pairs separation across this many brand-faithful hues is
+         * close to unachievable — the shipped palette's own worst all-pairs figure is red|gold at dE
+         * 5.6. Measured for `#dcde5e`:
+         *
+         *   worst against `trade` and `admin`, the rows it touches ......... dE 21.2
+         *   worst against all fifteen existing, retired and company hues ... dE 16.0
+         *   contrast on the dark surface ................................... 13.11:1
+         *
+         * So it clears its actual neighbours by four times the gate the validator defaults to, and it
+         * is separated from every OTHER accent in the estate by three times the worst pair already
+         * shipping. A first sweep scored candidates on all-pairs alone and topped out at dE 17.9,
+         * which is the same answer this file has recorded twice: a well-separated seventh hue on the
+         * all-pairs metric does not exist, and demanding one is demanding the wrong thing.
+         *
+         * Yellow-green is not a taste; it is where the sweep converged from two independent scorings,
+         * because it is the one region of the wheel this palette had left empty.
+         */
+        accent: '#dcde5e',
+        glyph: '⇄',
+        markId: null,
+        blurb: 'Swap EMBER and Forge Create tokens against pools that live on the chain itself',
+        servesUi: true,
+        viewsAnyNetwork: true,
+        inSwitcher: true,
+    },
     /* --- operator tools -------------------------------------------------
      * These render in the switcher below a separator, so they are never adjacent to a product
      * entry and their accents never have to separate from one. Hiding them from a player is not
@@ -687,7 +821,29 @@ export const SURFACES = [
          *
          * So `micro-site` now serves `/products/pool` and links it from its own footer, and this row
          * is unchanged. A surface earns a switcher slot by being something a person chooses BETWEEN;
-         * the pool is somewhere they are sent, and being sent there is what was missing. */
+         * the pool is somewhere they are sent, and being sent there is what was missing.
+         *
+         * ── 2026-08-16: HALF OF THAT ARGUMENT HAS EXPIRED, AND THIS RECORDS WHICH HALF ────────────
+         *
+         * The paragraph above offers two ways past the accent guard and calls both unacceptable. It
+         * was wrong about the first. `exchange` was ordered into the menu by the owner, the seventh-hue
+         * search was made with `scripts/find_exchange_accent.mjs`, and it succeeded on the first
+         * scoring that asked the right question — separation from the two rows a vertical list actually
+         * puts a hue next to, rather than from all fifteen at once. `#dcde5e` clears its neighbours at
+         * dE 21.2. So "invent a seventh validated accent" is no longer a thing this registry cannot
+         * afford; it costs one sweep, and an eighth would cost another.
+         *
+         * WHAT SURVIVES IS THE PRODUCT ARGUMENT, WHICH WAS ALWAYS THE REAL ONE — and it is worth being
+         * exact about why it does not carry `exchange` with it. The reversal there turned on a
+         * stranger having no route in: the exchange is a market, an empty market is a broken one, and
+         * the estate's own index of itself did not list it. The pool's route in was the thing that got
+         * fixed in 2026-08-10 — `/products/pool` on the company site, a footer link, and since then the
+         * pool's own console carries the browser-mining control. A miner arrives with an ASIC and a
+         * stratum URL, not by browsing a menu.
+         *
+         * So this stays false on the merits and no longer on the mechanics, which is a weaker position
+         * than the one above and is stated as one. Whoever re-opens it a third time owes an argument
+         * about miners, not about colour. */
         key: 'pool',
         name: 'Mining Pool',
         verb: null,
@@ -696,72 +852,14 @@ export const SURFACES = [
         devPort: 4146,
         // Gold, shared with `create` rather than newly invented. The accent guard forbids a sixth
         // orange and a resurrected retired hue; it does not forbid a service wearing a validated
-        // product colour, and `explorer` and `nimbus` already do. A search for a seventh distinct
-        // accent would be taste spent where the guard asks for none.
+        // product colour, and `explorer` and `nimbus` already do. A search for a distinct accent
+        // would be taste spent where the guard asks for none — the guard is over SWITCHER_SURFACES,
+        // and this row is not in the switcher. The day it is, this hue is the blocker and the sweep
+        // in `scripts/find_exchange_accent.mjs` is how it is answered; see the note above.
         accent: '#b28e1e',
         glyph: '▨',
         markId: null,
         blurb: 'Point real mining hardware at CloudsForge and be credited for the work',
-        servesUi: true,
-        viewsAnyNetwork: true,
-        inSwitcher: false,
-    },
-    {
-        // ── FORGE EXCHANGE SERVES A PAGE NOW, AND THAT IS WHAT FLIPPED THE FLAG ───────────────────
-        //
-        // A decentralised exchange running as contracts on Hearth's own EVM: constant-product pools,
-        // EMBER against Forge Create's tokens. The contracts are deployed and booked (phase F), and
-        // `micro-exchange-web` serves `exchange.<apex>` through the gateway (phase H). The plan is
-        // still public — docs/ecosystem/39 in micro-docs — but it has stopped being only a plan.
-        //
-        // THIS ROW USED TO SAY `servesUi: false`, AND SAID SO AS A MEASUREMENT RATHER THAN AS
-        // MODESTY: nothing answered the hostname, so a `true` would have put a dead link in every
-        // footer in the estate. It flipped on the measurement, as lantern and beacon did — quoted
-        // above — and the flip is one commit with the router entry, the compose service and the
-        // `EXPECTED_UNROUTED` deletion in `deploy/scripts/surface-routes.py`, which fails in BOTH
-        // directions and is what makes the flag falsifiable rather than aspirational.
-        //
-        // `inSwitcher` stays false. The switcher is what a signed-in customer opens to choose between
-        // products they have an account on, and there is no account here: every read is an anonymous
-        // `eth_call` and every write is signed by the reader's own wallet. The exchange is somewhere
-        // people are SENT — from the footer, from Forge Create, from a token's page — which is the
-        // same argument the pool row makes above, and the same one that was missing when the pool had
-        // no link anywhere.
-        //
-        // `viewsAnyNetwork: true`: the bundle carries `src/lib/viewed.ts` and composes its JSON-RPC
-        // endpoint from the viewed network, so one deployment reads mainnet or testnet on request.
-        // `surface-routes.py` check 10 derives the CORS viewer list from this flag and REQUIRES the
-        // named repository to actually contain that file, so this cannot be set out of optimism.
-        //
-        // `kind: 'service'` and not 'product', on the pool's precedent and for the pool's reason plus
-        // one more: the accent guard holds PRODUCTS to a strict bijection with PRODUCT_ACCENTS, and a
-        // seventh product means choosing a seventh accent by the documented dE procedure. That is
-        // design work with a procedure attached, and it is still not this phase's — shipping a
-        // surface does not make the gold wrong, it only makes the question askable.
-        key: 'exchange',
-        name: 'Forge Exchange',
-        verb: null,
-        kind: 'service',
-        subdomain: 'exchange',
-        // 5194 — `exchange-web/vite.config.ts`, the port the BUNDLE's dev server binds, and the only
-        // number in this registry that names a vite server rather than a service.
-        //
-        // The standing rule is that a devPort is a fact about the thing you CALL, restated three times
-        // in this file because three rows got it wrong. Here there is nothing to call: an AMM's whole
-        // state is four numbers in a pair contract, there is no `micro-exchange` and there is not
-        // going to be one. The previous value, 4150, was a reservation in the SERVICE block, and a
-        // reservation reads exactly like a fact — `cloudsforgeHosts()` composed `localhost:4150` for
-        // anything that linked to the exchange from a local checkout, and nothing has ever listened
-        // there. 5194 is the one port that answers for this surface on a developer's machine, which is
-        // the only thing devPort is used for.
-        devPort: 5194,
-        // Gold, shared with `create` and `pool` rather than newly invented — the same reasoning as
-        // the pool row above. It is the right neighbour to share with in any case: the tokens on this
-        // exchange are Forge Create's, and the pool is where the EMBER on one side of them comes from.
-        accent: '#b28e1e',
-        glyph: '⇄',
-        markId: null,
-        blurb: 'Swap EMBER and Forge Create tokens against pools that live on the chain itself',
         servesUi: true,
         viewsAnyNetwork: true,
         inSwitcher: false,
