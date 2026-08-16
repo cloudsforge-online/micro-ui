@@ -44,6 +44,26 @@ const DOCUMENTED_SWITCHER_ORDER: readonly SurfaceKey[] = [
   'market',
   'create',
   'trade',
+  // ── AND ONE ENTRY THAT IS NEITHER A PRODUCT DECISION NOR THAT MEASUREMENT ────────────────────
+  //
+  // `exchange` joined on 2026-08-16 by the owner's report — "forge exchange is not available in the
+  // product menu" — and it sits HERE, after the last product and before the first operator tool,
+  // rather than anywhere in the six above. Two reasons, and the second is the one that would be
+  // missed:
+  //
+  //   * It is `kind: 'service'`. The six above are the run the dE 30 adjacency search permuted;
+  //     dropping a seventh row into the middle of them would leave that search's recorded 35.6
+  //     describing an order the switcher no longer renders.
+  //   * The gate that guards the run above iterates PRODUCTS, so it CANNOT see this row. A service
+  //     wedged between two products would therefore change what a reader's eye compares while the
+  //     guard went on measuring the pair that used to be adjacent — green, and wrong. Placed at the
+  //     end, every product adjacency the search fixed is still exactly the adjacency on screen, and
+  //     the two new pairs (trade|exchange, exchange|admin) were measured on their own: dE 21.2,
+  //     recorded on the row.
+  //
+  // For a signed-out reader this is the LAST entry — `resolveProducts` drops the three `adminOnly`
+  // rows below — so its only neighbour is `trade`. Both cases were swept.
+  'exchange',
   'admin',
   'lantern',
   'beacon',

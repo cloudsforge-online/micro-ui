@@ -253,9 +253,13 @@ describe('a testnet page resolves testnet siblings and NOTHING on mainnet', () =
 describe('resolveProducts', () => {
   it('hides operator-only surfaces by default', () => {
     atHostname('localhost')
+    // `exchange` is here and is not a product: it is `kind: 'service'` and carries no `adminOnly`,
+    // so it is what a signed-out visitor sees LAST — which is the position it was given when the
+    // owner asked for it in the menu on 2026-08-16. See DOCUMENTED_SWITCHER_ORDER in
+    // surfaces.test.ts for why the end of the run and not among the six.
     assert.deepEqual(
       resolveProducts().map((p) => p.key),
-      ['network', 'foresight', 'worlds', 'market', 'create', 'trade'],
+      ['network', 'foresight', 'worlds', 'market', 'create', 'trade', 'exchange'],
     )
   })
 
@@ -263,7 +267,18 @@ describe('resolveProducts', () => {
     atHostname('localhost')
     assert.deepEqual(
       resolveProducts(undefined, true).map((p) => p.key),
-      ['network', 'foresight', 'worlds', 'market', 'create', 'trade', 'admin', 'lantern', 'beacon'],
+      [
+        'network',
+        'foresight',
+        'worlds',
+        'market',
+        'create',
+        'trade',
+        'exchange',
+        'admin',
+        'lantern',
+        'beacon',
+      ],
     )
   })
 
