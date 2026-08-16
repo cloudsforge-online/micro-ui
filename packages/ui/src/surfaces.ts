@@ -930,37 +930,63 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: false,
   },
   {
-    // ── FORGE EXCHANGE IS PLANNED, AND THIS ROW SAYS EXACTLY THAT MUCH ────────────────────────
+    // ── FORGE EXCHANGE SERVES A PAGE NOW, AND THAT IS WHAT FLIPPED THE FLAG ───────────────────
     //
-    // A decentralised exchange running as contracts on Hearth's own EVM, swapping EMBER against
-    // bridged Bitcoin, Litecoin and Dogecoin. The plan is public — docs/ecosystem/39 in
-    // micro-docs, and the umbrella issue in micro-org — and NO CODE RUNS ANYWHERE. This row
-    // exists so the marketing site can publish the plan as a card without inventing a surface:
-    // the site's content model refuses a page whose key the registry does not know.
+    // A decentralised exchange running as contracts on Hearth's own EVM: constant-product pools,
+    // EMBER against Forge Create's tokens. The contracts are deployed and booked (phase F), and
+    // `micro-exchange-web` serves `exchange.<apex>` through the gateway (phase H). The plan is
+    // still public — docs/ecosystem/39 in micro-docs — but it has stopped being only a plan.
+    //
+    // THIS ROW USED TO SAY `servesUi: false`, AND SAID SO AS A MEASUREMENT RATHER THAN AS
+    // MODESTY: nothing answered the hostname, so a `true` would have put a dead link in every
+    // footer in the estate. It flipped on the measurement, as lantern and beacon did — quoted
+    // above — and the flip is one commit with the router entry, the compose service and the
+    // `EXPECTED_UNROUTED` deletion in `deploy/scripts/surface-routes.py`, which fails in BOTH
+    // directions and is what makes the flag falsifiable rather than aspirational.
+    //
+    // `inSwitcher` stays false. The switcher is what a signed-in customer opens to choose between
+    // products they have an account on, and there is no account here: every read is an anonymous
+    // `eth_call` and every write is signed by the reader's own wallet. The exchange is somewhere
+    // people are SENT — from the footer, from Forge Create, from a token's page — which is the
+    // same argument the pool row makes above, and the same one that was missing when the pool had
+    // no link anywhere.
+    //
+    // `viewsAnyNetwork: true`: the bundle carries `src/lib/viewed.ts` and composes its JSON-RPC
+    // endpoint from the viewed network, so one deployment reads mainnet or testnet on request.
+    // `surface-routes.py` check 10 derives the CORS viewer list from this flag and REQUIRES the
+    // named repository to actually contain that file, so this cannot be set out of optimism.
     //
     // `kind: 'service'` and not 'product', on the pool's precedent and for the pool's reason plus
     // one more: the accent guard holds PRODUCTS to a strict bijection with PRODUCT_ACCENTS, and a
-    // seventh product means choosing a seventh accent by the documented dE procedure — design
-    // work that belongs in the phase where the frontend actually ships, not in the row that
-    // announces a plan. The flip to 'product' with its own accent is that phase's named step.
-    //
-    // `servesUi: false` is a measurement, not modesty: nothing serves this hostname, so a `true`
-    // here would put a dead link in every footer in the estate. `inSwitcher: false` for the same
-    // reason. Both flip ON THE MEASUREMENT, as lantern and beacon did — quoted above.
+    // seventh product means choosing a seventh accent by the documented dE procedure. That is
+    // design work with a procedure attached, and it is still not this phase's — shipping a
+    // surface does not make the gold wrong, it only makes the question askable.
     key: 'exchange',
     name: 'Forge Exchange',
     verb: null,
     kind: 'service',
     subdomain: 'exchange',
-    devPort: 4150,
+    // 5194 — `exchange-web/vite.config.ts`, the port the BUNDLE's dev server binds, and the only
+    // number in this registry that names a vite server rather than a service.
+    //
+    // The standing rule is that a devPort is a fact about the thing you CALL, restated three times
+    // in this file because three rows got it wrong. Here there is nothing to call: an AMM's whole
+    // state is four numbers in a pair contract, there is no `micro-exchange` and there is not
+    // going to be one. The previous value, 4150, was a reservation in the SERVICE block, and a
+    // reservation reads exactly like a fact — `cloudsforgeHosts()` composed `localhost:4150` for
+    // anything that linked to the exchange from a local checkout, and nothing has ever listened
+    // there. 5194 is the one port that answers for this surface on a developer's machine, which is
+    // the only thing devPort is used for.
+    devPort: 5194,
     // Gold, shared with `create` and `pool` rather than newly invented — the same reasoning as
-    // the pool row above, and doubly so for a surface that is not yet rendered anywhere a second
-    // accent could disambiguate.
+    // the pool row above. It is the right neighbour to share with in any case: the tokens on this
+    // exchange are Forge Create's, and the pool is where the EMBER on one side of them comes from.
     accent: '#b28e1e',
     glyph: '⇄',
     markId: null,
-    blurb: 'A decentralised exchange on the chain itself — planned, and the plan is public',
-    servesUi: false,
+    blurb: 'Swap EMBER and Forge Create tokens against pools that live on the chain itself',
+    servesUi: true,
+    viewsAnyNetwork: true,
     inSwitcher: false,
   },
 

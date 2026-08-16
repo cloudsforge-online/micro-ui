@@ -272,11 +272,20 @@ describe('the escape route from a surface that cannot show the other network', (
   })
 
   it('still answers for a surface with no bundle of its own', () => {
-    // `exchange` is `servesUi: false`: nothing is served on that hostname in either environment,
-    // so it cannot view in place and this is the honest destination for it.
+    // `account` is `servesUi: false`: the row reserves the hostname and says so itself — "NOTHING
+    // IS SERVED HERE TODAY" — there is no `account-web` among the sibling repositories, and
+    // `deploy/scripts/surface-routes.py` lists it in EXPECTED_UNROUTED for exactly that reason. So
+    // it cannot view in place, and this is the honest destination for it.
+    //
+    // THIS USED TO BE `exchange`, WHICH IS WHY THE ANCHOR IS WORTH NAMING. The exchange was the
+    // example of a hostname nothing answered until phase H shipped `micro-exchange-web`; its row
+    // flipped to `servesUi: true` with a router, a compose service and a `lib/viewed.ts`, and the
+    // FIRST test in this block — the regression guard over every serving surface — caught this one
+    // pointing at it. That is the arrangement working: an example chosen because it was true stops
+    // being true, and the test says so rather than the comment going stale.
     atUrl('cloudsforge.online')
     assert.equal(
-      viewingSurfaceUrl('exchange', 'testnet'),
+      viewingSurfaceUrl('account', 'testnet'),
       'https://network.cloudsforge.online/?net=testnet',
     )
   })
@@ -284,8 +293,8 @@ describe('the escape route from a surface that cannot show the other network', (
   it('is a real destination on both estates, and never the retired hostname', () => {
     // Whatever this returns must not be a `-testnet` host, because that is the hostname the
     // combined view redirects and the redirect is what produced the original report.
-    atUrl('exchange.cloudsforge.online', '/')
-    const url = viewingSurfaceUrl('exchange', 'testnet')
+    atUrl('account.cloudsforge.online', '/')
+    const url = viewingSurfaceUrl('account', 'testnet')
     assert.ok(url !== null)
     assert.ok(!new URL(url).hostname.includes('-testnet'))
     assert.equal(networkFromQuery(new URL(url).search), 'testnet')
@@ -294,7 +303,7 @@ describe('the escape route from a surface that cannot show the other network', (
   it('honours an operator override for the surface it sends to', () => {
     atUrl('cloudsforge.online')
     assert.equal(
-      viewingSurfaceUrl('exchange', 'testnet', { network: 'https://net.example/' }),
+      viewingSurfaceUrl('account', 'testnet', { network: 'https://net.example/' }),
       'https://net.example/?net=testnet',
     )
   })
@@ -302,7 +311,7 @@ describe('the escape route from a surface that cannot show the other network', (
   it('carries mainnet the same way, for a reader who got there on a testnet link', () => {
     atUrl('cloudsforge.online', '/', '?net=testnet')
     assert.equal(
-      viewingSurfaceUrl('exchange', 'mainnet'),
+      viewingSurfaceUrl('account', 'mainnet'),
       'https://network.cloudsforge.online/?net=mainnet',
     )
   })
