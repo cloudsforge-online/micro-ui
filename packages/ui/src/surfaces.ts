@@ -40,7 +40,7 @@ export type SurfaceKey =
   // `service` in this registry that serves a UI anybody may open, so it belongs in neither the
   // product switcher nor the operator one. See its row for why it is not a `ProductKey` either.
   | 'pool'
-  // Planned — no code runs anywhere. See the registry row for why the key exists already.
+  // Running in the estate and serving a page, with no public DNS record. See the registry row.
   | 'exchange'
   | 'explorer'
   | 'nimbus'
