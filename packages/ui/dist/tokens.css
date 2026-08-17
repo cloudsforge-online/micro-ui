@@ -946,33 +946,48 @@
  * fallthrough is a latent bug, so every key an app may set is declared.
  * ------------------------------------------------------------------- */
 
-/* Token exchange — lime. Listed first here because it is first here in the
+/* Token exchange — rose. Listed first here because it is first here in the
    switcher too: `exchange` is the only `kind: 'service'` surface that is a
    switcher entry and not `adminOnly`, so it renders at the end of the
    customer-facing run, above `admin`. This section's order follows that.
 
-   The hue was not picked. `scripts/find_exchange_accent.mjs` swept 720
-   candidates in the existing set's lightness and chroma band and scored every
-   one through `validate_palette.mjs` — never a second copy of CIEDE2000 — on
-   the metric the switcher actually imposes: separation from the two rows it
-   TOUCHES, `trade` teal above and `admin` clay below. #dcde5e wins at dE 21.2
-   to both across normal, deuteranopia and protanopia, and still holds dE 16.0
-   against all fifteen existing, retired and company hues. Yellow-green is the
-   one empty region of this palette, which is why two independent scorings
-   converged on it; the registry's twice-recorded claim that a well-separated
-   seventh ALL-PAIRS hue does not exist survives intact, and is why the gate
-   that matters is the adjacent one. See `surfaces.ts` for the full argument.
+   The hue was not picked. `scripts/find_exchange_accent.mjs` sweeps the
+   existing set's lightness and chroma band and scores every candidate through
+   `validate_palette.mjs` — never a second copy of CIEDE2000 — on the metric the
+   switcher actually imposes: separation from the two rows it TOUCHES, `trade`
+   teal above and `admin` clay below. #d05870 clears dE 12.8 to both across
+   normal, deuteranopia and protanopia, and holds the same dE 12.8 against all
+   fifteen existing, retired and company hues. The registry's twice-recorded
+   claim that a well-separated seventh ALL-PAIRS hue does not exist survives
+   intact, and is why the gate that matters is the adjacent one. See
+   `surfaces.ts` for the full argument, including why the first answer this
+   sweep gave was wrong.
 
-   It is bright enough that no text step is needed: 13.11:1 on the tightest
-   dark ground is the widest margin any accent in this file has. */
+   THE VALUES BELOW ARE TIGHTER THAN THE ONES THEY REPLACE, ON PURPOSE. The
+   first accent this search returned was `#dcde5e`, a lime that cleared every
+   distance gate by a mile and reached 13.11:1 here — and broke micro-site's
+   light-mode pages, which set type in a FIXED 68% darkening of the raw accent
+   rather than to a contrast target. A fixed mix is a fixed step, not a fixed
+   result. So the sweep now gates legibility on both grounds before it scores
+   separation at all, and the winner sits mid-band instead of at an extreme.
+
+   Which is why this block needs the SEPARATE TEXT STEP the lime did not, and
+   the reason is worth stating: `--cf-accent` is validated at the 3:1 non-text
+   floor and the raw rose reaches 3.55:1 on the lightest ground any substrate
+   paints (`#252d31`, cool/dark) — a border, a rule and an outline, all fine.
+   Type is held to 4.5:1 and the raw rose does not reach it there, so
+   `--cf-accent-text-dark` is lifted, exactly as `admin` below lifts its clay.
+   Aliasing the text token back to `--cf-accent-dark` looks tidy and is how the
+   lime got away with it; it only works for an accent bright enough that the
+   distinction does not matter, and that brightness is what broke the site. */
 [data-cf-product='exchange'] {
-  --cf-accent-dark: #dcde5e;
-  --cf-accent-hover-dark: #e3e580;
-  --cf-accent-ink-dark: #171803;
-  --cf-accent-text-dark: var(--cf-accent-dark); /* #dcde5e already clears, at 13.11:1 */
-  --cf-accent-glow-dark: rgba(220, 222, 94, 0.26);
-  --cf-accent-light: #525310; /* 5.95:1 on the tightest light ground #e6dccd */
-  --cf-accent-hover-light: #3f400b; /* 7.94:1 */
+  --cf-accent-dark: #d05870; /* 3.55:1 on the lightest dark ground — a non-text token */
+  --cf-accent-hover-dark: #e090a0; /* 5.78:1 */
+  --cf-accent-ink-dark: #1a0509; /* 4.97:1 on the accent fill, 8.10:1 on the hover fill */
+  --cf-accent-text-dark: #db8092; /* 5.02:1 — #d05870 is 3.55:1 */
+  --cf-accent-glow-dark: rgba(208, 88, 112, 0.26);
+  --cf-accent-light: #793341; /* 6.55:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #682c38; /* 7.72:1 */
 }
 
 /* Operator console — clay */
