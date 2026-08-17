@@ -42,6 +42,11 @@ export type SurfaceKey =
   | 'pool'
   // Running in the estate and serving a page, with no public DNS record. See the registry row.
   | 'exchange'
+  // The editorial archive. Not a `SwitcherKey`, for the reason recorded on `pool`: the switcher is
+  // where a person chooses a PRODUCT, and adding a seventh would demand a seventh PRODUCT accent
+  // clearing dE 30 against the other six. It is reached from the footer and from the marketing
+  // site's map, which is where a reader looks for a publication.
+  | 'journal'
   | 'explorer'
   | 'nimbus'
   | 'account'
@@ -882,6 +887,66 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     glyph: '⌗',
     markId: null,
     blurb: 'API keys, projects, usage limits and documentation',
+    servesUi: true,
+    viewsAnyNetwork: true,
+    inSwitcher: false,
+  },
+  {
+    /*
+     * The editorial archive. Reached from the footer and from the marketing site's map.
+     *
+     * ── `viewsAnyNetwork` IS SET, AND THE ARGUMENT AGAINST IT IS WORTH RECORDING ───────────────
+     *
+     * This row was first written WITHOUT it, on the reasoning that the flag means "reads mainnet
+     * or testnet on request" and the archive reads neither: an article is prose committed to git,
+     * identical on both networks, with nothing on the page that a `?net=` would change. `signin`,
+     * `wallet` and `faucet` looked like the precedent for a serving surface with no network claim.
+     *
+     * They are not. All three are `basePath` rows — routes inside a bundle that views on their
+     * behalf — and `network-view.test.ts` states the real invariant: VIEWING_SURFACES must equal
+     * every `servesUi` row with no `basePath`, and `viewingSurfaceUrl` must answer null for all of
+     * them. It caught this row immediately, which is the test doing its job.
+     *
+     * And the invariant is right, because the flag is not about the DATA. It is about what the
+     * Testnet button does. A reader on `journal.` who presses it while the row is unflagged gets
+     * `viewingSurfaceUrl`'s escape route — thrown out of the article they were reading and onto
+     * Forge Network's testnet page — which is the exact defect the owner reported: "in every page
+     * when you press testnet it take you to network page testnet". That the archive then shows
+     * identical words either way is not a reason to teleport somebody out of it.
+     *
+     * `surface-routes.py` check 10 requires `micro-journal-web` to really contain
+     * `src/lib/viewed.ts`, so this cannot be set out of optimism. It does: the bundle keeps the
+     * viewed network in the URL, the chrome switches in place, and every outbound estate link the
+     * footer composes carries it onward.
+     *
+     * ── `kind: 'surface'` AND NOT 'service', BECAUSE THERE IS NOTHING TO CALL ──────────────────
+     *
+     * `developers` above is the shape this follows. There is no `micro-journal`, and there is not
+     * going to be one: the entire archive is typed modules in `micro-journal-web`, rendered to
+     * static HTML at build time. A CMS would put the words in a database, which would mean the
+     * words could change without a commit, which is the property an editorial archive least wants.
+     */
+    key: 'journal',
+    name: 'Forge Journal',
+    verb: null,
+    kind: 'surface',
+    subdomain: 'journal',
+    // 5196 — `journal-web/vite.config.ts`, the vite dev server, for the same reason `exchange`
+    // names 5194: a devPort is a fact about the thing you CALL, and with no service behind this
+    // surface the bundle's own dev server is the only thing that answers on a developer's machine.
+    // `org/tools/registry.ts` derives 4149 for the REPOSITORY, which is a different question — that
+    // number is the deploy plane's, and writing it here would reserve an address nothing binds.
+    devPort: 5196,
+    // Bronze, and scored as one of a PAIR rather than picked alone — see the sweep recorded in
+    // `tokens.css`. The second hue is held for the public square that follows this surface, and
+    // the pairing is the method: the first two colours that search returned were each clear of the
+    // existing set and dE 0.8 from EACH OTHER under deuteranopia, which is the failure a
+    // one-at-a-time search cannot see. This one clears 1.46x the estate's measured floor on all six
+    // measurements, including against its reserved partner.
+    accent: '#ae7b3d',
+    glyph: '❧',
+    markId: null,
+    blurb: 'Plain-language writing about crypto, the chain and the ecosystem',
     servesUi: true,
     viewsAnyNetwork: true,
     inSwitcher: false,

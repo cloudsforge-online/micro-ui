@@ -1039,6 +1039,68 @@
   --cf-accent-hover-light: #224476; /* 7.18:1 */
 }
 
+/* --- The newest surface, and the gate that picked it ---------------- *
+ *
+ * The bronze below and an orchid #bf69a9 were chosen TOGETHER, and that is
+ * the whole method. Only the bronze has a block here, because only the
+ * Journal has a registry row so far; the orchid is RESERVED for the public
+ * square that follows it and lands with that surface. It is named here rather
+ * than left to be re-derived, because the number the bronze is validated
+ * against is its separation from THAT hue, and a second sweep run later
+ * without it would be scoring against a set this one is not in.
+ * The exchange sweep asked "which single hue is furthest from the existing
+ * set", and asking it twice in a row is what produces two colours that are
+ * each fine and are indistinguishable from one another: the first pair this
+ * search returned, an orchid #b95bab and a petrol #4691a4, each beat the
+ * estate's floor comfortably against all seventeen existing, retired and
+ * company hues — and then measured dE 0.8 against EACH OTHER under
+ * deuteranopia, because magenta and cyan both collapse toward blue. These two
+ * rows land side by side in the marketing site's map. So the pair is scored
+ * on the weakest of six measurements, not the best of two.
+ *
+ * The floor is the estate's own, measured rather than aspired to. Running
+ * `validate_palette.mjs` over every accent this design system paints gives:
+ *
+ *     all-pairs normal        dE 6.3   (#6d9a49 | #7fae5c)
+ *     all-pairs deuteranopia  dE 3.5   (#9b7bf0 | #4a86e0)
+ *
+ * The exchange block's dE 12.8 is the ADJACENT gate for a vertical switcher,
+ * where only neighbours ever touch; neither of these surfaces is a switcher
+ * row, and holding a newcomer to a number the shipped six have never met
+ * rejects every colour including the ones already on the page. Both of the
+ * pair clear 1.46x the real floor on all six measurements.
+ *
+ * A FOURTH GATE was added here and it eliminated the search's own favourite.
+ * A viridian #38845a won separation outright — dichromatic 6.6, nearly double
+ * the floor — and then could not carry an AA ink: the darkest legible text on
+ * that fill reaches 4.32:1, where every block above lands 4.94–5.60. An
+ * accent is a FILL before it is a hue, and a fill that cannot hold a button
+ * label is not a candidate. Reproduce:
+ *
+ *     node scripts/validate_palette.mjs "#ae7b3d,#bf69a9"
+ * ------------------------------------------------------------------- */
+
+/* Forge Journal — bronze. The editorial surface, reached from the footer and
+   from the site's map. Warm and low-chroma on purpose: this accent's job is a
+   rule under a headline and a date above a paragraph, and an archive that
+   shouts competes with the only thing on the page worth reading. It sits
+   9.7 from the nearest existing hue under normal vision and 8.4 under
+   dichromatic simulation — the widest colour-blind separation of any block in
+   this file, which is the trade that buys the narrower normal-vision one. */
+[data-cf-product='journal'] {
+  --cf-accent-dark: #ae7b3d; /* 5.01:1 on the lightest dark ground */
+  --cf-accent-hover-dark: #b5874e; /* 5.75:1 */
+  --cf-accent-ink-dark: #1c140a; /* 4.94:1 on the accent fill, 5.67:1 on the hover fill */
+  /* Lifted, for exactly the reason the exchange block gives: `--cf-accent` is validated at the 3:1
+     NON-TEXT floor against the darkest ground, and TYPE is held to 4.5:1 against the LIGHTEST
+     ground any substrate paints — #252d31, cool/dark — where the raw bronze reaches only 3.80:1.
+     Aliasing this back to `--cf-accent-dark` passed on #171310 and failed the suite on #252d31. */
+  --cf-accent-text-dark: #b78a53; /* 4.52:1 on #252d31 — #ae7b3d is 3.80:1 */
+  --cf-accent-glow-dark: rgba(174, 123, 61, 0.26);
+  --cf-accent-light: #604422; /* 6.60:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #523a1d; /* 7.81:1 */
+}
+
 /* --- The public accent names --------------------------------------- *
  * Declared once, AFTER every product block, so `var(--cf-accent-dark)`
  * reads whichever product is mounted. Nothing outside this file should

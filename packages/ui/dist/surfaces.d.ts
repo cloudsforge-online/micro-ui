@@ -17,7 +17,7 @@ export type ProductKey = 'foresight' | 'network' | 'trade' | 'create' | 'market'
 /** Everything that may appear in the product switcher, products plus the operator tools. */
 export type SwitcherKey = ProductKey | 'admin' | 'lantern' | 'beacon';
 /** Every addressable CloudsForge surface, including the ones with no UI of their own. */
-export type SurfaceKey = SwitcherKey | 'hub' | 'signin' | 'site' | 'emberkin' | 'aetherholm' | 'tessera' | 'wallet' | 'faucet' | 'developers' | 'status' | 'pool' | 'exchange' | 'explorer' | 'nimbus' | 'account' | 'api' | 'pay' | 'keyvault' | 'studio' | 'rpc' | 'p2p';
+export type SurfaceKey = SwitcherKey | 'hub' | 'signin' | 'site' | 'emberkin' | 'aetherholm' | 'tessera' | 'wallet' | 'faucet' | 'developers' | 'status' | 'pool' | 'exchange' | 'journal' | 'explorer' | 'nimbus' | 'account' | 'api' | 'pay' | 'keyvault' | 'studio' | 'rpc' | 'p2p';
 /**
  * What a surface *is*, which decides where it may appear.
  *
