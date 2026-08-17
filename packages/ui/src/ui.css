@@ -1460,6 +1460,20 @@
  * Honoured globally. A product may not reintroduce animation on top of
  * this, and no chart in this package animates on load: an entrance
  * animation on a number is a delay before the number.
+ *
+ * THIS LIST IS NOT MAINTAINED BY HAND ANY MORE — `motion.test.ts` reads
+ * every rule in this file that sets `transition` or `animation` and fails
+ * if one of them is missing here. It was a hand-maintained list until
+ * micro-org#483, and it went stale the way every such list does: the
+ * footer's social links were added with a colour transition, the list was
+ * not extended, and the omission shipped to all nineteen surfaces at once
+ * because they all render the same footer. `emberkin-web`'s BJ-A11Y-11 is
+ * what caught it, which means it was caught by one frontend that happens
+ * to run the check — the other eighteen were equally broken and equally
+ * green.
+ *
+ * `.cf-input` and `.cf-select` had been missing since before that, and
+ * nothing had ever noticed.
  * ---------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .cf-bar,
@@ -1471,7 +1485,10 @@
   .cf-chart,
   .cf-chart__svg,
   .cf-tile,
+  .cf-input,
+  .cf-select,
   .cf-foot__link,
+  .cf-foot__sociallink,
   .cf-skip,
   .cf-status,
   .cf-consent,
