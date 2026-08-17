@@ -55,27 +55,32 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * SURFACES THAT DO NOT YET RENDER THE SHARED FOOTER
  *
- * ONE, and it is here because another agent is rewriting that surface in this same pass and will
- * mount the footer there. This is NOT a way to switch the guard off, and the assertion below makes
- * that structural — **an entry that HAS a footer fails the run** and must be deleted. Same shape
- * as `contrast.test.ts`'s "still needs every decoration exemption it claims", and as the
- * frontends' `assertKnownStillBroken`: an exemption that has stopped being needed is a licence
+ * NONE. The map is empty, and it is meant to stay that way: every surface in the registry that
+ * serves a page is checked, by name, with no opt-out.
+ *
+ * It is kept rather than deleted because the shape is the point. An exemption here is temporary by
+ * construction — the assertion below makes that structural, since **an entry that HAS a footer
+ * fails the run** — and the next agent who needs one has somewhere to put it that self-destructs.
+ * Same shape as `contrast.test.ts`'s "still needs every decoration exemption it claims", and as
+ * the frontends' `assertKnownStillBroken`: an exemption that has stopped being needed is a licence
  * sitting there quietly excusing the next regression.
  *
- * ── IT WAS THREE, AND TWO OF THEM ARE THE POINT OF micro-org#489 ──────────────────────────────
+ * ── IT WAS THREE, AND ALL THREE ARE THE POINT OF micro-org#489 ────────────────────────────────
  *
- * `site` and `explorer` were exempt for the same "held by another agent" reason. Both now render
- * `CloudsForgeFooter` and both entries are deleted, which is the half of this map that the
- * assertion below enforces. `site` is the one that mattered: its bespoke four-column footer had no
- * Platform column, so Forge Journal — which lives in that column on every other surface — was
- * reachable from nowhere on the estate's own front door. A component composed on eighteen surfaces
- * and reimplemented on the nineteenth is not a shared component; it is a copy with a licence.
+ * `site`, `explorer` and `network` were exempt for the same "held by another agent" reason, and
+ * all three now render `CloudsForgeFooter`. `site` is the one that mattered: its bespoke
+ * four-column footer had no Platform column, so Forge Journal — which lives in that column on
+ * every other surface — was reachable from nowhere on the estate's own front door. A component
+ * composed on eighteen surfaces and reimplemented on the nineteenth is not a shared component; it
+ * is a copy with a licence.
  *
- * Everything else in the registry that serves a page must have one, by name, with no opt-out.
+ * `network` had no footer at all, which is the other half of that issue. micro-network-site#37
+ * mounts this component on all six of its routes — with `legalUrl` so the legal links carry the
+ * `?net=` the reader is viewing, and deliberately without `columns`, because that surface's own
+ * routes are already in a sticky sub-navigation above the fold. It is merged; until the estate is
+ * next deployed this guard will say so out loud, which is the correct thing for it to say.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-const NOT_YET_ADOPTED: ReadonlyMap<string, string> = new Map([
-  ['network', 'micro-network-site — held by another agent, who is redesigning it and will mount the footer there'],
-])
+const NOT_YET_ADOPTED: ReadonlyMap<string, string> = new Map<string, string>()
 
 /* The minimum of playwright-core this file drives. Declared structurally for the same reason
  * beacon's driver.ts does: importing its types would make an optional dependency mandatory. */
