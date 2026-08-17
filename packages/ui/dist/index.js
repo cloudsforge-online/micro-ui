@@ -321,6 +321,27 @@ export const IDENTITY_AUTH_ROUTES = {
     handoffRedeem: '/auth/handoff/redeem',
 };
 /**
+ * The one error code for which "ask an operator to add this origin to the allowlist" is true.
+ *
+ * Restated from `identity/src/handoff.ts`, which exports it under
+ * `HANDOFF_ORIGIN_REFUSED_CODE` and is the source of record. It is restated rather than imported
+ * for the same reason `IDENTITY_AUTH_ROUTES` above restates two paths: this package may not depend
+ * on a service. The difference from the routes is that a drifted value here is SAFE — an unknown
+ * code falls through to `'refused'`, which is the old behaviour — whereas a drifted route 404s.
+ */
+export const HANDOFF_ORIGIN_REFUSED = 'handoff_origin_refused';
+/** identity's error envelope is `{ error: { code, message } }`. A gateway's HTML page is not. */
+async function handoffErrorCode(res) {
+    try {
+        const body = await res.json();
+        const code = body?.error?.code;
+        return typeof code === 'string' && code !== '' ? code : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
  * Mint an SSO hand-off code for `redirectOrigin`, using a session this surface already holds.
  *
  * Called by the sign-in surface once credentials have been accepted, and by nothing else: the
@@ -330,26 +351,93 @@ export const IDENTITY_AUTH_ROUTES = {
  * that is what a browser puts in the `Origin` header of the redemption POST, and the two are
  * compared for equality when the code is spent.
  *
- * Returns null on any refusal. There is nothing useful for a caller to do with the distinction
- * between "that origin is not allowed" and "that token is not valid", and both mean the same
- * thing on screen: this hand-off cannot be completed, sign in on the destination instead.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ── WHY THIS EXISTS BESIDE `mintHandoffCode` (micro-org#480) ──────────────────────────────────
+ *
+ * `mintHandoffCode` collapses every non-2xx to `null`, under a comment that said so on purpose:
+ * "There is nothing useful for a caller to do with the distinction between 'that origin is not
+ * allowed' and 'that token is not valid'". **That was wrong, and it cost the owner an afternoon.**
+ *
+ * The estate's sign-in surface maps that `null` to one sentence, and the sentence it picked names
+ * the allowlist: "You are signed in, but CloudsForge will not hand a session to
+ * https://cloudsforge.online … ask an operator to add it to the hand-off allowlist." MEASURED on
+ * 2026-08-17: the apex WAS on the live allowlist, `POST /auth/handoff` answered 201 for it, and
+ * identity's audit log held not one refusal for that origin. What was actually happening is the
+ * 401 — hub keeps tokens in `localStorage`, so they outlive a browser restart, its `hasSession()`
+ * tests presence rather than expiry, and an access token older than `ACCESS_TTL_SECONDS` is simply
+ * stale. The reader was sent to ask an operator to fix a list that was already correct.
+ *
+ * A message that cannot tell "the thing is broken" from "I could not present a session" is worse
+ * than no message: it names a specific, plausible, already-correct cause and spends the next
+ * person's time on it. So identity made the two distinguishable ON THE WIRE (micro-identity#22,
+ * merged: 403 `handoff_origin_refused` for the allowlist, 401 for a stale token) — and this is the
+ * half of that fix that lives in the browser. The wire distinction is worth nothing while the
+ * client throws it away one stack frame later.
+ *
+ * The 401 is not only reported, it is RECOVERED FROM: pass `refresh` and a stale access token
+ * costs one extra round trip instead of a dead end, which is what `hub-web`'s `nimbus()` has
+ * always done for every other call it makes. Once, never in a loop — a refresh that does not fix
+ * a 401 is a session that is over.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function mintHandoffCode(accessToken, redirectOrigin) {
+export async function mintHandoff(accessToken, redirectOrigin, options = {}) {
+    const post = (token) => fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoff}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ redirectOrigin }),
+    });
+    let res;
     try {
-        const res = await fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoff}`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
-            body: JSON.stringify({ redirectOrigin }),
-        });
-        if (!res.ok)
-            return null;
-        const body = await res.json();
-        const code = body?.code;
-        return typeof code === 'string' && code.length > 0 ? code : null;
+        res = await post(accessToken);
+        if (res.status === 401 && options.refresh) {
+            const fresh = await options.refresh();
+            if (typeof fresh === 'string' && fresh !== '')
+                res = await post(fresh);
+        }
     }
     catch {
-        return null;
+        // A throw from `fetch` is not a refusal by identity — identity was never reached. Reporting it
+        // as one would send the reader to an operator about an allowlist over a dropped wifi link.
+        return { ok: false, refusal: 'unreachable', status: 0, errorCode: null };
     }
+    if (!res.ok) {
+        const errorCode = await handoffErrorCode(res);
+        // The status is read BEFORE the code: a 401 is a stale session whatever body came with it, and
+        // only a service that says `handoff_origin_refused` is talking about the allowlist. An
+        // unrecognised code is `refused`, which is exactly what every non-2xx used to be.
+        const refusal = res.status === 401 ? 'session' : errorCode === HANDOFF_ORIGIN_REFUSED ? 'origin' : 'refused';
+        return { ok: false, refusal, status: res.status, errorCode };
+    }
+    let body = null;
+    try {
+        body = await res.json();
+    }
+    catch {
+        body = null;
+    }
+    const code = body?.code;
+    if (typeof code === 'string' && code.length > 0)
+        return { ok: true, code };
+    // A 2xx from something that is not identity — a gateway's courtesy page, a misrouted deploy.
+    // It is not a refusal by anybody, but there is no code in it, so it cannot be a success either.
+    return { ok: false, refusal: 'refused', status: res.status, errorCode: null };
+}
+/**
+ * {@link mintHandoff}, for a caller that only wants the code.
+ *
+ * Kept, and kept at this exact signature, because it is what `hub-web` imports and this package is
+ * `link:`ed by nineteen surfaces — changing a return type here is a build break in repositories
+ * this change has no business touching. `options` is new and optional, so an existing call site
+ * compiles and behaves identically.
+ *
+ * **A caller that renders a sentence about WHY should call `mintHandoff` instead.** Everything
+ * this function knows about the difference between a stale token and a refused origin is thrown
+ * away in the line below; that discarding is the defect of micro-org#480, and it survives here
+ * only so that a caller who genuinely has one outcome on screen may keep saying so.
+ */
+export async function mintHandoffCode(accessToken, redirectOrigin, options = {}) {
+    const mint = await mintHandoff(accessToken, redirectOrigin, options);
+    return mint.ok ? mint.code : null;
 }
 /**
  * Put a hand-off code on the return address, in the FRAGMENT.
@@ -1329,7 +1417,7 @@ function SocialMark({ mark }) {
  * Colour is `--cf-*` tokens only; see `.cf-foot` in ui.css. There is no hex literal in this
  * component and none in its stylesheet.
  */
-export function CloudsForgeFooter({ current, account, surfaceUrls, note, columns, }) {
+export function CloudsForgeFooter({ current, account, surfaceUrls, note, columns, legalUrl, }) {
     const hosts = cloudsforgeHosts();
     const isAdmin = account?.roles?.includes('admin') ?? false;
     const idBase = useId();
@@ -1347,7 +1435,13 @@ export function CloudsForgeFooter({ current, account, surfaceUrls, note, columns
                         }), columns?.map((column, i) => {
                             const headingId = `${idBase}-own-${i}`;
                             return (_jsxs("nav", { className: "cf-foot__col", "aria-labelledby": headingId, children: [_jsx("h2", { className: "cf-foot__title", id: headingId, children: column.title }), _jsx("ul", { className: "cf-foot__list", children: column.links.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: l.href, children: l.label }) }, l.href))) })] }, column.title));
-                        }), _jsxs("nav", { className: "cf-foot__col", "aria-labelledby": `${idBase}-legal`, children: [_jsx("h2", { className: "cf-foot__title", id: `${idBase}-legal`, children: "Legal" }), _jsx("ul", { className: "cf-foot__list", children: FOOTER_LEGAL_LINKS.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: `${hosts.site}${l.path}`, children: l.label }) }, l.path))) })] })] }), note && _jsx("p", { className: "cf-foot__note", children: note }), _jsxs("div", { className: "cf-foot__base", children: [_jsx("span", { className: "cf-foot__brand", children: _jsx(CloudsForgeLogo, { size: 16 }) }), _jsxs("span", { className: "cf-foot__here", children: [here.name, " \u2014 ", here.blurb] }), _jsx("ul", { className: "cf-foot__social", children: FOOTER_SOCIAL_LINKS.map((s) => (_jsx("li", { children: _jsxs("a", { className: "cf-foot__sociallink", href: s.href, rel: "me noopener", children: [_jsx(SocialMark, { mark: s.key }), _jsx("span", { className: "cf-sr", children: s.label })] }) }, s.key))) })] })] }) }));
+                        }), _jsxs("nav", { className: "cf-foot__col", "aria-labelledby": `${idBase}-legal`, children: [_jsx("h2", { className: "cf-foot__title", id: `${idBase}-legal`, children: "Legal" }), _jsx("ul", { className: "cf-foot__list", children: FOOTER_LEGAL_LINKS.map((l) => {
+                                        // Not a surface. A route on the marketing site — see FOOTER_LEGAL_LINKS. The
+                                        // composed address is what `legalUrl` is handed, so a consumer decorates an
+                                        // absolute URL rather than rebuilding one out of a host it had to guess.
+                                        const href = `${hosts.site}${l.path}`;
+                                        return (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: legalUrl ? legalUrl(href, l.path) : href, children: l.label }) }, l.path));
+                                    }) })] })] }), note && _jsx("p", { className: "cf-foot__note", children: note }), _jsxs("div", { className: "cf-foot__base", children: [_jsx("span", { className: "cf-foot__brand", children: _jsx(CloudsForgeLogo, { size: 16 }) }), _jsxs("span", { className: "cf-foot__here", children: [here.name, " \u2014 ", here.blurb] }), _jsx("ul", { className: "cf-foot__social", children: FOOTER_SOCIAL_LINKS.map((s) => (_jsx("li", { children: _jsxs("a", { className: "cf-foot__sociallink", href: s.href, rel: "me noopener", children: [_jsx(SocialMark, { mark: s.key }), _jsx("span", { className: "cf-sr", children: s.label })] }) }, s.key))) })] })] }) }));
 }
 /**
  * The panel a signed-out reader meets before anything sends them to another hostname.

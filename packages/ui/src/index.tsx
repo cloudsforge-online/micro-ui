@@ -578,6 +578,68 @@ export const IDENTITY_AUTH_ROUTES = {
 } as const
 
 /**
+ * The one error code for which "ask an operator to add this origin to the allowlist" is true.
+ *
+ * Restated from `identity/src/handoff.ts`, which exports it under
+ * `HANDOFF_ORIGIN_REFUSED_CODE` and is the source of record. It is restated rather than imported
+ * for the same reason `IDENTITY_AUTH_ROUTES` above restates two paths: this package may not depend
+ * on a service. The difference from the routes is that a drifted value here is SAFE — an unknown
+ * code falls through to `'refused'`, which is the old behaviour — whereas a drifted route 404s.
+ */
+export const HANDOFF_ORIGIN_REFUSED = 'handoff_origin_refused'
+
+/**
+ * Why a hand-off could not be minted, in the only four shapes a caller can act on differently.
+ *
+ *   `origin`      403 `handoff_origin_refused`. The allowlist genuinely refused this origin. THIS
+ *                 IS THE ONLY VALUE FOR WHICH "ask an operator to add it" is a true sentence.
+ *   `session`     401. The access token presented is not one identity will accept — expired, in
+ *                 practice. The only useful thing on screen is a sign-in form.
+ *   `unreachable` The request got no answer at all: nothing is served there, DNS, offline, CORS.
+ *   `refused`     Anything else, including a 2xx whose body carries no usable code.
+ */
+export type HandoffRefusal = 'origin' | 'session' | 'unreachable' | 'refused'
+
+/** What `POST /auth/handoff` answered, refusals included. */
+export type HandoffMint =
+  | { readonly ok: true; readonly code: string }
+  | {
+      readonly ok: false
+      readonly refusal: HandoffRefusal
+      /** The HTTP status, or 0 when the request never got an answer. */
+      readonly status: number
+      /** identity's own error code, when it sent one and it was readable. */
+      readonly errorCode: string | null
+    }
+
+/** Options for {@link mintHandoff}. */
+export interface MintHandoffOptions {
+  /**
+   * Mint a fresh access token, called AT MOST ONCE and only on a 401.
+   *
+   * This package holds no tokens and no storage — every consumer keeps its own — so the refresh
+   * that `hub-web`'s `nimbus()` performs inside its own request core cannot live here. The
+   * callback is that hook: return a new access token and the mint is retried once with it, return
+   * null and the answer stands as `session`.
+   *
+   * A caller that passes nothing keeps the old behaviour exactly, which is what makes this
+   * additive: nineteen surfaces link this package, and a required option would have been a break.
+   */
+  refresh?: (() => Promise<string | null | undefined>) | undefined
+}
+
+/** identity's error envelope is `{ error: { code, message } }`. A gateway's HTML page is not. */
+async function handoffErrorCode(res: { json: () => Promise<unknown> }): Promise<string | null> {
+  try {
+    const body: unknown = await res.json()
+    const code = (body as { error?: { code?: unknown } } | null)?.error?.code
+    return typeof code === 'string' && code !== '' ? code : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Mint an SSO hand-off code for `redirectOrigin`, using a session this surface already holds.
  *
  * Called by the sign-in surface once credentials have been accepted, and by nothing else: the
@@ -587,27 +649,103 @@ export const IDENTITY_AUTH_ROUTES = {
  * that is what a browser puts in the `Origin` header of the redemption POST, and the two are
  * compared for equality when the code is spent.
  *
- * Returns null on any refusal. There is nothing useful for a caller to do with the distinction
- * between "that origin is not allowed" and "that token is not valid", and both mean the same
- * thing on screen: this hand-off cannot be completed, sign in on the destination instead.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ── WHY THIS EXISTS BESIDE `mintHandoffCode` (micro-org#480) ──────────────────────────────────
+ *
+ * `mintHandoffCode` collapses every non-2xx to `null`, under a comment that said so on purpose:
+ * "There is nothing useful for a caller to do with the distinction between 'that origin is not
+ * allowed' and 'that token is not valid'". **That was wrong, and it cost the owner an afternoon.**
+ *
+ * The estate's sign-in surface maps that `null` to one sentence, and the sentence it picked names
+ * the allowlist: "You are signed in, but CloudsForge will not hand a session to
+ * https://cloudsforge.online … ask an operator to add it to the hand-off allowlist." MEASURED on
+ * 2026-08-17: the apex WAS on the live allowlist, `POST /auth/handoff` answered 201 for it, and
+ * identity's audit log held not one refusal for that origin. What was actually happening is the
+ * 401 — hub keeps tokens in `localStorage`, so they outlive a browser restart, its `hasSession()`
+ * tests presence rather than expiry, and an access token older than `ACCESS_TTL_SECONDS` is simply
+ * stale. The reader was sent to ask an operator to fix a list that was already correct.
+ *
+ * A message that cannot tell "the thing is broken" from "I could not present a session" is worse
+ * than no message: it names a specific, plausible, already-correct cause and spends the next
+ * person's time on it. So identity made the two distinguishable ON THE WIRE (micro-identity#22,
+ * merged: 403 `handoff_origin_refused` for the allowlist, 401 for a stale token) — and this is the
+ * half of that fix that lives in the browser. The wire distinction is worth nothing while the
+ * client throws it away one stack frame later.
+ *
+ * The 401 is not only reported, it is RECOVERED FROM: pass `refresh` and a stale access token
+ * costs one extra round trip instead of a dead end, which is what `hub-web`'s `nimbus()` has
+ * always done for every other call it makes. Once, never in a loop — a refresh that does not fix
+ * a 401 is a session that is over.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+export async function mintHandoff(
+  accessToken: string,
+  redirectOrigin: string,
+  options: MintHandoffOptions = {},
+): Promise<HandoffMint> {
+  const post = (token: string): Promise<Response> =>
+    fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoff}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ redirectOrigin }),
+    })
+
+  let res: Response
+  try {
+    res = await post(accessToken)
+    if (res.status === 401 && options.refresh) {
+      const fresh = await options.refresh()
+      if (typeof fresh === 'string' && fresh !== '') res = await post(fresh)
+    }
+  } catch {
+    // A throw from `fetch` is not a refusal by identity — identity was never reached. Reporting it
+    // as one would send the reader to an operator about an allowlist over a dropped wifi link.
+    return { ok: false, refusal: 'unreachable', status: 0, errorCode: null }
+  }
+
+  if (!res.ok) {
+    const errorCode = await handoffErrorCode(res)
+    // The status is read BEFORE the code: a 401 is a stale session whatever body came with it, and
+    // only a service that says `handoff_origin_refused` is talking about the allowlist. An
+    // unrecognised code is `refused`, which is exactly what every non-2xx used to be.
+    const refusal: HandoffRefusal =
+      res.status === 401 ? 'session' : errorCode === HANDOFF_ORIGIN_REFUSED ? 'origin' : 'refused'
+    return { ok: false, refusal, status: res.status, errorCode }
+  }
+
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    body = null
+  }
+  const code = (body as { code?: unknown } | null)?.code
+  if (typeof code === 'string' && code.length > 0) return { ok: true, code }
+  // A 2xx from something that is not identity — a gateway's courtesy page, a misrouted deploy.
+  // It is not a refusal by anybody, but there is no code in it, so it cannot be a success either.
+  return { ok: false, refusal: 'refused', status: res.status, errorCode: null }
+}
+
+/**
+ * {@link mintHandoff}, for a caller that only wants the code.
+ *
+ * Kept, and kept at this exact signature, because it is what `hub-web` imports and this package is
+ * `link:`ed by nineteen surfaces — changing a return type here is a build break in repositories
+ * this change has no business touching. `options` is new and optional, so an existing call site
+ * compiles and behaves identically.
+ *
+ * **A caller that renders a sentence about WHY should call `mintHandoff` instead.** Everything
+ * this function knows about the difference between a stale token and a refused origin is thrown
+ * away in the line below; that discarding is the defect of micro-org#480, and it survives here
+ * only so that a caller who genuinely has one outcome on screen may keep saying so.
  */
 export async function mintHandoffCode(
   accessToken: string,
   redirectOrigin: string,
+  options: MintHandoffOptions = {},
 ): Promise<string | null> {
-  try {
-    const res = await fetch(`${cloudsforgeHosts().nimbus}${IDENTITY_AUTH_ROUTES.handoff}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ redirectOrigin }),
-    })
-    if (!res.ok) return null
-    const body: unknown = await res.json()
-    const code = (body as { code?: unknown } | null)?.code
-    return typeof code === 'string' && code.length > 0 ? code : null
-  } catch {
-    return null
-  }
+  const mint = await mintHandoff(accessToken, redirectOrigin, options)
+  return mint.ok ? mint.code : null
 }
 
 /**
@@ -2288,6 +2426,29 @@ export interface CloudsForgeFooterProps {
    * that wants a different footer.
    */
   columns?: readonly FooterColumn[] | undefined
+  /**
+   * Rewrite the three Legal hrefs, which are composed here rather than passed in.
+   *
+   * ── WHY A FUNCTION, WHEN `surfaceUrls` IS A RECORD ────────────────────────────────────────────
+   *
+   * `surfaceUrls` is keyed by `SurfaceKey`, a closed union the registry owns, so a record cannot
+   * go stale without a type error. `FOOTER_LEGAL_LINKS` is three paths on the marketing site and
+   * nothing types them, so a record keyed by path would silently miss a FOURTH legal page the day
+   * one is added — the exact drift `footer.test.ts` already guards against for the set itself.
+   * A function is applied to every link there will ever be.
+   *
+   * ── WHAT ASKED FOR IT ─────────────────────────────────────────────────────────────────────────
+   *
+   * Forge Network (micro-org#484) renders one estate or the other and carries the reader's viewed
+   * network on every link as `?net=`. It can wrap every surface link through `surfaceUrls`, and
+   * these three were the only hrefs in this component it could not reach: a reader who had spent
+   * the whole visit on testnet lost that the moment they opened the privacy notice, and came back
+   * — via the site's own header — to mainnet. Reported rather than patched, which is why this is
+   * here and not in a nineteenth bespoke footer.
+   *
+   * The default is identity: a surface that passes nothing gets `${hosts.site}${path}`, unchanged.
+   */
+  legalUrl?: ((url: string, path: string) => string) | undefined
 }
 
 /**
@@ -2342,6 +2503,7 @@ export function CloudsForgeFooter({
   surfaceUrls,
   note,
   columns,
+  legalUrl,
 }: CloudsForgeFooterProps) {
   const hosts = cloudsforgeHosts()
   const isAdmin = account?.roles?.includes('admin') ?? false
@@ -2414,14 +2576,19 @@ export function CloudsForgeFooter({
               Legal
             </h2>
             <ul className="cf-foot__list">
-              {FOOTER_LEGAL_LINKS.map((l) => (
-                <li key={l.path}>
-                  {/* Not a surface. A route on the marketing site — see FOOTER_LEGAL_LINKS. */}
-                  <a className="cf-foot__link" href={`${hosts.site}${l.path}`}>
-                    {l.label}
-                  </a>
-                </li>
-              ))}
+              {FOOTER_LEGAL_LINKS.map((l) => {
+                // Not a surface. A route on the marketing site — see FOOTER_LEGAL_LINKS. The
+                // composed address is what `legalUrl` is handed, so a consumer decorates an
+                // absolute URL rather than rebuilding one out of a host it had to guess.
+                const href = `${hosts.site}${l.path}`
+                return (
+                  <li key={l.path}>
+                    <a className="cf-foot__link" href={legalUrl ? legalUrl(href, l.path) : href}>
+                      {l.label}
+                    </a>
+                  </li>
+                )
+              })}
             </ul>
           </nav>
         </div>

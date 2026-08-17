@@ -546,3 +546,70 @@ describe('a surface may add columns and may not remove any', () => {
     )
   })
 })
+
+/* ═════════════════ the legal hrefs a surface may decorate (micro-org#484) ═════════════════ */
+
+/**
+ * Forge Network renders one estate or the other and carries `?net=` on every link it offers. It
+ * can wrap the surface links through `surfaceUrls`; these three are composed inside the component,
+ * so before this hook they were the only hrefs on the page that dropped the reader's viewed network
+ * — silently, on the way to the privacy notice.
+ */
+describe('a surface may decorate the legal hrefs', () => {
+  const CARRIED = renderToStaticMarkup(
+    createElement(CloudsForgeFooter, {
+      current: 'network',
+      legalUrl: (url: string) => `${url}?net=testnet`,
+    }),
+  )
+
+  it('applies the hook to every legal link, including one added later', () => {
+    // Asserted over `FOOTER_LEGAL_LINKS` rather than over three literals, which is the reason the
+    // hook is a function and not a record keyed by path: a fourth legal page is carried too.
+    const site = cloudsforgeHosts().site
+    for (const l of FOOTER_LEGAL_LINKS) {
+      const found = anchors(CARRIED).find((a) => a.text === l.label)
+      assert.ok(found, `${l.label} is missing`)
+      assert.equal(found.href, `${site}${l.path}?net=testnet`)
+    }
+  })
+
+  it('hands over the composed absolute address and the path', () => {
+    const seen: { url: string; path: string }[] = []
+    renderToStaticMarkup(
+      createElement(CloudsForgeFooter, {
+        current: 'network',
+        legalUrl: (url: string, path: string) => {
+          seen.push({ url, path })
+          return url
+        },
+      }),
+    )
+    const site = cloudsforgeHosts().site
+    assert.deepEqual(
+      seen,
+      FOOTER_LEGAL_LINKS.map((l) => ({ url: `${site}${l.path}`, path: l.path })),
+    )
+  })
+
+  it('touches nothing but the legal column', () => {
+    const hosts = cloudsforgeHosts()
+    for (const s of FOOTER_SURFACES) {
+      if (s.adminOnly) continue
+      assert.ok(
+        anchors(CARRIED).some((a) => a.href === hosts[s.key]),
+        `${s.key} was rewritten by a hook that is only for the legal links`,
+      )
+    }
+    for (const s of FOOTER_SOCIAL_LINKS) {
+      assert.ok(anchors(CARRIED).some((a) => a.href === s.href), s.label)
+    }
+  })
+
+  it('defaults to the marketing site, unchanged, when no hook is passed', () => {
+    const site = cloudsforgeHosts().site
+    for (const l of FOOTER_LEGAL_LINKS) {
+      assert.ok(anchors(SIGNED_OUT).some((a) => a.href === `${site}${l.path}`), l.label)
+    }
+  })
+})
