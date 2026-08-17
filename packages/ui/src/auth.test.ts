@@ -32,7 +32,9 @@ import { afterEach, describe, it } from 'node:test'
 import {
   consumeAuthCallback,
   handoffReturnUrl,
+  mintHandoff,
   mintHandoffCode,
+  HANDOFF_ORIGIN_REFUSED,
   IDENTITY_AUTH_ROUTES,
 } from './index.tsx'
 
@@ -67,7 +69,13 @@ const IDENTITY_ROUTES: Record<string, (body: Record<string, unknown>, auth: stri
       return reply(400, { error: { code: 'bad_request', message: 'redirectOrigin is required' } })
     }
     if (body['redirectOrigin'] !== 'https://worlds.cloudsforge.online') {
-      return reply(403, { error: { code: 'forbidden', message: 'not on the hand-off allowlist' } })
+      // `handoff_origin_refused`, not `forbidden` — identity/src/server.ts, micro-identity#22.
+      // A plain `forbidden` here was indistinguishable from the 401 above once the client had
+      // collapsed both to null, which is the whole of micro-org#480. The stub carries identity's
+      // current answer so the client's branch on it is exercised against the real code.
+      return reply(403, {
+        error: { code: 'handoff_origin_refused', message: 'not on the hand-off allowlist' },
+      })
     }
     return reply(201, { code: 'handoff-code-1', expiresInSeconds: 60 })
   },
@@ -296,6 +304,141 @@ describe('mintHandoffCode', () => {
   it('returns null rather than a session when the token is not accepted', async () => {
     identityStub('')
     assert.equal(await mintHandoffCode('', 'https://worlds.cloudsforge.online'), null)
+  })
+})
+
+/**
+ * The half of micro-org#480 that lives in the browser.
+ *
+ * identity now answers 403 `handoff_origin_refused` for the allowlist and 401 for a stale token
+ * (micro-identity#22). Those two were indistinguishable to every client in the estate, because
+ * this module collapsed both to `null` — so the sign-in surface printed "ask an operator to add it
+ * to the hand-off allowlist" at a reader whose origin was already on the list and whose access
+ * token had simply expired in `localStorage` overnight.
+ *
+ * These tests exist to make that specific confusion FAIL. Each of the two refusals is asserted to
+ * arrive as its own value, and the 401 is additionally asserted to be recovered from rather than
+ * merely described.
+ */
+describe('mintHandoff', () => {
+  it('mints, and says so in a way a caller can branch on', async () => {
+    identityStub('')
+    assert.deepEqual(await mintHandoff('at', 'https://worlds.cloudsforge.online'), {
+      ok: true,
+      code: 'handoff-code-1',
+    })
+  })
+
+  it('tells a refused ORIGIN apart from a refused TOKEN', async () => {
+    // The assertion micro-org#480 is about. If these two ever produce the same value again, the
+    // sentence about the allowlist goes back to being printed for an expired session.
+    identityStub('')
+    const origin = await mintHandoff('at', 'https://not-ours.example')
+    assert.deepEqual(origin, {
+      ok: false,
+      refusal: 'origin',
+      status: 403,
+      errorCode: 'handoff_origin_refused',
+    })
+
+    identityStub('')
+    const session = await mintHandoff('', 'https://worlds.cloudsforge.online')
+    assert.deepEqual(session, {
+      ok: false,
+      refusal: 'session',
+      status: 401,
+      errorCode: 'unauthenticated',
+    })
+
+    assert.notDeepEqual(origin, session, 'the two refusals must not be one outcome again')
+  })
+
+  it('reads an unknown refusal as `refused` rather than as the allowlist', async () => {
+    // A 403 identity did not send, or sent for another reason. Only `handoff_origin_refused`
+    // licenses the sentence about the allowlist; everything else is the old, honest "no".
+    identityStub('', async () => reply(403, { error: { code: 'forbidden', message: 'no' } }))
+    assert.deepEqual(await mintHandoff('at', 'https://worlds.cloudsforge.online'), {
+      ok: false,
+      refusal: 'refused',
+      status: 403,
+      errorCode: 'forbidden',
+    })
+  })
+
+  it('separates “identity refused” from “identity never answered”', async () => {
+    identityStub('', () => Promise.reject(new Error('offline')))
+    assert.deepEqual(await mintHandoff('at', 'https://worlds.cloudsforge.online'), {
+      ok: false,
+      refusal: 'unreachable',
+      status: 0,
+      errorCode: null,
+    })
+  })
+
+  it('refuses a 2xx that carries no code, rather than handing back an empty one', async () => {
+    identityStub('', async () => reply(200, { message: 'hello' }))
+    const mint = await mintHandoff('at', 'https://worlds.cloudsforge.online')
+    assert.equal(mint.ok, false)
+    assert.equal(mint.ok === false && mint.refusal, 'refused')
+  })
+
+  it('refreshes ONCE on a stale token and mints with the new one', async () => {
+    const s = identityStub('')
+    let refreshes = 0
+    const mint = await mintHandoff('', 'https://worlds.cloudsforge.online', {
+      refresh: async () => {
+        refreshes += 1
+        return 'fresh'
+      },
+    })
+    assert.deepEqual(mint, { ok: true, code: 'handoff-code-1' })
+    assert.equal(refreshes, 1, 'the refresh must not be attempted twice for one mint')
+    assert.deepEqual(s.calls, ['fetch', 'fetch'])
+    assert.equal(s.fetched?.headers['authorization'], 'Bearer fresh')
+  })
+
+  it('does not retry a refusal that a new token cannot fix', async () => {
+    // A 403 is not an expiry. Refreshing on one is a round trip that cannot change the answer,
+    // and — worse — a second chance for a client to conclude the token was the problem.
+    const s = identityStub('')
+    let refreshes = 0
+    const mint = await mintHandoff('at', 'https://not-ours.example', {
+      refresh: async () => {
+        refreshes += 1
+        return 'fresh'
+      },
+    })
+    assert.equal(mint.ok === false && mint.refusal, 'origin')
+    assert.equal(refreshes, 0)
+    assert.deepEqual(s.calls, ['fetch'])
+  })
+
+  it('stands by the 401 when the refresh cannot produce a token', async () => {
+    identityStub('')
+    for (const refreshed of [null, undefined, '']) {
+      const mint = await mintHandoff('', 'https://worlds.cloudsforge.online', {
+        refresh: async () => refreshed,
+      })
+      assert.equal(mint.ok === false && mint.refusal, 'session', `${String(refreshed)} is not a token`)
+    }
+  })
+
+  it('keeps mintHandoffCode’s signature, because hub-web compiles against it', async () => {
+    // The old export survives unchanged for every existing call site — two arguments, a string or
+    // null back. The options argument is additive, and passes through.
+    identityStub('')
+    assert.equal(await mintHandoffCode('at', 'https://worlds.cloudsforge.online'), 'handoff-code-1')
+    assert.equal(await mintHandoffCode('at', 'https://not-ours.example'), null)
+    assert.equal(
+      await mintHandoffCode('', 'https://worlds.cloudsforge.online', { refresh: async () => 'fresh' }),
+      'handoff-code-1',
+    )
+  })
+
+  it('names the code identity actually sends', async () => {
+    // A constant restated across a repository boundary. If micro-identity renames it, this is the
+    // line that has to be edited, and the stub above is where the current value was read from.
+    assert.equal(HANDOFF_ORIGIN_REFUSED, 'handoff_origin_refused')
   })
 })
 

@@ -336,6 +336,54 @@ export declare const IDENTITY_AUTH_ROUTES: {
     readonly handoffRedeem: "/auth/handoff/redeem";
 };
 /**
+ * The one error code for which "ask an operator to add this origin to the allowlist" is true.
+ *
+ * Restated from `identity/src/handoff.ts`, which exports it under
+ * `HANDOFF_ORIGIN_REFUSED_CODE` and is the source of record. It is restated rather than imported
+ * for the same reason `IDENTITY_AUTH_ROUTES` above restates two paths: this package may not depend
+ * on a service. The difference from the routes is that a drifted value here is SAFE — an unknown
+ * code falls through to `'refused'`, which is the old behaviour — whereas a drifted route 404s.
+ */
+export declare const HANDOFF_ORIGIN_REFUSED = "handoff_origin_refused";
+/**
+ * Why a hand-off could not be minted, in the only four shapes a caller can act on differently.
+ *
+ *   `origin`      403 `handoff_origin_refused`. The allowlist genuinely refused this origin. THIS
+ *                 IS THE ONLY VALUE FOR WHICH "ask an operator to add it" is a true sentence.
+ *   `session`     401. The access token presented is not one identity will accept — expired, in
+ *                 practice. The only useful thing on screen is a sign-in form.
+ *   `unreachable` The request got no answer at all: nothing is served there, DNS, offline, CORS.
+ *   `refused`     Anything else, including a 2xx whose body carries no usable code.
+ */
+export type HandoffRefusal = 'origin' | 'session' | 'unreachable' | 'refused';
+/** What `POST /auth/handoff` answered, refusals included. */
+export type HandoffMint = {
+    readonly ok: true;
+    readonly code: string;
+} | {
+    readonly ok: false;
+    readonly refusal: HandoffRefusal;
+    /** The HTTP status, or 0 when the request never got an answer. */
+    readonly status: number;
+    /** identity's own error code, when it sent one and it was readable. */
+    readonly errorCode: string | null;
+};
+/** Options for {@link mintHandoff}. */
+export interface MintHandoffOptions {
+    /**
+     * Mint a fresh access token, called AT MOST ONCE and only on a 401.
+     *
+     * This package holds no tokens and no storage — every consumer keeps its own — so the refresh
+     * that `hub-web`'s `nimbus()` performs inside its own request core cannot live here. The
+     * callback is that hook: return a new access token and the mint is retried once with it, return
+     * null and the answer stands as `session`.
+     *
+     * A caller that passes nothing keeps the old behaviour exactly, which is what makes this
+     * additive: nineteen surfaces link this package, and a required option would have been a break.
+     */
+    refresh?: (() => Promise<string | null | undefined>) | undefined;
+}
+/**
  * Mint an SSO hand-off code for `redirectOrigin`, using a session this surface already holds.
  *
  * Called by the sign-in surface once credentials have been accepted, and by nothing else: the
@@ -345,11 +393,50 @@ export declare const IDENTITY_AUTH_ROUTES: {
  * that is what a browser puts in the `Origin` header of the redemption POST, and the two are
  * compared for equality when the code is spent.
  *
- * Returns null on any refusal. There is nothing useful for a caller to do with the distinction
- * between "that origin is not allowed" and "that token is not valid", and both mean the same
- * thing on screen: this hand-off cannot be completed, sign in on the destination instead.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ── WHY THIS EXISTS BESIDE `mintHandoffCode` (micro-org#480) ──────────────────────────────────
+ *
+ * `mintHandoffCode` collapses every non-2xx to `null`, under a comment that said so on purpose:
+ * "There is nothing useful for a caller to do with the distinction between 'that origin is not
+ * allowed' and 'that token is not valid'". **That was wrong, and it cost the owner an afternoon.**
+ *
+ * The estate's sign-in surface maps that `null` to one sentence, and the sentence it picked names
+ * the allowlist: "You are signed in, but CloudsForge will not hand a session to
+ * https://cloudsforge.online … ask an operator to add it to the hand-off allowlist." MEASURED on
+ * 2026-08-17: the apex WAS on the live allowlist, `POST /auth/handoff` answered 201 for it, and
+ * identity's audit log held not one refusal for that origin. What was actually happening is the
+ * 401 — hub keeps tokens in `localStorage`, so they outlive a browser restart, its `hasSession()`
+ * tests presence rather than expiry, and an access token older than `ACCESS_TTL_SECONDS` is simply
+ * stale. The reader was sent to ask an operator to fix a list that was already correct.
+ *
+ * A message that cannot tell "the thing is broken" from "I could not present a session" is worse
+ * than no message: it names a specific, plausible, already-correct cause and spends the next
+ * person's time on it. So identity made the two distinguishable ON THE WIRE (micro-identity#22,
+ * merged: 403 `handoff_origin_refused` for the allowlist, 401 for a stale token) — and this is the
+ * half of that fix that lives in the browser. The wire distinction is worth nothing while the
+ * client throws it away one stack frame later.
+ *
+ * The 401 is not only reported, it is RECOVERED FROM: pass `refresh` and a stale access token
+ * costs one extra round trip instead of a dead end, which is what `hub-web`'s `nimbus()` has
+ * always done for every other call it makes. Once, never in a loop — a refresh that does not fix
+ * a 401 is a session that is over.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
-export declare function mintHandoffCode(accessToken: string, redirectOrigin: string): Promise<string | null>;
+export declare function mintHandoff(accessToken: string, redirectOrigin: string, options?: MintHandoffOptions): Promise<HandoffMint>;
+/**
+ * {@link mintHandoff}, for a caller that only wants the code.
+ *
+ * Kept, and kept at this exact signature, because it is what `hub-web` imports and this package is
+ * `link:`ed by nineteen surfaces — changing a return type here is a build break in repositories
+ * this change has no business touching. `options` is new and optional, so an existing call site
+ * compiles and behaves identically.
+ *
+ * **A caller that renders a sentence about WHY should call `mintHandoff` instead.** Everything
+ * this function knows about the difference between a stale token and a refused origin is thrown
+ * away in the line below; that discarding is the defect of micro-org#480, and it survives here
+ * only so that a caller who genuinely has one outcome on screen may keep saying so.
+ */
+export declare function mintHandoffCode(accessToken: string, redirectOrigin: string, options?: MintHandoffOptions): Promise<string | null>;
 /**
  * Put a hand-off code on the return address, in the FRAGMENT.
  *
@@ -847,6 +934,70 @@ export declare const FOOTER_LEGAL_LINKS: readonly {
     readonly path: string;
     readonly label: string;
 }[];
+/** One account this project publishes under, somewhere that is not this estate. */
+export interface FooterSocialLink {
+    /** Which mark to draw. A closed union, because each one is a hand-written path below. */
+    readonly key: 'github' | 'x';
+    /** The profile. Absolute and external by definition — these are the two links that leave. */
+    readonly href: string;
+    /**
+     * The link's accessible name, rendered as REAL TEXT inside the anchor and hidden visually.
+     *
+     * Not an `aria-label`. Three reasons, in order of how much they cost when ignored: an
+     * `aria-label` is invisible to the browser guard, which reads `textContent` and would report
+     * "a link with no text"; it is invisible to a reader who has images or SVG off, who then meets
+     * two empty boxes; and it is the string most likely to be missed by a translation pass, because
+     * it is an attribute rather than a child.
+     *
+     * It names the ACCOUNT and not the platform — "CloudsForge on GitHub", not "GitHub" — because a
+     * screen reader announces footer links out of context, and "GitHub" alone in a list beside
+     * "Forge Market" and "Terms of service" says nothing about whose GitHub it is.
+     */
+    readonly label: string;
+}
+/**
+ * Where this project is, off this estate. Two accounts, and the list is deliberately short.
+ *
+ * ── WHY THESE ARE HERE AND THE SOURCE LINK IN `FOOTER_LEGAL_LINKS` STILL IS NOT ───────────────
+ *
+ * The note above declines "a link to the source", because the repositories are private and a
+ * footer link to a 404 on GitHub is a link to a login wall. That reasoning is about a link to a
+ * REPOSITORY and it survives: none is added here. The ORGANISATION page is a different address
+ * with a different answer — `https://github.com/cloudsforge-online` is served publicly, 200, to a
+ * signed-out browser, because an organisation profile does not require a readable repository to
+ * exist. Both addresses below were fetched before being written down, which is the standard this
+ * footer already holds itself to and the only reason either is here.
+ *
+ * ── THE MARKS ARE INLINE, AND THAT IS NOT A CONVENIENCE ───────────────────────────────────────
+ *
+ * `micro-brand` publishes PNG avatars, banners and favicons, and nothing shaped like a platform
+ * glyph — its `social/` directory is the estate's own mark resampled for profile pictures, which
+ * is the opposite artefact from the one a link to GitHub needs. So these are inline paths at the
+ * footer's own weight, `fill="currentColor"`, inheriting the same ink as every link beside them.
+ * They are drawn small and quiet on purpose: two icons wearing their platforms' brand colours
+ * would be the only two hex literals in a stylesheet whose whole discipline is that it has none,
+ * and the loudest thing in a footer whose job is to be findable rather than looked at.
+ */
+export declare const FOOTER_SOCIAL_LINKS: readonly FooterSocialLink[];
+/** One extra column of links, supplied by the surface rendering this footer. */
+export interface FooterColumn {
+    /** The column heading. An `<h2>`, exactly like the registry columns' own. */
+    readonly title: string;
+    /**
+     * Its links. **Absolute URLs**, the same as everything else in this footer.
+     *
+     * A relative path would work in the browser and break two things that are not the browser: the
+     * link-reachability probe in `scripts/footer-audit.ts` resolves each `href` as a URL, and a
+     * consumer that mounts this component on more than one origin would get a different destination
+     * per origin without saying so. The one consumer that has its own pages — the marketing site —
+     * resolves them against `cloudsforgeHosts().site`, which is how every other address here is
+     * built.
+     */
+    readonly links: readonly {
+        readonly href: string;
+        readonly label: string;
+    }[];
+}
 export interface CloudsForgeFooterProps {
     /**
      * The surface this footer is being rendered on. Its own entry is marked `aria-current`, exactly
@@ -872,6 +1023,49 @@ export interface CloudsForgeFooterProps {
      * move here.
      */
     note?: ReactNode | undefined;
+    /**
+     * Columns this surface adds, between the registry's and Legal.
+     *
+     * ── WHY THIS EXISTS, AND WHY IT IS NOT A WAY BACK TO NINETEEN FOOTERS ────────────────────────
+     *
+     * The marketing site is the reason. It carried a bespoke four-column footer until micro-org#489,
+     * and one of those columns was not a restatement of anything this component knows: `/platform`,
+     * `/build` and `/about` are PAGES OF THAT APPLICATION, they exist on no other surface, and the
+     * only other place they are offered is a sticky header a reader has scrolled a long way past by
+     * the time they reach a footer. Replacing that footer wholesale would have fixed the estate's
+     * navigation by deleting the site's.
+     *
+     * So the surface may add columns and may not replace any. The registry columns, Legal, the
+     * closing line and the socials are rendered whatever is passed here — there is no prop that
+     * removes one — which is what keeps "one footer composed everywhere" true while letting a
+     * surface with pages of its own say so. Nothing else in the estate passes this today, and a
+     * second consumer would be a surface that genuinely has its own routes rather than a surface
+     * that wants a different footer.
+     */
+    columns?: readonly FooterColumn[] | undefined;
+    /**
+     * Rewrite the three Legal hrefs, which are composed here rather than passed in.
+     *
+     * ── WHY A FUNCTION, WHEN `surfaceUrls` IS A RECORD ────────────────────────────────────────────
+     *
+     * `surfaceUrls` is keyed by `SurfaceKey`, a closed union the registry owns, so a record cannot
+     * go stale without a type error. `FOOTER_LEGAL_LINKS` is three paths on the marketing site and
+     * nothing types them, so a record keyed by path would silently miss a FOURTH legal page the day
+     * one is added — the exact drift `footer.test.ts` already guards against for the set itself.
+     * A function is applied to every link there will ever be.
+     *
+     * ── WHAT ASKED FOR IT ─────────────────────────────────────────────────────────────────────────
+     *
+     * Forge Network (micro-org#484) renders one estate or the other and carries the reader's viewed
+     * network on every link as `?net=`. It can wrap every surface link through `surfaceUrls`, and
+     * these three were the only hrefs in this component it could not reach: a reader who had spent
+     * the whole visit on testnet lost that the moment they opened the privacy notice, and came back
+     * — via the site's own header — to mainnet. Reported rather than patched, which is why this is
+     * here and not in a nineteenth bespoke footer.
+     *
+     * The default is identity: a surface that passes nothing gets `${hosts.site}${path}`, unchanged.
+     */
+    legalUrl?: ((url: string, path: string) => string) | undefined;
 }
 /**
  * The company footer: the estate's navigation of last resort, on every surface.
@@ -919,7 +1113,7 @@ export interface CloudsForgeFooterProps {
  * Colour is `--cf-*` tokens only; see `.cf-foot` in ui.css. There is no hex literal in this
  * component and none in its stylesheet.
  */
-export declare function CloudsForgeFooter({ current, account, surfaceUrls, note, }: CloudsForgeFooterProps): import("react").JSX.Element;
+export declare function CloudsForgeFooter({ current, account, surfaceUrls, note, columns, legalUrl, }: CloudsForgeFooterProps): import("react").JSX.Element;
 /** One thing a signed-out reader can do on this surface, right now, and where. */
 export interface SignInIntentAction {
     readonly label: string;

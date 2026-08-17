@@ -1039,15 +1039,17 @@
   --cf-accent-hover-light: #224476; /* 7.18:1 */
 }
 
-/* --- The newest surface, and the gate that picked it ---------------- *
+/* --- The two newest surfaces, and the gate that picked them --------- *
  *
- * The bronze below and an orchid #bf69a9 were chosen TOGETHER, and that is
- * the whole method. Only the bronze has a block here, because only the
- * Journal has a registry row so far; the orchid is RESERVED for the public
- * square that follows it and lands with that surface. It is named here rather
- * than left to be re-derived, because the number the bronze is validated
- * against is its separation from THAT hue, and a second sweep run later
- * without it would be scoring against a set this one is not in.
+ * The bronze below and the orchid #bf69a9 after it were chosen TOGETHER, and
+ * that is the whole method. When this comment was written only the bronze had
+ * a block, because only the Journal had a registry row; the orchid was named
+ * here rather than left to be re-derived, because the number the bronze is
+ * validated against is its separation from THAT hue, and a second sweep run
+ * later without it would be scoring against a set this one is not in.
+ * FORGE AGORA ARRIVED ON 2026-08-17 AND CLAIMED IT. Nothing about the bronze
+ * changed, which is the point of reserving rather than re-searching: the
+ * separation the Journal shipped against is the separation it still has.
  * The exchange sweep asked "which single hue is furthest from the existing
  * set", and asking it twice in a row is what produces two colours that are
  * each fine and are indistinguishable from one another: the first pair this
@@ -1099,6 +1101,41 @@
   --cf-accent-glow-dark: rgba(174, 123, 61, 0.26);
   --cf-accent-light: #604422; /* 6.60:1 on the tightest light ground #e6dccd */
   --cf-accent-hover-light: #523a1d; /* 7.81:1 */
+}
+
+/* Forge Agora — orchid. The public square, reached from the footer and from
+   the site's map. The reserved half of the pair above, and the opposite job
+   from the bronze: the Journal's accent underlines a headline somebody else
+   wrote, and this one marks the control a person presses to say something of
+   their own — a compose button, an unread count, the thread they are in. So
+   it is allowed the chroma the bronze deliberately gives up.
+
+   Measured, on 2026-08-17, against every accent this file paints:
+
+       nearest under normal vision   dE 15.3  (#d05870, the exchange)
+       nearest under deuteranopia    dE  5.1  (#1e89c7, Forge Network)
+       nearest under protanopia      dE  5.5  (#1e89c7)
+       from its own partner          dE 41.8 / 51.2 / 52.1
+
+   Against the estate's measured floor — all-pairs normal 6.3, deuteranopia
+   3.5 — that is 2.4x and 1.46x, and adding it moved neither number: the worst
+   pair in this file is still #6d9a49|#7fae5c and #4a86e0|#9b7bf0, exactly as
+   it was before this block existed. The last row is the one a one-at-a-time
+   search could not have produced, because it is a distance to a colour that
+   had not been chosen yet. */
+[data-cf-product='agora'] {
+  --cf-accent-dark: #bf69a9; /* 5.11:1 on the lightest dark ground */
+  --cf-accent-hover-dark: #c97cb4; /* 6.20:1 */
+  --cf-accent-ink-dark: #1d0f18; /* 5.12:1 on the accent fill, 6.20:1 on the hover fill */
+  /* Lifted, for the reason the two blocks above give: `--cf-accent` is validated at the 3:1
+     NON-TEXT floor against the darkest ground, and TYPE is held to 4.5:1 against the LIGHTEST
+     ground any substrate paints — #252d31, cool/dark — where the raw orchid reaches only 3.88:1.
+     A magenta at this lightness is a worse offender than the bronze was, not a better one: it
+     carries most of its luminance in one channel, so it looks brighter than it measures. */
+  --cf-accent-text-dark: #c87cb2; /* 4.66:1 on #252d31 — #bf69a9 is 3.88:1 */
+  --cf-accent-glow-dark: rgba(191, 105, 169, 0.26);
+  --cf-accent-light: #7d3a68; /* 5.78:1 on the tightest light ground #e6dccd */
+  --cf-accent-hover-light: #692f57; /* 7.22:1 */
 }
 
 /* --- The public accent names --------------------------------------- *

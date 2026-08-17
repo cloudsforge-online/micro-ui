@@ -23,7 +23,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, it } from 'node:test'
-import { CloudsForgeFooter, FOOTER_LEGAL_LINKS, cloudsforgeHosts } from './index.tsx'
+import {
+  CloudsForgeFooter,
+  FOOTER_LEGAL_LINKS,
+  FOOTER_SOCIAL_LINKS,
+  cloudsforgeHosts,
+} from './index.tsx'
 import { FOOTER_GROUPS, FOOTER_SURFACES, PRODUCTS, SURFACES, surface } from './surfaces.ts'
 import type { AccountState } from './index.tsx'
 import type { SurfaceKey } from './surfaces.ts'
@@ -99,7 +104,10 @@ describe('every navigation link is derived from the registry', () => {
      * is hidden"; it would break exactly this. The expected number is computed from the registry,
      * so it moves when the registry moves and never when somebody edits the JSX.
      */
-    const expected = FOOTER_SURFACES.filter((s) => !s.adminOnly).length + FOOTER_LEGAL_LINKS.length
+    const expected =
+      FOOTER_SURFACES.filter((s) => !s.adminOnly).length +
+      FOOTER_LEGAL_LINKS.length +
+      FOOTER_SOCIAL_LINKS.length
     assert.equal(anchors(SIGNED_OUT).length, expected)
   })
 
@@ -409,5 +417,199 @@ describe('the surface-specific closing sentence', () => {
   it('closes with the standing surface, from the registry', () => {
     const here = surface('trade')
     assert.ok(SIGNED_OUT.includes(`${here.name} — ${here.blurb}`))
+  })
+})
+
+/* ═════════════════════════════════ the social accounts ═════════════════════════════════ */
+
+describe('the social links (micro-org#483)', () => {
+  it('offers the GitHub organisation and X, at the addresses the issue names', () => {
+    const byHref = new Map(anchors(SIGNED_OUT).map((a) => [a.href, a.text]))
+    assert.ok(byHref.has('https://github.com/cloudsforge-online'), 'the GitHub organisation is missing')
+    assert.ok(byHref.has('https://x.com/cloudsforge'), 'the X account is missing')
+  })
+
+  it('gives each icon link an accessible name as real text, not an aria-label', () => {
+    /*
+     * The distinction is the whole point of the assertion. An `aria-label` would satisfy a screen
+     * reader and NOTHING ELSE: `scripts/footer-audit.ts` reads `textContent` and would report "a
+     * link with no text", and a reader with SVG suppressed meets two empty boxes. So the name is a
+     * child of the anchor, hidden with `.cf-sr` — which is `clip-path`, not `display:none`, and is
+     * therefore still in the accessibility tree.
+     */
+    for (const s of FOOTER_SOCIAL_LINKS) {
+      const found = anchors(SIGNED_OUT).find((a) => a.href === s.href)
+      assert.ok(found, `${s.key} is not linked`)
+      assert.equal(found.text, s.label, `${s.key} does not carry its own label as text`)
+      assert.ok(
+        SIGNED_OUT.includes(`<span class="cf-sr">${s.label}</span>`),
+        `${s.key}'s name is not the visually-hidden text — an icon link with no readable name`,
+      )
+    }
+    assert.ok(
+      !/<a[^>]*aria-label=/.test(SIGNED_OUT),
+      'a footer link names itself with aria-label; use .cf-sr text, which the browser guard can see',
+    )
+  })
+
+  it('names the account rather than the platform', () => {
+    // "GitHub" alone, announced out of context beside "Forge Market" and "Terms of service", does
+    // not say whose GitHub it is.
+    for (const s of FOOTER_SOCIAL_LINKS) {
+      assert.match(s.label, /^CloudsForge on /, `"${s.label}" names a platform and not an account`)
+    }
+  })
+
+  it('carries rel="me noopener" and opens nothing in a new tab', () => {
+    for (const s of FOOTER_SOCIAL_LINKS) {
+      const anchor = new RegExp(`<a[^>]*href="${s.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>`)
+      const tag = anchor.exec(SIGNED_OUT)?.[0] ?? ''
+      assert.ok(tag !== '', `${s.key} is not rendered as an anchor`)
+      assert.ok(tag.includes('rel="me noopener"'), `${s.key} is missing rel="me noopener": ${tag}`)
+      assert.ok(!tag.includes('target='), `${s.key} decides for the reader that it opens a new tab`)
+    }
+  })
+
+  it('draws each mark with currentColor, so it wears the footer’s ink', () => {
+    // The alternative is two brand colours, which would be the only two hex literals in a
+    // stylesheet whose whole discipline is that it has none.
+    const marks = [...SIGNED_OUT.matchAll(/<svg class="cf-foot__socialicon"[^>]*>/g)]
+    assert.equal(marks.length, FOOTER_SOCIAL_LINKS.length, 'one mark per social link')
+    for (const m of marks) {
+      assert.ok(m[0]?.includes('fill="currentColor"'), `a social mark hard-codes its fill: ${m[0]}`)
+      assert.ok(m[0]?.includes('aria-hidden="true"'), 'a social mark is announced beside its own name')
+      assert.ok(m[0]?.includes('focusable="false"'), 'a social mark is a second tab stop inside a link')
+    }
+  })
+
+  it('is a list of two, announced as one', () => {
+    assert.match(SIGNED_OUT, /<ul class="cf-foot__social">/)
+  })
+
+  it('has a focus ring in the stylesheet, and it is an outline rather than a colour swap', () => {
+    /*
+     * Asserted against the CSS because there is nowhere else it can be asserted: the markup cannot
+     * show a focus treatment, and a colour-only focus state on an icon link is invisible to exactly
+     * the reader it exists for. Read as text rather than parsed — this is one rule, by name.
+     */
+    const css = readFileSync(join(HERE, 'ui.css'), 'utf8')
+    const rule = /\.cf-foot__sociallink:focus-visible\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    assert.ok(rule !== '', '.cf-foot__sociallink has no :focus-visible rule')
+    assert.match(rule, /outline:\s*2px solid var\(--cf-accent\)/, `focus ring is not an outline: ${rule}`)
+    assert.ok(!/#[0-9a-f]{3,8}/i.test(rule), `the focus ring carries a hex literal: ${rule}`)
+  })
+})
+
+/* ═══════════════════════ the columns a surface adds (micro-org#489) ══════════════════════ */
+
+describe('a surface may add columns and may not remove any', () => {
+  const OWN = renderToStaticMarkup(
+    createElement(CloudsForgeFooter, {
+      current: 'site',
+      columns: [
+        { title: 'This site', links: [{ href: 'https://example.test/about', label: 'About' }] },
+      ],
+    }),
+  )
+
+  it('renders the extra column as a labelled nav with an h2, like every other', () => {
+    const id = /<nav class="cf-foot__col" aria-labelledby="([^"]+)"><h2 class="cf-foot__title" id="\1">This site<\/h2>/.exec(OWN)
+    assert.ok(id, 'the added column is not a nav labelled by its own heading')
+  })
+
+  it('places it after the registry columns and before Legal', () => {
+    // The reader's model of the row: elsewhere in the estate, then this site, then the small print.
+    const own = OWN.indexOf('>This site<')
+    const products = OWN.indexOf('>Products<')
+    const legal = OWN.indexOf('>Legal<')
+    assert.ok(products < own && own < legal, `order is products ${products}, own ${own}, legal ${legal}`)
+  })
+
+  it('still renders every registry link, the legal links and the socials', () => {
+    // The half that makes this additive rather than an escape hatch: there is no prop that removes
+    // a column, so a surface cannot use this to go back to a footer of its own.
+    const hrefs = new Set(anchors(OWN).map((a) => a.href))
+    const hosts = cloudsforgeHosts()
+    for (const s of FOOTER_SURFACES) {
+      if (s.adminOnly) continue
+      assert.ok(hrefs.has(hosts[s.key]), `${s.key} was dropped when a column was added`)
+    }
+    for (const l of FOOTER_LEGAL_LINKS) assert.ok(hrefs.has(`${hosts.site}${l.path}`), l.label)
+    for (const s of FOOTER_SOCIAL_LINKS) assert.ok(hrefs.has(s.href), s.label)
+  })
+
+  it('changes nothing when omitted', () => {
+    assert.ok(!SIGNED_OUT.includes('cf-foot__col" aria-labelledby="'.concat('own')))
+    assert.equal(
+      [...SIGNED_OUT.matchAll(/<nav class="cf-foot__col"/g)].length,
+      FOOTER_GROUPS.filter((g) => g.surfaces.some((s) => !s.adminOnly)).length + 1,
+    )
+  })
+})
+
+/* ═════════════════ the legal hrefs a surface may decorate (micro-org#484) ═════════════════ */
+
+/**
+ * Forge Network renders one estate or the other and carries `?net=` on every link it offers. It
+ * can wrap the surface links through `surfaceUrls`; these three are composed inside the component,
+ * so before this hook they were the only hrefs on the page that dropped the reader's viewed network
+ * — silently, on the way to the privacy notice.
+ */
+describe('a surface may decorate the legal hrefs', () => {
+  const CARRIED = renderToStaticMarkup(
+    createElement(CloudsForgeFooter, {
+      current: 'network',
+      legalUrl: (url: string) => `${url}?net=testnet`,
+    }),
+  )
+
+  it('applies the hook to every legal link, including one added later', () => {
+    // Asserted over `FOOTER_LEGAL_LINKS` rather than over three literals, which is the reason the
+    // hook is a function and not a record keyed by path: a fourth legal page is carried too.
+    const site = cloudsforgeHosts().site
+    for (const l of FOOTER_LEGAL_LINKS) {
+      const found = anchors(CARRIED).find((a) => a.text === l.label)
+      assert.ok(found, `${l.label} is missing`)
+      assert.equal(found.href, `${site}${l.path}?net=testnet`)
+    }
+  })
+
+  it('hands over the composed absolute address and the path', () => {
+    const seen: { url: string; path: string }[] = []
+    renderToStaticMarkup(
+      createElement(CloudsForgeFooter, {
+        current: 'network',
+        legalUrl: (url: string, path: string) => {
+          seen.push({ url, path })
+          return url
+        },
+      }),
+    )
+    const site = cloudsforgeHosts().site
+    assert.deepEqual(
+      seen,
+      FOOTER_LEGAL_LINKS.map((l) => ({ url: `${site}${l.path}`, path: l.path })),
+    )
+  })
+
+  it('touches nothing but the legal column', () => {
+    const hosts = cloudsforgeHosts()
+    for (const s of FOOTER_SURFACES) {
+      if (s.adminOnly) continue
+      assert.ok(
+        anchors(CARRIED).some((a) => a.href === hosts[s.key]),
+        `${s.key} was rewritten by a hook that is only for the legal links`,
+      )
+    }
+    for (const s of FOOTER_SOCIAL_LINKS) {
+      assert.ok(anchors(CARRIED).some((a) => a.href === s.href), s.label)
+    }
+  })
+
+  it('defaults to the marketing site, unchanged, when no hook is passed', () => {
+    const site = cloudsforgeHosts().site
+    for (const l of FOOTER_LEGAL_LINKS) {
+      assert.ok(anchors(SIGNED_OUT).some((a) => a.href === `${site}${l.path}`), l.label)
+    }
   })
 })
