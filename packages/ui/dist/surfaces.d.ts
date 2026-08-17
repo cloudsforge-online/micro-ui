@@ -108,7 +108,9 @@ export interface CloudsForgeSurface {
      * ── WHY THIS IS NOT A STAGE ───────────────────────────────────────────────────────────────────
      *
      * The marketing site already grades every surface on a scale — `site/src/content/stages.ts`,
-     * "Built, not shipped" → "Running in-house" → "Open to the public" → "Planned, not built" — and
+     * "Built, not shipped" → "Running in-house" → "Reachable from outside" → "Planned, not built"
+     * (the third rung read "Open to the public" until micro-org#486, which is a rename and not a
+     * change to what it measures) — and
      * the obvious move was a fifth rung. It is the wrong move, and that file argues against it in
      * its own header: those four values answer HOW FAR INTO THE ESTATE a surface has got, and each
      * names an event in the estate. `trade` has had every one of those events. It is deployed, the
