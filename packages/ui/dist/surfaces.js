@@ -724,6 +724,79 @@ export const SURFACES = [
         inSwitcher: false,
     },
     {
+        /*
+         * The public square, and the other half of the pair the row above it reserved a hue for.
+         *
+         * ── `kind: 'service'`, WHICH IS THE FIRST DIFFERENCE FROM THE JOURNAL ─────────────────────
+         *
+         * The two rows above this one are both `surface`, and both say the same thing in different
+         * words: there is nothing to call. The exchange's counterpart is a contract on Hearth, the
+         * Journal's is `src/content/` in its own repository. Neither has a `micro-` service and
+         * neither is going to get one.
+         *
+         * Agora does, and the reason is the only interesting fact about this surface's architecture:
+         * its state is what strangers wrote a minute ago. A chain cannot hold it — nothing here is a
+         * transaction, and putting a stranger's sentence on a public ledger forever is the opposite of
+         * what a delete button is for. A build cannot hold it either, because the words arrive after
+         * the build. So `micro-agora` exists, it owns a schema, and `devPort: 4150` is the port it
+         * BINDS — the same rule `pool` states at length and `explorer` learned the hard way. The
+         * bundle's own vite server is 5197 and is recorded in no field here, because a devPort is a
+         * fact about the thing you call.
+         *
+         * ── `inSwitcher: false`, ON AN ARGUMENT THAT IS NOT ABOUT COLOUR ──────────────────────────
+         *
+         * `pool`'s row records that the accent objection expired in 2026-08-16: a seventh validated
+         * hue costs one sweep now, and `exchange` paid it. That objection could not apply here in any
+         * case — `#bf69a9` was scored in the same sweep as the Journal's bronze, as a PAIR, and clears
+         * the estate's measured floor by 1.46x on all six measurements including against its partner.
+         * If this row wanted a switcher slot the colour would not be what stopped it.
+         *
+         * What stops it is what the switcher is FOR. It is the control a person uses to move between
+         * the things they came to do — trade, forecast, mint, play — and it is six wide because six is
+         * how many of those there are. A conversation is not one of them. Somebody arrives at Agora
+         * because a post was linked to them, because they replied to somebody, or because they wanted
+         * to ask a question after using something else; none of those are journeys a menu shortens.
+         *
+         * That is a weaker position than "the guard forbids it", and it is stated as one, exactly as
+         * `pool`'s row does. Whoever re-opens it owes an argument about how people arrive, not about
+         * hues — and if the answer turns out to be that they arrive by looking for it, this row is
+         * cheap to change and the accent is already paid for.
+         *
+         * ── `viewsAnyNetwork: true`, FOR THE REASON THE JOURNAL RECORDS AND ONE OF ITS OWN ────────
+         *
+         * The Journal's row settles the general case: the flag is about what the Testnet button does,
+         * not about whether the data differs, and `network-view.test.ts` requires it of every
+         * `servesUi` row with no `basePath`. A reader thrown out of a page they were reading is the
+         * defect, and it does not care whether the page would have looked the same.
+         *
+         * Agora adds a sharper version of it. A person here may be three replies into a thread with
+         * somebody. Teleporting them to Forge Network's testnet page would not merely lose a scroll
+         * position; it would drop a conversation mid-sentence. The bundle keeps the viewed network in
+         * the URL, switches the chrome in place, and carries it onto every estate link it composes.
+         */
+        key: 'agora',
+        name: 'Forge Agora',
+        verb: null,
+        kind: 'service',
+        subdomain: 'agora',
+        devPort: 4150,
+        // Orchid, and the only accent in this file that was chosen before the surface it belongs to
+        // existed. `tokens.css` records the sweep: the Journal's bronze and this hue were scored
+        // together because a one-at-a-time search cannot see the failure that matters — the first two
+        // colours it returned were each clear of the existing set and dE 0.8 from EACH OTHER under
+        // deuteranopia. Reproduce with `node scripts/validate_palette.mjs "#ae7b3d,#bf69a9"`.
+        accent: '#bf69a9',
+        // An asterism: three marks, set as a group, used in typography to divide a text into parts
+        // without ranking them. The Journal wears a fleuron, which closes a passage. This one is the
+        // ornament for what comes after — several voices, none of them the last word.
+        glyph: '⁂',
+        markId: null,
+        blurb: 'Talk about crypto, the chain and everything else, with the rest of the ecosystem',
+        servesUi: true,
+        viewsAnyNetwork: true,
+        inSwitcher: false,
+    },
+    {
         // A Forge Worlds TITLE, not a sixth product: it is played through Worlds and appears in no
         // switcher. It is here because it is served from its own subdomain, and a surface absent from
         // this registry is absent from KNOWN_SUBS — so `cloudsforgeHosts()` could not strip
