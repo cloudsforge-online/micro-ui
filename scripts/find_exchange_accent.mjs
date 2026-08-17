@@ -67,6 +67,61 @@ const AVOID = [...SWITCHER, ...RETIRED, ...COMPANY]
  */
 const NEIGHBOURS = ['#2a9e93', '#c2704f']
 
+/**
+ * THE GATE THE FIRST SEARCH DID NOT KNOW ABOUT, added after it cost a red build.
+ *
+ * The first run of this script ranked on separation alone and returned `#dcde5e` — a yellow-green
+ * that clears every distance gate comfortably and is the brightest colour in the palette by a
+ * wide margin. micro-site then failed axe on `/products/exchange` with three serious
+ * colour-contrast violations, because THE SITE SETS TYPE IN THE ACCENT, and it does so on a light
+ * ground by darkening the accent a FIXED 68% toward black (`--si-accent` in micro-site's
+ * styles.css). A fixed mix is a fixed *step*, not a fixed *result*: the six product accents all
+ * land between 5.07:1 and 6.87:1 on the light page after it, and `#dcde5e` lands at 2.63:1.
+ *
+ * So separation is necessary and not sufficient. An accent must also survive being set as type,
+ * and the cheapest way to guarantee that is to ask here rather than to discover it in CI. The
+ * three light grounds and the 68% are read off the two files named below; if either moves, this
+ * gate is wrong in the safe direction (it is the site that would then fail, loudly, again).
+ *
+ *   micro-ui/packages/ui/src/tokens.css   --cf-kiln-50 / -100 / -200, --cf-ash-*, --cf-bone
+ *   micro-site/src/styles.css             --si-accent, both scheme blocks
+ *
+ * BOTH grounds are gated, and the second one is not redundant. The obvious reading — "a light
+ * ground is the hard one, because the accent has to be darkened to reach it" — is what the first
+ * version of this gate assumed, and it is only true for a BRIGHT accent. Run this with the light
+ * gate alone and the survivors are all deep roses and reds, several of which then fail on the
+ * DARK panel: `#ae3d72` reaches 8.14:1 on the light page and 3.91:1 on the dark raised surface.
+ * A fixed mix is a fixed step in both directions, so each direction excludes an opposite end.
+ */
+const LIGHT_GROUNDS = ['#f3ece1', '#fbf7f0', '#e6dccd'] // kiln 100 / 50 / 200
+const DARK_GROUNDS = ['#0e0c0a', '#171310', '#080706'] // ash 900 / 850 / 950
+const BONE = '#ece5d6'
+const SITE_LIGHT_MIX = 68 // darkened toward black
+const SITE_DARK_MIX = 88 // lifted toward the bone foreground
+const TEXT_AA = 4.5
+
+const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+const luminance = (c) =>
+  0.2126 * chan(c[0]) + 0.7152 * chan(c[1]) + 0.0722 * chan(c[2])
+const chan = (v) => (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+const blend = (a, pct, b) => a.map((v, i) => Math.round((v * pct + b[i] * (100 - pct)) / 100))
+
+/** The worst ratio this accent reaches as TYPE on any ground the site paints, either scheme. */
+function typeContrast(candidate) {
+  const c = rgb(candidate)
+  const onLight = blend(c, SITE_LIGHT_MIX, [0, 0, 0])
+  const onDark = blend(c, SITE_DARK_MIX, rgb(BONE))
+  return Math.min(
+    ...LIGHT_GROUNDS.map((g) => contrast(onLight, rgb(g))),
+    ...DARK_GROUNDS.map((g) => contrast(onDark, rgb(g))),
+  )
+}
+
 const hex = (n) => Math.round(n * 255).toString(16).padStart(2, '0')
 function hsl(h, s, l) {
   const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
@@ -107,12 +162,17 @@ for (let h = 0; h < 360; h += HUE_STEP) {
   for (const s of SATS) {
     for (const l of LIGHTS) {
       const c = hsl(h, s, l)
+      // Legibility first, and as a HARD filter rather than a ranking term: a candidate that
+      // cannot carry type is not a worse accent, it is not an accent. Checked before the
+      // validator because it is arithmetic and the validator is a subprocess.
+      const type = typeContrast(c)
+      if (type < TEXT_AA) continue
       // The neighbour score is the gate, so rank on it — but a candidate that is a near-duplicate
       // of a NON-neighbour is still a bad citizen of a list a reader scans, so anything under
       // dE 10 to any existing accent is dropped before ranking rather than ranked and ignored.
       const all = separation(c, AVOID)
       if (all < 10) continue
-      scored.push({ hex: c, h, s, l, adjacent: separation(c, NEIGHBOURS), all })
+      scored.push({ hex: c, h, s, l, adjacent: separation(c, NEIGHBOURS), all, type })
     }
   }
 }
@@ -123,10 +183,11 @@ console.log(
   `swept ${(360 / HUE_STEP) * SATS.length * LIGHTS.length} candidates at ${HUE_STEP}° steps; ` +
     `${scored.length} cleared dE 10 against all ${AVOID.length} existing/retired colours\n`,
 )
-console.log('  hex       hue  sat  light   dE to neighbours (the gate)   dE to any (recorded)')
+console.log('  hex       hue  sat  light   dE neighbours (gate)   dE any (recorded)   type, worst ground')
 for (const c of scored.slice(0, top)) {
   console.log(
     `  ${c.hex}  ${String(c.h).padStart(3)}° ${String(c.s).padStart(3)}% ${String(c.l).padStart(3)}%` +
-      `             ${c.adjacent.toFixed(1).padStart(5)}                   ${c.all.toFixed(1)}`,
+      `        ${c.adjacent.toFixed(1).padStart(5)}              ${c.all.toFixed(1).padStart(5)}` +
+      `              ${c.type.toFixed(2)}:1`,
   )
 }

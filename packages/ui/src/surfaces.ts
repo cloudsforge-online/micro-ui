@@ -566,22 +566,39 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
      * switcher is a vertical list, only adjacent entries ever touch, and the note above
      * PRODUCT_ACCENTS records that all-pairs separation across this many brand-faithful hues is
      * close to unachievable — the shipped palette's own worst all-pairs figure is red|gold at dE
-     * 5.6. Measured for `#dcde5e`:
+     * 5.6. Measured for `#d05870`:
      *
-     *   worst against `trade` and `admin`, the rows it touches ......... dE 21.2
-     *   worst against all fifteen existing, retired and company hues ... dE 16.0
-     *   contrast on the dark surface ................................... 13.11:1
+     *   worst against `trade` and `admin`, the rows it touches ......... dE 12.8
+     *   worst against all fifteen existing, retired and company hues ... dE 12.8
+     *   contrast on the dark surface ................................... 4.75:1
+     *   worst as TYPE on any ground micro-site paints, either scheme ... 5.35:1
      *
-     * So it clears its actual neighbours by four times the gate the validator defaults to, and it
-     * is separated from every OTHER accent in the estate by three times the worst pair already
-     * shipping. A first sweep scored candidates on all-pairs alone and topped out at dE 17.9,
-     * which is the same answer this file has recorded twice: a well-separated seventh hue on the
-     * all-pairs metric does not exist, and demanding one is demanding the wrong thing.
+     * So it clears its actual neighbours by more than twice the gate the validator defaults to,
+     * and — unusually for this palette — its all-pairs figure is the same number, better than
+     * twice the worst pair already shipping. A first sweep scored candidates on all-pairs alone
+     * and topped out at dE 17.9, which is the same answer this file has recorded twice: a
+     * well-separated seventh hue on the all-pairs metric does not exist, and demanding one is
+     * demanding the wrong thing.
      *
-     * Yellow-green is not a taste; it is where the sweep converged from two independent scorings,
-     * because it is the one region of the wheel this palette had left empty.
+     * ── THE FOURTH LINE IS THERE BECAUSE THE FIRST ANSWER WAS WRONG ───────────────────────────
+     *
+     * This row shipped for one release as `#dcde5e`, a lime, and that value is recorded here
+     * rather than quietly overwritten because the mistake is instructive. It cleared every gate
+     * this note describes — dE 21.2 to its neighbours, dE 16.0 to all fifteen, 13.11:1 on the
+     * dark surface — and it still broke a live page: micro-site failed axe on `/products/exchange`
+     * with three serious colour-contrast violations, because the site sets TYPE in the accent and
+     * normalises it for a light ground by darkening it a FIXED 68% toward black. A fixed mix is a
+     * fixed step, not a fixed result. The six product accents land between 5.07:1 and 6.87:1 after
+     * that step; the lime landed at 2.63:1.
+     *
+     * Separation was never the wrong metric, it was an incomplete one, and the sweep now gates
+     * legibility on BOTH grounds — hard, before it scores separation — for the reason recorded in
+     * `scripts/find_exchange_accent.mjs`: the light gate alone leaves only deep colours, several of
+     * which then fail on the dark panel, because a fixed step excludes an opposite end in each
+     * direction. Rose is not a taste either; it is where the sweep converged once it knew that a
+     * switcher accent has to be readable as well as distinguishable.
      */
-    accent: '#dcde5e',
+    accent: '#d05870',
     glyph: '⇄',
     markId: null,
     blurb: 'Swap EMBER and Forge Create tokens against pools that live on the chain itself',
@@ -1052,9 +1069,11 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
      * was wrong about the first. `exchange` was ordered into the menu by the owner, the seventh-hue
      * search was made with `scripts/find_exchange_accent.mjs`, and it succeeded on the first
      * scoring that asked the right question — separation from the two rows a vertical list actually
-     * puts a hue next to, rather than from all fifteen at once. `#dcde5e` clears its neighbours at
-     * dE 21.2. So "invent a seventh validated accent" is no longer a thing this registry cannot
-     * afford; it costs one sweep, and an eighth would cost another.
+     * puts a hue next to, rather than from all fifteen at once. `#d05870` clears its neighbours at
+     * dE 12.8. So "invent a seventh validated accent" is no longer a thing this registry cannot
+     * afford; it costs one sweep, and an eighth would cost another — though the sweep is more
+     * expensive than that first success suggested, because the first hue it returned was legible
+     * nowhere the site sets type in it and had to be replaced. See the `exchange` row.
      *
      * WHAT SURVIVES IS THE PRODUCT ARGUMENT, WHICH WAS ALWAYS THE REAL ONE — and it is worth being
      * exact about why it does not carry `exchange` with it. The reversal there turned on a
