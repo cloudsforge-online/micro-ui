@@ -847,6 +847,70 @@ export declare const FOOTER_LEGAL_LINKS: readonly {
     readonly path: string;
     readonly label: string;
 }[];
+/** One account this project publishes under, somewhere that is not this estate. */
+export interface FooterSocialLink {
+    /** Which mark to draw. A closed union, because each one is a hand-written path below. */
+    readonly key: 'github' | 'x';
+    /** The profile. Absolute and external by definition — these are the two links that leave. */
+    readonly href: string;
+    /**
+     * The link's accessible name, rendered as REAL TEXT inside the anchor and hidden visually.
+     *
+     * Not an `aria-label`. Three reasons, in order of how much they cost when ignored: an
+     * `aria-label` is invisible to the browser guard, which reads `textContent` and would report
+     * "a link with no text"; it is invisible to a reader who has images or SVG off, who then meets
+     * two empty boxes; and it is the string most likely to be missed by a translation pass, because
+     * it is an attribute rather than a child.
+     *
+     * It names the ACCOUNT and not the platform — "CloudsForge on GitHub", not "GitHub" — because a
+     * screen reader announces footer links out of context, and "GitHub" alone in a list beside
+     * "Forge Market" and "Terms of service" says nothing about whose GitHub it is.
+     */
+    readonly label: string;
+}
+/**
+ * Where this project is, off this estate. Two accounts, and the list is deliberately short.
+ *
+ * ── WHY THESE ARE HERE AND THE SOURCE LINK IN `FOOTER_LEGAL_LINKS` STILL IS NOT ───────────────
+ *
+ * The note above declines "a link to the source", because the repositories are private and a
+ * footer link to a 404 on GitHub is a link to a login wall. That reasoning is about a link to a
+ * REPOSITORY and it survives: none is added here. The ORGANISATION page is a different address
+ * with a different answer — `https://github.com/cloudsforge-online` is served publicly, 200, to a
+ * signed-out browser, because an organisation profile does not require a readable repository to
+ * exist. Both addresses below were fetched before being written down, which is the standard this
+ * footer already holds itself to and the only reason either is here.
+ *
+ * ── THE MARKS ARE INLINE, AND THAT IS NOT A CONVENIENCE ───────────────────────────────────────
+ *
+ * `micro-brand` publishes PNG avatars, banners and favicons, and nothing shaped like a platform
+ * glyph — its `social/` directory is the estate's own mark resampled for profile pictures, which
+ * is the opposite artefact from the one a link to GitHub needs. So these are inline paths at the
+ * footer's own weight, `fill="currentColor"`, inheriting the same ink as every link beside them.
+ * They are drawn small and quiet on purpose: two icons wearing their platforms' brand colours
+ * would be the only two hex literals in a stylesheet whose whole discipline is that it has none,
+ * and the loudest thing in a footer whose job is to be findable rather than looked at.
+ */
+export declare const FOOTER_SOCIAL_LINKS: readonly FooterSocialLink[];
+/** One extra column of links, supplied by the surface rendering this footer. */
+export interface FooterColumn {
+    /** The column heading. An `<h2>`, exactly like the registry columns' own. */
+    readonly title: string;
+    /**
+     * Its links. **Absolute URLs**, the same as everything else in this footer.
+     *
+     * A relative path would work in the browser and break two things that are not the browser: the
+     * link-reachability probe in `scripts/footer-audit.ts` resolves each `href` as a URL, and a
+     * consumer that mounts this component on more than one origin would get a different destination
+     * per origin without saying so. The one consumer that has its own pages — the marketing site —
+     * resolves them against `cloudsforgeHosts().site`, which is how every other address here is
+     * built.
+     */
+    readonly links: readonly {
+        readonly href: string;
+        readonly label: string;
+    }[];
+}
 export interface CloudsForgeFooterProps {
     /**
      * The surface this footer is being rendered on. Its own entry is marked `aria-current`, exactly
@@ -872,6 +936,26 @@ export interface CloudsForgeFooterProps {
      * move here.
      */
     note?: ReactNode | undefined;
+    /**
+     * Columns this surface adds, between the registry's and Legal.
+     *
+     * ── WHY THIS EXISTS, AND WHY IT IS NOT A WAY BACK TO NINETEEN FOOTERS ────────────────────────
+     *
+     * The marketing site is the reason. It carried a bespoke four-column footer until micro-org#489,
+     * and one of those columns was not a restatement of anything this component knows: `/platform`,
+     * `/build` and `/about` are PAGES OF THAT APPLICATION, they exist on no other surface, and the
+     * only other place they are offered is a sticky header a reader has scrolled a long way past by
+     * the time they reach a footer. Replacing that footer wholesale would have fixed the estate's
+     * navigation by deleting the site's.
+     *
+     * So the surface may add columns and may not replace any. The registry columns, Legal, the
+     * closing line and the socials are rendered whatever is passed here — there is no prop that
+     * removes one — which is what keeps "one footer composed everywhere" true while letting a
+     * surface with pages of its own say so. Nothing else in the estate passes this today, and a
+     * second consumer would be a surface that genuinely has its own routes rather than a surface
+     * that wants a different footer.
+     */
+    columns?: readonly FooterColumn[] | undefined;
 }
 /**
  * The company footer: the estate's navigation of last resort, on every surface.
@@ -919,7 +1003,7 @@ export interface CloudsForgeFooterProps {
  * Colour is `--cf-*` tokens only; see `.cf-foot` in ui.css. There is no hex literal in this
  * component and none in its stylesheet.
  */
-export declare function CloudsForgeFooter({ current, account, surfaceUrls, note, }: CloudsForgeFooterProps): import("react").JSX.Element;
+export declare function CloudsForgeFooter({ current, account, surfaceUrls, note, columns, }: CloudsForgeFooterProps): import("react").JSX.Element;
 /** One thing a signed-out reader can do on this surface, right now, and where. */
 export interface SignInIntentAction {
     readonly label: string;

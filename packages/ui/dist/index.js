@@ -1246,6 +1246,44 @@ export const FOOTER_LEGAL_LINKS = [
     { path: '/risk', label: 'Risk disclosure' },
 ];
 /**
+ * Where this project is, off this estate. Two accounts, and the list is deliberately short.
+ *
+ * ── WHY THESE ARE HERE AND THE SOURCE LINK IN `FOOTER_LEGAL_LINKS` STILL IS NOT ───────────────
+ *
+ * The note above declines "a link to the source", because the repositories are private and a
+ * footer link to a 404 on GitHub is a link to a login wall. That reasoning is about a link to a
+ * REPOSITORY and it survives: none is added here. The ORGANISATION page is a different address
+ * with a different answer — `https://github.com/cloudsforge-online` is served publicly, 200, to a
+ * signed-out browser, because an organisation profile does not require a readable repository to
+ * exist. Both addresses below were fetched before being written down, which is the standard this
+ * footer already holds itself to and the only reason either is here.
+ *
+ * ── THE MARKS ARE INLINE, AND THAT IS NOT A CONVENIENCE ───────────────────────────────────────
+ *
+ * `micro-brand` publishes PNG avatars, banners and favicons, and nothing shaped like a platform
+ * glyph — its `social/` directory is the estate's own mark resampled for profile pictures, which
+ * is the opposite artefact from the one a link to GitHub needs. So these are inline paths at the
+ * footer's own weight, `fill="currentColor"`, inheriting the same ink as every link beside them.
+ * They are drawn small and quiet on purpose: two icons wearing their platforms' brand colours
+ * would be the only two hex literals in a stylesheet whose whole discipline is that it has none,
+ * and the loudest thing in a footer whose job is to be findable rather than looked at.
+ */
+export const FOOTER_SOCIAL_LINKS = [
+    { key: 'github', href: 'https://github.com/cloudsforge-online', label: 'CloudsForge on GitHub' },
+    { key: 'x', href: 'https://x.com/cloudsforge', label: 'CloudsForge on X' },
+];
+/**
+ * The two platform marks, at the footer's weight.
+ *
+ * `aria-hidden` and `focusable="false"`: the anchor around each already carries the name, and an
+ * un-hidden SVG is announced a second time by some combinations of browser and screen reader.
+ * `focusable="false"` is the old-IE-shaped attribute that still matters — without it the SVG is a
+ * second tab stop inside a link that is already one.
+ */
+function SocialMark({ mark }) {
+    return (_jsx("svg", { className: "cf-foot__socialicon", viewBox: "0 0 24 24", width: "18", height: "18", fill: "currentColor", "aria-hidden": "true", focusable: "false", children: mark === 'github' ? (_jsx("path", { d: "M12 .5C5.73.5.66 5.58.66 11.85c0 5.01 3.25 9.26 7.75 10.76.57.1.78-.25.78-.55 0-.27-.01-1.17-.02-2.12-3.16.69-3.83-1.34-3.83-1.34-.51-1.31-1.26-1.66-1.26-1.66-1.03-.71.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.74 2.66 1.24 3.31.95.1-.74.4-1.24.72-1.53-2.52-.29-5.17-1.27-5.17-5.63 0-1.25.44-2.26 1.17-3.06-.12-.29-.51-1.45.11-3.02 0 0 .95-.31 3.12 1.17a10.8 10.8 0 0 1 2.84-.38c.96 0 1.94.13 2.84.38 2.17-1.48 3.12-1.17 3.12-1.17.62 1.57.23 2.73.11 3.02.73.8 1.17 1.81 1.17 3.06 0 4.37-2.66 5.34-5.19 5.62.41.36.77 1.05.77 2.12 0 1.53-.01 2.77-.01 3.14 0 .3.2.66.79.55 4.49-1.5 7.74-5.75 7.74-10.76C23.34 5.58 18.27.5 12 .5Z" })) : (_jsx("path", { d: "M17.53 3h3.02l-6.6 7.54L21.7 21h-6.07l-4.76-6.22L5.42 21H2.4l7.06-8.07L2.6 3h6.22l4.3 5.69L17.53 3Zm-1.06 16.17h1.67L7.6 4.74H5.81l10.66 14.43Z" })) }));
+}
+/**
  * The company footer: the estate's navigation of last resort, on every surface.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1291,7 +1329,7 @@ export const FOOTER_LEGAL_LINKS = [
  * Colour is `--cf-*` tokens only; see `.cf-foot` in ui.css. There is no hex literal in this
  * component and none in its stylesheet.
  */
-export function CloudsForgeFooter({ current, account, surfaceUrls, note, }) {
+export function CloudsForgeFooter({ current, account, surfaceUrls, note, columns, }) {
     const hosts = cloudsforgeHosts();
     const isAdmin = account?.roles?.includes('admin') ?? false;
     const idBase = useId();
@@ -1306,7 +1344,10 @@ export function CloudsForgeFooter({ current, account, surfaceUrls, note, }) {
                                 return null;
                             const headingId = `${idBase}-${group.kind}`;
                             return (_jsxs("nav", { className: "cf-foot__col", "aria-labelledby": headingId, children: [_jsx("h2", { className: "cf-foot__title", id: headingId, children: group.title }), _jsx("ul", { className: "cf-foot__list", children: visible.map((s) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: surfaceUrls?.[s.key] ?? hosts[s.key], "aria-current": s.key === current ? 'page' : undefined, children: s.name }) }, s.key))) })] }, group.kind));
-                        }), _jsxs("nav", { className: "cf-foot__col", "aria-labelledby": `${idBase}-legal`, children: [_jsx("h2", { className: "cf-foot__title", id: `${idBase}-legal`, children: "Legal" }), _jsx("ul", { className: "cf-foot__list", children: FOOTER_LEGAL_LINKS.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: `${hosts.site}${l.path}`, children: l.label }) }, l.path))) })] })] }), note && _jsx("p", { className: "cf-foot__note", children: note }), _jsxs("div", { className: "cf-foot__base", children: [_jsx("span", { className: "cf-foot__brand", children: _jsx(CloudsForgeLogo, { size: 16 }) }), _jsxs("span", { className: "cf-foot__here", children: [here.name, " \u2014 ", here.blurb] })] })] }) }));
+                        }), columns?.map((column, i) => {
+                            const headingId = `${idBase}-own-${i}`;
+                            return (_jsxs("nav", { className: "cf-foot__col", "aria-labelledby": headingId, children: [_jsx("h2", { className: "cf-foot__title", id: headingId, children: column.title }), _jsx("ul", { className: "cf-foot__list", children: column.links.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: l.href, children: l.label }) }, l.href))) })] }, column.title));
+                        }), _jsxs("nav", { className: "cf-foot__col", "aria-labelledby": `${idBase}-legal`, children: [_jsx("h2", { className: "cf-foot__title", id: `${idBase}-legal`, children: "Legal" }), _jsx("ul", { className: "cf-foot__list", children: FOOTER_LEGAL_LINKS.map((l) => (_jsx("li", { children: _jsx("a", { className: "cf-foot__link", href: `${hosts.site}${l.path}`, children: l.label }) }, l.path))) })] })] }), note && _jsx("p", { className: "cf-foot__note", children: note }), _jsxs("div", { className: "cf-foot__base", children: [_jsx("span", { className: "cf-foot__brand", children: _jsx(CloudsForgeLogo, { size: 16 }) }), _jsxs("span", { className: "cf-foot__here", children: [here.name, " \u2014 ", here.blurb] }), _jsx("ul", { className: "cf-foot__social", children: FOOTER_SOCIAL_LINKS.map((s) => (_jsx("li", { children: _jsxs("a", { className: "cf-foot__sociallink", href: s.href, rel: "me noopener", children: [_jsx(SocialMark, { mark: s.key }), _jsx("span", { className: "cf-sr", children: s.label })] }) }, s.key))) })] })] }) }));
 }
 /**
  * The panel a signed-out reader meets before anything sends them to another hostname.

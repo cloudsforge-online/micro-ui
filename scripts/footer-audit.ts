@@ -55,19 +55,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * SURFACES THAT DO NOT YET RENDER THE SHARED FOOTER
  *
- * Three, and each is here for the same reason: it is owned by another agent in this pass and this
- * repository has read it as evidence without writing to it. This is NOT a way to switch the guard
- * off, and the assertion below makes that structural — **an entry that HAS a footer fails the
- * run** and must be deleted. Same shape as `contrast.test.ts`'s "still needs every decoration
- * exemption it claims", and as the frontends' `assertKnownStillBroken`: an exemption that has
- * stopped being needed is a licence sitting there quietly excusing the next regression.
+ * ONE, and it is here because another agent is rewriting that surface in this same pass and will
+ * mount the footer there. This is NOT a way to switch the guard off, and the assertion below makes
+ * that structural — **an entry that HAS a footer fails the run** and must be deleted. Same shape
+ * as `contrast.test.ts`'s "still needs every decoration exemption it claims", and as the
+ * frontends' `assertKnownStillBroken`: an exemption that has stopped being needed is a licence
+ * sitting there quietly excusing the next regression.
+ *
+ * ── IT WAS THREE, AND TWO OF THEM ARE THE POINT OF micro-org#489 ──────────────────────────────
+ *
+ * `site` and `explorer` were exempt for the same "held by another agent" reason. Both now render
+ * `CloudsForgeFooter` and both entries are deleted, which is the half of this map that the
+ * assertion below enforces. `site` is the one that mattered: its bespoke four-column footer had no
+ * Platform column, so Forge Journal — which lives in that column on every other surface — was
+ * reachable from nowhere on the estate's own front door. A component composed on eighteen surfaces
+ * and reimplemented on the nineteenth is not a shared component; it is a copy with a licence.
  *
  * Everything else in the registry that serves a page must have one, by name, with no opt-out.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 const NOT_YET_ADOPTED: ReadonlyMap<string, string> = new Map([
-  ['site', 'micro-site — held by another agent; it has its own four-column footer already'],
-  ['explorer', 'micro-explorer-web — held by another agent'],
-  ['network', 'micro-network-site — held by another agent; renders no footer at all today'],
+  ['network', 'micro-network-site — held by another agent, who is redesigning it and will mount the footer there'],
 ])
 
 /* The minimum of playwright-core this file drives. Declared structurally for the same reason
@@ -199,10 +206,35 @@ async function spkiPin(host: string): Promise<string> {
   })
 }
 
-/** GET a URL against the estate CA. Never `rejectUnauthorized: false`. */
-async function statusOf(url: string, ca: Buffer): Promise<number | string> {
+/**
+ * GET a URL. Never `rejectUnauthorized: false`.
+ *
+ * ── TWO TRUST STORES, BECAUSE THERE ARE TWO KINDS OF ADDRESS IN THIS FOOTER ───────────────────
+ *
+ * Every estate address is served by the gateway's own CA, which is why one is read off disk and
+ * passed here. The footer now also carries two links that LEAVE — the GitHub organisation and the
+ * X account (micro-org#483) — and those are served by public CAs that the estate CA knows nothing
+ * about. Handing them `ca` pins trust to a certificate that could not possibly have signed them,
+ * so both would have come back "unable to verify the first certificate" and been reported as dead
+ * links on nineteen surfaces at once.
+ *
+ * The rule is therefore the apex, not a list: an address under the apex being audited is estate
+ * infrastructure and is verified against the estate CA; anything else is the public internet and
+ * is verified against Node's bundled roots. Neither branch ignores a certificate, which is the
+ * property that makes this probe worth running at all — a footer link to a host with a broken
+ * certificate is a broken link.
+ */
+async function statusOf(url: string, ca: Buffer, apex?: string): Promise<number | string> {
+  let external = false
+  try {
+    const host = new URL(url).hostname
+    external = apex !== undefined && host !== apex && !host.endsWith(`.${apex}`)
+  } catch {
+    return 'not a URL'
+  }
   return new Promise((ok) => {
-    const req = request(url, { ca, method: 'GET', timeout: 10000 }, (res) => {
+    const opts = external ? { method: 'GET' as const, timeout: 10000 } : { ca, method: 'GET' as const, timeout: 10000 }
+    const req = request(url, opts, (res) => {
       res.resume()
       ok(res.statusCode ?? 0)
     })
@@ -515,7 +547,7 @@ async function main(): Promise<void> {
   }
 
   const targets = auditTargets(opts)
-  const apexStatus = await statusOf(`https://${opts.apex}/`, ca)
+  const apexStatus = await statusOf(`https://${opts.apex}/`, ca, opts.apex)
   if (typeof apexStatus !== 'number') {
     cannotRun(`the estate is not answering at https://${opts.apex}/ (${apexStatus})`)
   }
@@ -624,7 +656,7 @@ async function main(): Promise<void> {
   /* --- every address any footer offered must actually answer ---------------------------- */
   const deadLinks: string[] = []
   for (const href of [...offered].sort()) {
-    const code = await statusOf(href, ca)
+    const code = await statusOf(href, ca, opts.apex)
     if (code !== 200) deadLinks.push(`${href} → ${code}`)
   }
 
