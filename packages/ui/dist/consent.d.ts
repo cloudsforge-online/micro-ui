@@ -164,6 +164,52 @@ export declare function analyticsId(): string | null;
  */
 export declare function analyticsAllowedHere(): boolean;
 /**
+ * A surface's answer to "what may this page say about itself?", given an address.
+ *
+ * Returns the GA4 GLOBAL parameters — `page_location`, `page_path`, `page_referrer`, `page_title`
+ * — that every event from this surface will carry. A surface whose URLs are boring does not need
+ * one; a surface whose URLs are IDENTIFYING does, and that is the case this exists for.
+ *
+ * Forge Agora is the case. `/v/nefeli` names a person, `/p/<id>` names one conversation, and
+ * `page_title` on a post page carries the handle and the first line — so GA is handed the reading
+ * history of a named individual by default. The surface's provider returns the ROUTE PATTERN
+ * (`/v/:handle`) in place of the address, and there is no allowlist of "safe" query parameters
+ * because such a list is one somebody eventually adds one more entry to.
+ *
+ * IT LIVES HERE RATHER THAN IN THE SURFACE, and that is the whole point of the hook.
+ * `agora-web/src/lib/analytics.ts` used to carry its own copy of the shim below in order to push
+ * these fields, which meant a second `dataLayer` writer in the estate, its own note asking for
+ * exactly this hook, and — because a hand-rolled tag call in a surface repository is precisely what
+ * web-ci's third-party-analytics scan exists to refuse — a red build. One writer, one gate.
+ */
+export type PageFieldsProvider = (pathname: string) => Record<string, string>;
+/**
+ * Register (or, with `null`, withdraw) the provider, and apply it immediately.
+ *
+ * MUST be called before {@link initAnalytics}, and the ordering is load-bearing rather than tidy:
+ * `initAnalytics()` grants immediately for a reader who accepted on a previous visit, `grantConsent`
+ * pushes `config`, and `config` is what sends the tag's automatic first `page_view`. Registering
+ * first means the redacted fields are already in the layer when the tag reads it, so there is no
+ * window in which the real address is the one that gets sent. Doing it afterwards is a race whose
+ * losing branch reports a handle.
+ *
+ * `set` rather than options on `config`: it persists across the `config` that follows and applies
+ * to every event, including the automatic ones a surface never issues itself.
+ */
+export declare function setPageFieldsProvider(provider: PageFieldsProvider | null): void;
+/**
+ * Report a client-side navigation.
+ *
+ * GA4 sends a `page_view` when the tag loads and never again — a single-page app that does not do
+ * this shows every reader as having viewed exactly one page. The `set` is repeated before the event
+ * so the global fields follow the reader rather than pinning to the address they entered on.
+ *
+ * A no-op without consent, deliberately: no tag has been loaded, so the push would sit in an array
+ * nothing ever reads, and an unbounded array of events nobody consented to is worth avoiding on a
+ * page somebody scrolls for twenty minutes.
+ */
+export declare function trackPageView(pathname?: string): void;
+/**
  * Prime Consent Mode with everything DENIED, before any tag exists.
  *
  * No network request, no cookie, no script — this pushes two entries onto a plain array. Call it

@@ -344,6 +344,83 @@ const gtag: (...args: readonly unknown[]) => void = function gtagShim(): void {
   w.dataLayer.push(arguments)
 }
 
+/* ───────────────────── the address a page reports itself as ───────────────────── */
+
+/**
+ * A surface's answer to "what may this page say about itself?", given an address.
+ *
+ * Returns the GA4 GLOBAL parameters — `page_location`, `page_path`, `page_referrer`, `page_title`
+ * — that every event from this surface will carry. A surface whose URLs are boring does not need
+ * one; a surface whose URLs are IDENTIFYING does, and that is the case this exists for.
+ *
+ * Forge Agora is the case. `/v/nefeli` names a person, `/p/<id>` names one conversation, and
+ * `page_title` on a post page carries the handle and the first line — so GA is handed the reading
+ * history of a named individual by default. The surface's provider returns the ROUTE PATTERN
+ * (`/v/:handle`) in place of the address, and there is no allowlist of "safe" query parameters
+ * because such a list is one somebody eventually adds one more entry to.
+ *
+ * IT LIVES HERE RATHER THAN IN THE SURFACE, and that is the whole point of the hook.
+ * `agora-web/src/lib/analytics.ts` used to carry its own copy of the shim below in order to push
+ * these fields, which meant a second `dataLayer` writer in the estate, its own note asking for
+ * exactly this hook, and — because a hand-rolled tag call in a surface repository is precisely what
+ * web-ci's third-party-analytics scan exists to refuse — a red build. One writer, one gate.
+ */
+export type PageFieldsProvider = (pathname: string) => Record<string, string>
+
+let pageFieldsProvider: PageFieldsProvider | null = null
+
+/**
+ * Register (or, with `null`, withdraw) the provider, and apply it immediately.
+ *
+ * MUST be called before {@link initAnalytics}, and the ordering is load-bearing rather than tidy:
+ * `initAnalytics()` grants immediately for a reader who accepted on a previous visit, `grantConsent`
+ * pushes `config`, and `config` is what sends the tag's automatic first `page_view`. Registering
+ * first means the redacted fields are already in the layer when the tag reads it, so there is no
+ * window in which the real address is the one that gets sent. Doing it afterwards is a race whose
+ * losing branch reports a handle.
+ *
+ * `set` rather than options on `config`: it persists across the `config` that follows and applies
+ * to every event, including the automatic ones a surface never issues itself.
+ */
+export function setPageFieldsProvider(provider: PageFieldsProvider | null): void {
+  pageFieldsProvider = provider
+  applyPageFields()
+}
+
+/** The current address, as the provider should see it. `/` when there is no browser to ask. */
+function currentPath(): string {
+  const location = globalsOf()?.location as { pathname?: string } | undefined
+  return location?.pathname ?? '/'
+}
+
+/** Queue the registered fields as GA4 global parameters. A no-op when no provider is registered. */
+function applyPageFields(pathname: string = currentPath()): void {
+  if (!pageFieldsProvider || !globalsOf()) return
+  gtag('set', pageFieldsProvider(pathname))
+}
+
+/**
+ * Report a client-side navigation.
+ *
+ * GA4 sends a `page_view` when the tag loads and never again — a single-page app that does not do
+ * this shows every reader as having viewed exactly one page. The `set` is repeated before the event
+ * so the global fields follow the reader rather than pinning to the address they entered on.
+ *
+ * A no-op without consent, deliberately: no tag has been loaded, so the push would sit in an array
+ * nothing ever reads, and an unbounded array of events nobody consented to is worth avoiding on a
+ * page somebody scrolls for twenty minutes.
+ */
+export function trackPageView(pathname: string = currentPath()): void {
+  if (readConsent() !== 'granted' || !globalsOf()) return
+  const fields = pageFieldsProvider?.(pathname)
+  if (fields) {
+    gtag('set', fields)
+    gtag('event', 'page_view', fields)
+    return
+  }
+  gtag('event', 'page_view')
+}
+
 /**
  * Prime Consent Mode with everything DENIED, before any tag exists.
  *
@@ -390,6 +467,12 @@ export function grantConsent(id: string | null = analyticsId()): void {
   document.head.appendChild(script)
 
   gtag('js', new Date())
+  // Re-applied HERE, immediately before `config`, and not only at registration. `config` is what
+  // sends the tag's automatic first `page_view`, and by the time a reader accepts they may have
+  // navigated: the fields registered at boot describe the address the tab opened on. Pushing them
+  // again on the line above the `config` is what makes the redaction hold for the one event no
+  // surface issues itself. A no-op where no provider is registered, which is most surfaces.
+  applyPageFields()
   // `anonymize_ip` is a no-op on GA4 and is not set. `allow_google_signals` false is not: it stops
   // the advertising features that would turn an analytics grant into an advertising one, which is
   // a purpose this banner does not ask about and therefore must not enable.

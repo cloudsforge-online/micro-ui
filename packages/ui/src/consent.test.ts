@@ -35,6 +35,8 @@ import {
   onConsentChange,
   readConsent,
   revokeConsent,
+  setPageFieldsProvider,
+  trackPageView,
 } from './consent.ts'
 
 /* ───────────────────────────────── the stand-in browser ───────────────────────────────── */
@@ -530,5 +532,101 @@ describe('the decision store', () => {
     off()
     grantConsent()
     assert.deepEqual(seen, ['granted', 'denied', null], 'the listener did not see every change')
+  })
+})
+
+/* ─────────────────── what a page is allowed to say about itself ─────────────────── */
+
+/**
+ * The address redaction, from the gate's side.
+ *
+ * A surface whose URLs name people — Forge Agora, where `/v/nefeli` is a person and `/p/<id>` is
+ * one conversation — registers a provider that returns the ROUTE PATTERN instead. What is asserted
+ * here is not that the pattern is right (that is the surface's own test, over its own route table)
+ * but that the gate never sends an address the provider did not approve: not on the automatic
+ * `page_view` that `config` produces, and not on a navigation.
+ */
+describe('the address a page reports itself as', () => {
+  /** A stand-in surface: every path collapses to its first segment, and nothing else is sent. */
+  const redactTo = (fields: Record<string, string>) => (pathname: string) => ({
+    ...fields,
+    page_path: `/${pathname.split('/')[1] ?? ''}/:id`,
+  })
+
+  const calls = (): unknown[][] => dataLayer().map((a) => [...(a as IArguments)])
+  const path = (pathname: string): void => {
+    const w = globalThis as unknown as { window: { location: { pathname?: string } } }
+    w.window.location.pathname = pathname
+  }
+
+  // Module state, so it outlives the fake browser and would otherwise leak into every test below.
+  afterEach(() => setPageFieldsProvider(null))
+
+  it('applies the provider the moment it is registered, before any tag exists', () => {
+    path('/v/nefeli')
+    setPageFieldsProvider(redactTo({ page_title: 'Forge Agora' }))
+    const set = calls().find((c) => c[0] === 'set' && typeof c[1] === 'object')
+    assert.ok(set, 'registering a provider queued nothing')
+    assert.deepEqual(set[1], { page_title: 'Forge Agora', page_path: '/v/:id' })
+    assert.deepEqual(scripts(), [], 'registering a provider fetched something')
+  })
+
+  it('redacts the automatic page_view: the fields are queued BEFORE config', () => {
+    // This is the ordering the whole hook exists for. `config` is what sends the tag's first
+    // `page_view`, and that event is the one no surface issues itself — so if the fields land after
+    // it, the one event nobody wrote is the one that reports a handle.
+    path('/v/nefeli')
+    setPageFieldsProvider(redactTo({}))
+    grantConsent()
+
+    const pushed = calls()
+    const setAt = pushed.findIndex(
+      (c) => c[0] === 'set' && (c[1] as Record<string, string> | undefined)?.['page_path'] !== undefined,
+    )
+    const configAt = pushed.findIndex((c) => c[0] === 'config')
+    assert.ok(setAt >= 0, 'the redacted fields were never queued')
+    assert.ok(configAt >= 0, 'no config was pushed')
+    assert.ok(setAt < configAt, 'config ran before the redaction; the first page_view names the reader')
+  })
+
+  it('re-reads the provider on accept, so a reader who navigated first is still redacted', () => {
+    // Registered on `/`, accepted on `/v/nefeli`. The fields queued at boot describe the address
+    // the tab opened on, which is not where the reader is.
+    path('/')
+    setPageFieldsProvider(redactTo({}))
+    path('/v/nefeli')
+    grantConsent()
+    const last = calls()
+      .filter((c) => c[0] === 'set' && (c[1] as Record<string, string> | undefined)?.['page_path'])
+      .pop()
+    assert.equal((last?.[1] as Record<string, string>)['page_path'], '/v/:id')
+  })
+
+  it('sends nothing on a navigation the reader has not consented to', () => {
+    setPageFieldsProvider(redactTo({}))
+    const before = dataLayer().length
+    trackPageView('/v/nefeli')
+    assert.equal(dataLayer().length, before, 'a page_view was queued without consent')
+  })
+
+  it('reports a navigation with the redacted fields once consent is given', () => {
+    setPageFieldsProvider(redactTo({}))
+    grantConsent()
+    trackPageView('/p/6f1c9a')
+    const event = calls()
+      .filter((c) => c[0] === 'event' && c[1] === 'page_view')
+      .pop()
+    assert.ok(event, 'no page_view was queued after a navigation')
+    assert.equal((event[2] as Record<string, string>)['page_path'], '/p/:id')
+  })
+
+  it('changes nothing for a surface that registers no provider', () => {
+    // Sixteen of the seventeen surfaces have boring addresses and want the tag's own behaviour.
+    // An unregistered provider must not mean an empty `set`, which would blank `page_location`.
+    grantConsent()
+    const anySet = calls().some(
+      (c) => c[0] === 'set' && typeof c[1] === 'object' && c[1] !== null,
+    )
+    assert.equal(anySet, false, 'a surface with no provider had page fields set for it')
   })
 })
