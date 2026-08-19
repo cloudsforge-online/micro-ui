@@ -35,7 +35,7 @@
  * fifteen lines at the bottom. That is what lets a test assert the title of every surface in the
  * estate without a browser.
  */
-import { SURFACES, surface, type CloudsForgeSurface, type SurfaceKey } from './surfaces.ts'
+import { SURFACES, servesOwnBundle, surface, type CloudsForgeSurface, type SurfaceKey } from './surfaces.ts'
 
 /** The company name, as it appears in a title and in `og:site_name`. */
 export const SITE_NAME = 'CloudsForge'
@@ -182,7 +182,25 @@ export function surfaceMeta(key: SurfaceKey, page: PageMetaInput = {}): SurfaceM
     //
     // The registry already holds the answer, so this reads it rather than asking each caller to
     // remember: one line here fixes every consolidated surface and every one still to come.
-    path: normalisePath(`${s.basePath ?? ''}${page.path ?? '/'}`),
+    // ── AND ONLY WHEN THE basePath IS A ROUTER `basename` ────────────────────────────────────
+    //
+    // `servesOwnBundle` is the discriminator, and leaving it out was a second defect that CI
+    // caught in micro-hub-web: `signin` carries `basePath: '/account'` and `wallet` carries
+    // `/wallet`, but neither is a mounted surface — they are ROUTES INSIDE hub-web's bundle. Its
+    // router has no `basename`, so `useLocation()` already hands this function `/account/login`,
+    // and prefixing produced `/account/account/login`.
+    //
+    // The two cases look identical in the registry and are opposite in the browser:
+    //
+    //   servesOwnBundle   basePath is a `basename`; the router STRIPS it, so it must be added back
+    //   route-in-a-bundle basePath is part of an ordinary route; the router keeps it, so adding it
+    //                     again doubles it
+    //
+    // `servesOwnBundle` already discriminates on `devPort` uniqueness for exactly this reason and
+    // is what `check-api-remount.py` and micro-site's sitemap test both key on.
+    path: normalisePath(
+      `${servesOwnBundle(s) ? (s.basePath ?? '') : ''}${page.path ?? '/'}`,
+    ),
     image: page.image ?? DEFAULT_OG_IMAGE,
     robots: page.robots ?? robotsDirective(s),
     lang: HTML_LANG,
