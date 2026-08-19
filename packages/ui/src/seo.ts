@@ -119,6 +119,21 @@ export function normalisePath(pathname: string): string {
 }
 
 /**
+ * A bundle-local asset path, mounted where the bundle is.
+ *
+ * The same `servesOwnBundle` discrimination the canonical uses, and for the same reason: a
+ * surface whose `basePath` is a router `basename` serves its files under that folder, and one
+ * whose `basePath` is an ordinary route inside somebody else's bundle does not.
+ *
+ * An absolute URL is returned untouched — the caller has already said where the file lives.
+ */
+function mountAsset(s: CloudsForgeSurface, image: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(image) || image.startsWith('//')) return image
+  if (!servesOwnBundle(s) || !s.basePath) return image
+  return `${s.basePath}${image.startsWith('/') ? '' : '/'}${image}`
+}
+
+/**
  * What a crawler is told about a surface, DERIVED rather than decided per repository.
  *
  * Three answers, and each is read off a registry field that already exists:
@@ -201,7 +216,23 @@ export function surfaceMeta(key: SurfaceKey, page: PageMetaInput = {}): SurfaceM
     path: normalisePath(
       `${servesOwnBundle(s) ? (s.basePath ?? '') : ''}${page.path ?? '/'}`,
     ),
-    image: page.image ?? DEFAULT_OG_IMAGE,
+    // ── AND THE CARD, FOR THE SAME REASON AND WITH THE SAME DISCRIMINATOR ─────────────────────
+    //
+    // `DEFAULT_OG_IMAGE` is `/og-1200x630.png`, a path inside the bundle's own directory. On a
+    // mounted surface the file is at `/<mount>/og-1200x630.png`; unmounted, the address resolves
+    // at the APEX ROOT, which is micro-site's.
+    //
+    // MEASURED 2026-08-20 against production:
+    //
+    //     /og-1200x630.png          200   40,465 bytes   (micro-site's card)
+    //     /market/og-1200x630.png   200   54,174 bytes   (Forge Market's own)
+    //
+    // So every Forge Market link unfurled with the marketing site's picture on it. Nothing broke
+    // and nothing was logged — which is why it outlived the canonical defect it shipped beside.
+    //
+    // Only a ROOT-RELATIVE path is mounted. A caller that passes an absolute URL — an article's
+    // own card on a CDN, say — has already decided where it lives, and prefixing would corrupt it.
+    image: mountAsset(s, page.image ?? DEFAULT_OG_IMAGE),
     robots: page.robots ?? robotsDirective(s),
     lang: HTML_LANG,
   }

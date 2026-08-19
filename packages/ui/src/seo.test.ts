@@ -11,6 +11,7 @@ import { describe, it } from 'node:test'
 import { SURFACES, servesOwnBundle, surface } from './surfaces.ts'
 import {
   COMPANY_LINE,
+  DEFAULT_OG_IMAGE,
   HTML_LANG,
   INDEXABLE_SURFACES,
   canonicalHref,
@@ -236,6 +237,48 @@ describe('the canonical carries the surface\'s mount', () => {
         already,
         `${s.key} is a route inside another bundle and its mount was added twice`,
       )
+    }
+  })
+
+  it('mounts the OG card too, and leaves an absolute URL alone', () => {
+    /*
+     * ── THE OTHER HALF OF THE SAME DEFECT, MEASURED AGAINST PRODUCTION 2026-08-20 ──────────────
+     *
+     *     /og-1200x630.png          200   40,465 bytes   (micro-site's card)
+     *     /market/og-1200x630.png   200   54,174 bytes   (Forge Market's own)
+     *
+     * `DEFAULT_OG_IMAGE` is a path inside the bundle's own directory. Unmounted it resolved at
+     * the apex root, so every Forge Market link unfurled with the marketing site's picture on it.
+     * Nothing broke and nothing was logged, which is why it outlived the canonical defect it
+     * shipped beside.
+     */
+    for (const s of SURFACES) {
+      if (!s.basePath || !servesOwnBundle(s)) continue
+      assert.equal(
+        surfaceMeta(s.key).image,
+        `${s.basePath}${DEFAULT_OG_IMAGE}`,
+        `${s.key} advertises a card at the apex root, which is micro-site's`,
+      )
+      assert.equal(
+        surfaceMeta(s.key, { image: '/custom.png' }).image,
+        `${s.basePath}/custom.png`,
+        `${s.key}'s own card path is not mounted`,
+      )
+    }
+  })
+
+  it('never rewrites an absolute card URL, because the caller already decided', () => {
+    // An article's card on a CDN, say. Prefixing a mount onto it would corrupt the address.
+    for (const url of ['https://cdn.example/a.png', 'http://cdn.example/a.png', '//cdn.example/a.png']) {
+      assert.equal(surfaceMeta('market', { image: url }).image, url)
+    }
+  })
+
+  it('leaves the card alone for a surface with no mount of its own', () => {
+    // `site` IS the apex, `hub` owns a hostname, and `signin` is a route inside hub's bundle —
+    // whose asset really does live at the origin root.
+    for (const key of ['site', 'hub', 'signin'] as const) {
+      assert.equal(surfaceMeta(key).image, DEFAULT_OG_IMAGE)
     }
   })
 
