@@ -1135,21 +1135,33 @@ export const SURFACES = [
     /* --- hostnames with no UI of their own ------------------------------ */
     {
         /*
-         * A path on the apex — wave 3b. `explorer.<apex>` 301s to `<apex>/explorer`.
+         * ── STAYS ON ITS SUBDOMAIN FOR NOW, AND THE REASON IS A COST THE OTHERS DO NOT HAVE ────────
          *
-         * THE UPSTREAM IS NOT NAMED `explorer` AND THAT MATTERS HERE. `cf-api-explorer` routes this
-         * hostname's `/v1` to `cf-svc-indexer` — the surface is a face on `micro-indexer`, which is
-         * why the row is `kind: 'service'`. `check-api-remount.py` reads API routers by UPSTREAM
-         * rather than by name for exactly this case, so the `/explorer/v1` router it demands is the
-         * one pointing at `cf-svc-indexer`, and a check keyed on `cf-svc-explorer` would have found
-         * nothing and passed.
+         * `explorer` was in wave 3b with `developers`, `create` and `trade` — same shape on paper: a
+         * plain `/v1` API on its own hostname, no nesting, no unversioned root prefixes. Building it
+         * found something the paper test could not see.
+         *
+         * This surface has a CROSS-ESTATE VIEWING LAYER keyed on ORIGINS. `viewedApiOrigin()` in
+         * `explorer-web/src/lib/viewed.ts` returns an origin — `api.ts` uses it to decide whether to
+         * drop the authorization header, because the other estate's token is not this one's — and it
+         * composes that origin with `networkOrigin()`. A consolidated surface's reads are origin PLUS
+         * MOUNT, so every caller of that function has to learn the difference between "which estate"
+         * and "where under it", and the auth decision has to keep keying on the first alone.
+         *
+         * That is a design change to the combined view, not the mechanical remount the other three
+         * are. It gets its own wave rather than being rushed into this one — the whole argument for
+         * doing `journal` alone in wave 1 was to find out what the plan gets wrong while the cost of
+         * being wrong is small, and this is the same argument arriving later.
+         *
+         * The upstream is `cf-svc-indexer`, not `cf-svc-explorer`, and `check-api-remount.py` reads
+         * API routers by UPSTREAM for exactly that reason. Worth keeping written down here: it is the
+         * thing a future wave will get wrong first.
          */
         key: 'explorer',
         name: 'Network Explorer',
         verb: null,
         kind: 'service',
-        subdomain: '',
-        basePath: '/explorer',
+        subdomain: 'explorer',
         // 4008, the port `micro-indexer` binds (`indexer/src/env.ts`), NOT 8080.
         //
         // 8080 was this bundle's own nginx container port, which is the one number that is certainly
