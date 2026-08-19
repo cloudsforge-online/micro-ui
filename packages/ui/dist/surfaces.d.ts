@@ -47,6 +47,34 @@ export interface CloudsForgeSurface {
      * this path.
      */
     readonly basePath?: string;
+    /**
+     * ROUTER paths this surface needs kept out of a search index, for `robots.txt`.
+     *
+     * ── WHY A REGISTRY FIELD AND NOT A LINE IN THE SURFACE'S OWN nginx.conf ────────────────────
+     *
+     * Because a folder has no robots.txt. That document is read from the ORIGIN ROOT and nowhere
+     * else, so the moment a surface becomes `<apex>/agora` its own `location = /robots.txt` stops
+     * being policy and becomes dead configuration that READS like policy — the most expensive kind.
+     * The one robots.txt on this origin is micro-site's, and micro-site has no way to know what
+     * another repository wanted disallowed.
+     *
+     * So the fact lives where every cross-repository fact in this estate lives, and micro-site
+     * derives its `Disallow:` lines from it — `${basePath}${path}` — rather than carrying a copy
+     * somebody has to remember to update. `site/test/routes.test.ts` walks this field, so a surface
+     * that gains a private route and declares it here is covered without micro-site being touched.
+     *
+     * ROUTER paths, not public ones: the mount is added by the deriver, exactly as `seo.ts` adds it
+     * for a canonical. Writing `/agora/home` here would produce `Disallow: /agora/agora/home`.
+     *
+     * ── AND IT IS DELIBERATELY NOT "EVERY PRIVATE ROUTE" ───────────────────────────────────────
+     *
+     * Agora's `/moderation` is private and is NOT here. Nothing links to it, so no crawler finds it,
+     * and its own `<meta name="robots">` says `noindex, nofollow` if one ever did. Listing it would
+     * publish the address of the operator queue in a file whose entire purpose is being read by
+     * strangers. A `Disallow:` is a PUBLIC statement that an address exists, which is why this is a
+     * judgement per path rather than a flag derived from `private`.
+     */
+    readonly noIndexPaths?: readonly string[];
     /** The accent, from the validated set below. Never invented locally. */
     readonly accent: string;
     /** Switcher glyph. Present on every switcher entry, because colour is never the only channel. */

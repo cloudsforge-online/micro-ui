@@ -892,11 +892,39 @@ export const SURFACES = [
          * position; it would drop a conversation mid-sentence. The bundle keeps the viewed network in
          * the URL, switches the chrome in place, and carries it onto every estate link it composes.
          */
+        // ── A PATH ON THE APEX — WAVE 3c, AND THE FIRST SURFACE WHOSE SERVICE ANSWERS AT ITS ROOT ──
+        //
+        // Same shape as `market`, `create` and `trade`: the bundle is `<apex>/agora`, its API is
+        // `<apex>/agora/v1` and the gateway strips `/agora` back off before `micro-agora` sees it, so
+        // the service is unchanged. `agora.<apex>` answers a permanent 301 for the BUNDLE and keeps
+        // serving the API directly, because a redirect answers a GET well and mangles a POST.
+        //
+        // What is new here, and why this surface got a wave rather than riding along with 3b: agora's
+        // service answers `/livez` and `/readyz` AT ITS ROOT as well as `/v1`. On its own hostname
+        // that was three prefixes on one name and nothing else was there to collide with. Mounted,
+        // those two become `<apex>/agora/livez` and `<apex>/agora/readyz` — still unambiguous, because
+        // the mount is the discriminator — but the gateway rule has to name all three or the health
+        // endpoints land on the BUNDLE, which would answer them with an HTML page and a 200. A monitor
+        // reading that as healthy is the failure this note exists to prevent.
+        //
+        // A discussion forum is the clearest possible case for the consolidation's SEO argument: every
+        // thread is a page somebody might link to, and on `agora.<apex>` each one accrued authority to
+        // a hostname the estate would rather not be teaching search engines about.
         key: 'agora',
         name: 'Forge Agora',
         verb: null,
         kind: 'service',
-        subdomain: 'agora',
+        subdomain: '',
+        basePath: '/agora',
+        // The six the square's own nginx.conf used to disallow, moved here when the folder took its
+        // robots.txt away. Five are the reader's OWN pages: each needs a token and answers 401 without
+        // one, so a crawler gains nothing by fetching them — but `/whispers` in a search index is a URL
+        // that READS like a public page of private messages, and that impression is worth six lines to
+        // avoid. `/search` is public and disallowed for the ordinary reason: the query space is
+        // infinite and every crawl of it is a full-text scan of the whole square.
+        //
+        // `/moderation` is private and deliberately absent — see the field's own comment.
+        noIndexPaths: ['/home', '/notifications', '/whispers', '/bookmarks', '/settings', '/search'],
         devPort: 4150,
         // Orchid, and the only accent in this file that was chosen before the surface it belongs to
         // existed. `tokens.css` records the sweep: the Journal's bronze and this hue were scored

@@ -527,3 +527,48 @@ describe('the registry and the stylesheet agree', () => {
     }
   })
 })
+
+describe('noIndexPaths — the robots rules a folder cannot state for itself', () => {
+  it('is only set on surfaces that are consolidated onto the apex', () => {
+    // A surface with its own hostname has its own robots.txt and states its own rules there. This
+    // field exists BECAUSE a folder has none — so a subdomain surface carrying one would be a rule
+    // written in the place that cannot enforce it, next to a place that can.
+    for (const s of SURFACES) {
+      if (!s.noIndexPaths) continue
+      assert.equal(s.subdomain, '', `${s.key} has noIndexPaths and still owns a subdomain`)
+      assert.ok(s.basePath, `${s.key} has noIndexPaths and no basePath to prefix them with`)
+      assert.ok(servesOwnBundle(s), `${s.key} has noIndexPaths and does not serve its own bundle`)
+    }
+  })
+
+  it('holds ROUTER paths, so the deriver can add the mount exactly once', () => {
+    for (const s of SURFACES) {
+      for (const p of s.noIndexPaths ?? []) {
+        assert.ok(p.startsWith('/'), `${s.key}: ${p} is not rooted`)
+        assert.ok(
+          !p.startsWith(`${s.basePath}/`) && p !== s.basePath,
+          `${s.key}: ${p} already carries the mount, so micro-site would emit ` +
+            `Disallow: ${s.basePath}${p} — the folder named twice`,
+        )
+        assert.ok(!p.endsWith('/'), `${s.key}: ${p} has a trailing slash, which robots.txt reads as a different prefix`)
+      }
+    }
+  })
+
+  it('names agora, and names it exactly, because it is the first surface to need this', () => {
+    // Pinned by name as well as swept: a sweep over an empty set passes, and this field would be
+    // easy to lose in a merge without anything noticing until a private page turned up in a
+    // search result.
+    assert.deepEqual(surface('agora').noIndexPaths, [
+      '/home',
+      '/notifications',
+      '/whispers',
+      '/bookmarks',
+      '/settings',
+      '/search',
+    ])
+    // `/moderation` is private and deliberately absent — a `Disallow:` is a PUBLIC statement that
+    // an address exists, and nothing links to that one.
+    assert.ok(!surface('agora').noIndexPaths?.includes('/moderation'))
+  })
+})
