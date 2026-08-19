@@ -11,6 +11,7 @@ import {
   RETIRED_ACCENTS,
   SURFACES,
   SWITCHER_SURFACES,
+  servesOwnBundle,
   surface,
   type SurfaceKey,
 } from './surfaces.ts'
@@ -287,7 +288,39 @@ describe('the registry', () => {
         (o) => o.key !== s.key && o.subdomain === s.subdomain && o.basePath === undefined,
       )
       if (!host) throw new Error(`${s.key} rides on a host that is not in the registry`)
-      assert.equal(host.devPort, s.devPort, `${s.key} disagrees with its host about the port`)
+
+      // ── THERE ARE TWO KINDS OF basePath ROW, AND THIS USED TO KNOW ABOUT ONE ────────────────
+      //
+      // It asserted `host.devPort === s.devPort`, flatly. That is true of `wallet`, `signin` and
+      // `faucet` and it is true of them for a reason that does not generalise: each is a ROUTE
+      // INSIDE the host's bundle. Same repository, same container, same dev server — so naming a
+      // different port would name a server that does not have the route.
+      //
+      // `journal` is the other kind, and the apex consolidation makes it the first of fourteen
+      // (`deploy/docs/apex-consolidation.md`). It is a SEPARATE bundle in a separate repository
+      // that the GATEWAY mounts at a path on the apex. In production that distinction is
+      // invisible — one origin, one path, exactly like the wallet. In development there is no
+      // gateway, so the archive is served by its own vite server on its own port, at `/journal`
+      // because its vite `base` says so.
+      //
+      // What the assertion was actually protecting is still protected, and it is the thing that
+      // bites: a basePath row must not name SOMEBODY ELSE'S port. `journal` at 3010 would resolve
+      // to `localhost:3010/journal` under `pnpm dev` — Forge Hub's dev server, answering with
+      // Hub's bundle for an address that is not Hub's. Own the port or share the host's; a third
+      // surface's is the defect.
+      //
+      // `servesOwnBundle` is the registry's own name for the second case, and this is what earns
+      // it: the test below proves two surfaces share a port only by declared co-hosting, so a port
+      // nobody else claims is a bundle nobody else serves. `network-view.test.ts` decides who may
+      // carry `viewsAnyNetwork` on exactly that basis.
+      const shared = host.devPort === s.devPort
+      const own = servesOwnBundle(s)
+      assert.ok(
+        shared || own,
+        `${s.key} names devPort ${s.devPort}, which is neither its host's (${host.devPort}) nor ` +
+          `its own — under 'pnpm dev' it resolves to another surface's dev server, which answers ` +
+          `with that surface's bundle rather than 404ing.`,
+      )
     }
   })
 

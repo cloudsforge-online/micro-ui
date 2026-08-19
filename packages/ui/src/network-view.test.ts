@@ -11,7 +11,7 @@ import {
   withNetwork,
 } from './index.tsx'
 import { createNetworkView } from './network-view.ts'
-import { SURFACES, VIEWING_SURFACES } from './surfaces.ts'
+import { SURFACES, VIEWING_SURFACES, servesOwnBundle } from './surfaces.ts'
 
 /**
  * THE BUG THIS FILE EXISTS FOR, in the owner's words:
@@ -224,24 +224,36 @@ describe('the viewing registry', () => {
     )
   })
 
-  it('is every bundle that serves a UI on a hostname of its own', () => {
+  it('is every bundle that serves a UI of its own', () => {
     // The escape route is gone, so this is no longer a short list somebody curates: a frontend that
     // cannot show the other network has no answer for a reader who presses Testnet. Anything here
     // that is NOT flagged is a bundle that will fall back to `viewingSurfaceUrl`, which is the
     // behaviour the owner reported as a bug.
-    const bundles = SURFACES.filter((s) => s.servesUi && !s.basePath).map((s) => s.key)
+    //
+    // THE PREDICATE USED TO BE `!s.basePath`, WHICH WAS THE SAME SET UNTIL 2026-08-19. Every
+    // basePath row was then a route inside another surface's bundle. `journal` is the first that
+    // is not — its own repository, mounted by the gateway at a path on the apex — and dropping it
+    // from this list to keep the old predicate would have dropped, for a bundle that has one, the
+    // micro-deploy check that its `src/lib/viewed.ts` exists. Thirteen more follow it.
+    const bundles = SURFACES.filter(servesOwnBundle).map((s) => s.key)
     assert.deepEqual(VIEWING_SURFACES.map((s) => s.key), bundles)
   })
 
-  it('leaves the basePath rows out, because their bundle already views', () => {
+  it('leaves out the basePath rows that ride inside somebody else’s bundle', () => {
     // `wallet` and `signin` are routes inside Forge Hub; `faucet` is a route on the Network site.
-    // A row of their own would put a DUPLICATE origin in the cross-environment CORS grant — the
-    // grant is keyed by subdomain, and all three share one with the bundle that serves them.
+    // A row of their own would claim a view for a bundle that is not theirs, and would put a
+    // DUPLICATE origin in the cross-environment CORS grant, which is keyed by origin and which
+    // `hub` and `network` are already in.
     for (const key of ['wallet', 'signin', 'faucet'] as const) {
       assert.equal(SURFACES.find((s) => s.key === key)?.viewsAnyNetwork, undefined)
     }
-    const subs = VIEWING_SURFACES.map((s) => s.subdomain)
-    assert.equal(new Set(subs).size, subs.length)
+    // Uniqueness OF THE BUNDLE, which is what the flag is about — this used to assert uniqueness of
+    // the SUBDOMAIN, and the apex consolidation is what showed the difference. Two viewers may now
+    // share an origin (`site` and `journal` both serve from `cloudsforge.online`) and the grant
+    // dedupes them; two viewers sharing a dev port would mean one bundle flagged twice, which is
+    // the thing that was actually being prevented.
+    const ports = VIEWING_SURFACES.map((s) => s.devPort)
+    assert.equal(new Set(ports).size, ports.length)
   })
 })
 
@@ -266,7 +278,7 @@ describe('the escape route from a surface that cannot show the other network', (
     // The regression guard for the whole change. If this fails, some frontend has lost its
     // in-place view and its Testnet button is a navigation to a different product again.
     atUrl('cloudsforge.online')
-    for (const s of SURFACES.filter((s) => s.servesUi && !s.basePath)) {
+    for (const s of SURFACES.filter(servesOwnBundle)) {
       assert.equal(viewingSurfaceUrl(s.key, 'testnet'), null, s.key)
     }
   })
