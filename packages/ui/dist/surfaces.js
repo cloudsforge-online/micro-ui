@@ -307,12 +307,35 @@ export const SURFACES = [
          * dE 30 adjacency gate against the other six — a much harder search than the one below, and one
          * the note above PRODUCT_ACCENTS records as close to unachievable. Nothing about being in the
          * menu makes this a product: it has no `verb`, no mark, and CloudsForge operates none of it.
+         *
+         * ── IT IS A PATH ON THE APEX — WAVE 2 OF THE CONSOLIDATION ────────────────────────────────
+         *
+         * `exchange.cloudsforge.online` served this desk until 2026-08-19 and now 301s to
+         * `cloudsforge.online/exchange`. The argument for moving is on the `journal` row below and in
+         * full in `deploy/docs/apex-consolidation.md`; it is not restated here.
+         *
+         * What is worth stating is why THIS surface is second, and why it is second ALONE. The wave
+         * order turns on one question — does the surface have an API on its own hostname — because a
+         * surface that does cannot move without moving an API its own bundle reaches by relative path.
+         * `journal` had none. This has none either, and for a reason that is structural rather than
+         * incidental: an AMM's entire state is four numbers in a pair contract, `kind: 'service'`
+         * notwithstanding there is no `micro-exchange` and there is not going to be one, and this
+         * bundle reads the chain from `rpc.<apex>` CROSS-ORIGIN — an absolute address that does not
+         * move when the page it is called from does. Every other one of the fourteen has a service on
+         * its own hostname. See §5 of the plan for how a `/v1`-shaped version of that question put
+         * `developers` in this wave by mistake.
+         *
+         * It is not a repeat of wave 1 though, which is the point of running it: the journal is static
+         * prose with no session and no chain data, and this has a wallet, a signed session and live
+         * contract reads. If a base path breaks something that only an authenticated surface can
+         * break, it breaks here — on one surface, before twelve of them move at once.
          */
         key: 'exchange',
         name: 'Forge Exchange',
         verb: null,
         kind: 'service',
-        subdomain: 'exchange',
+        subdomain: '',
+        basePath: '/exchange',
         // 5194 — `exchange-web/vite.config.ts`, the port the BUNDLE's dev server binds, and the only
         // number in this registry that names a vite server rather than a service.
         //
@@ -724,9 +747,17 @@ export const SURFACES = [
          * static HTML at build time. A CMS would put the words in a database, which would mean the
          * words could change without a commit, which is the property an editorial archive least wants.
          *
-         * That absence is also why this surface could go first. Eleven of the other thirteen have a
-         * service on their own hostname answering `/v1`, and moving those means moving an API their
-         * bundles reach by RELATIVE path — a change in the service's consumers, not just the frontend.
+         * That absence is also why this surface could go first. TWELVE of the other thirteen have a
+         * service on their own hostname, and moving those means moving an API their bundles reach by
+         * RELATIVE path — a change in the service's consumers, not just the frontend. Only `exchange`
+         * is in the same position as this row, which is why it is wave 2 and is wave 2 alone.
+         *
+         * Counted by the router's UPSTREAM (`service: cf-svc-*`), not by whether the rule says `/v1`.
+         * Eleven of the twelve do say `/v1`; `foresight` does not, and answers `/ideas`,
+         * `/categories`, `/image-config`, `/stake-assets`, `/me` and `/markets` UNVERSIONED AT THE
+         * ROOT of its own hostname. A `/v1` count reads that surface as having no API at all, which is
+         * how the plan first put `developers` — 35 handlers behind `cf-api-developers` — into wave 2
+         * as "docs". See `deploy/docs/apex-consolidation.md` §5.
          */
         key: 'journal',
         name: 'Forge Journal',
