@@ -944,29 +944,31 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     // Reached from the footer, not the product switcher: a developer console is something a
     // person goes looking for, and it does not compete for a switcher slot with the products.
     /*
-     * ── A PATH ON THE APEX — WAVE 3b, AND THE ROW THAT MOVED WAVE ────────────────────────────
+     * ── STAYS ON ITS SUBDOMAIN FOR NOW, AND THE REASON IS STRUCTURE, NOT PRINCIPLE ────────────
      *
-     * `developers.cloudsforge.online` served this until 2026-08-19 and now 301s to
-     * `cloudsforge.online/developers`. Same arrangement as `market` above: the bundle mounts at
-     * `/developers`, its API mounts at `/developers/v1`, and the gateway strips `/developers`
-     * before `micro-devplatform` sees it, so the service is unchanged.
+     * `developers` was in wave 3b with `create` and `trade`, matching the same paper test: a
+     * plain `/v1` API on its own hostname, no nesting, no unversioned root prefixes. Building it
+     * found that micro-devportal-web has structure the other two do not — a SECOND enumerated
+     * route block (`location ~ ^/projects/`) beside the first, and `BARE_PATHS`, a set of
+     * addresses that must be served only WITH a trailing slash. Neither is hard; both are
+     * per-repository judgement rather than the mechanical remount `create` and `trade` are.
      *
-     * THIS ROW IS WHY THE WAVE ORDER WAS WRONG ONCE. The plan's §1 table called this
-     * "Documentation. Documentation on a subdomain is the canonical example of authority thrown
-     * away", and that sentence put it in wave 2 — alongside `exchange`, on the stated test "no
-     * API of its own". It is not documentation. It is the developer platform CONSOLE, and
+     * It gets its own wave. This one had already produced two silent defects of exactly that
+     * shape — a testnet API answering 302 to mainnet, and a canonical pointing at a 404 — and
+     * both came from applying a template where the surface did not fit it.
+     *
+     * THE ROW'S OTHER CORRECTION STANDS AND IS WHY IT IS NOT IN WAVE 2. The plan's §1 table
+     * called this "Documentation. Documentation on a subdomain is the canonical example of
+     * authority thrown away." It is not documentation: it is the developer platform CONSOLE, and
      * `cf-api-developers` serves 35 `/v1` handlers from `micro-devplatform` on this hostname.
-     * Checking it produced a better test — count APIs by the ROUTER'S UPSTREAM rather than by
-     * whether the rule says `/v1` — and that test is what put `foresight` last.
-     *
-     * `devPort` stays 3012: it names the SERVICE, which has not moved.
+     * Checking that produced the better test — count APIs by the ROUTER'S UPSTREAM rather than by
+     * whether the rule says `/v1` — which is what put `foresight` last.
      */
     key: 'developers',
     name: 'Developer Platform',
     verb: null,
     kind: 'surface',
-    subdomain: '',
-    basePath: '/developers',
+    subdomain: 'developers',
     devPort: 3012,
     accent: '#4a86e0',
     glyph: '⌗',
