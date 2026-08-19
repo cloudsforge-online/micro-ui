@@ -11,7 +11,8 @@ import {
   withNetwork,
 } from './index.tsx'
 import { createNetworkView } from './network-view.ts'
-import { SURFACES, VIEWING_SURFACES, servesOwnBundle } from './surfaces.ts'
+import { SURFACES, VIEWING_SURFACES, servesOwnBundle, type SurfaceKey } from './surfaces.ts'
+import { apiBaseFor } from './index.tsx'
 
 /**
  * THE BUG THIS FILE EXISTS FOR, in the owner's words:
@@ -585,5 +586,83 @@ describe('the viewed network survives a reload', () => {
     // put a live estate's name in a development address bar even if it could.
     view.setViewedNetwork('testnet')
     assert.deepEqual(browser.writes, [])
+  })
+})
+
+/**
+ * ── THE API BASE A PAGE REACHES ITS OWN SERVICE AT ──────────────────────────────────────────────
+ *
+ * `apiBaseFor` replaces sixteen near-identical copies of `resolveApiBase` in sixteen frontends.
+ * The behaviour that matters is the SAME-ORIGIN branch, and it changed on 2026-08-19: it used to
+ * answer `''` unconditionally, which is right for a surface at the root and silently wrong for one
+ * at a path.
+ */
+describe('apiBaseFor', () => {
+  const at = (origin: string, key: SurfaceKey, hosts: Record<string, string>) =>
+    apiBaseFor(origin, hosts as never, key)
+
+  it('is RELATIVE for a root-mounted surface, which is what it always was', () => {
+    // The ten surfaces that have not moved must see no change at all. `market` is on its own
+    // hostname today: page and service share an origin, so the request stays relative.
+    assert.equal(
+      at('https://market.cloudsforge.online', 'market', {
+        market: 'https://market.cloudsforge.online',
+      }),
+      '',
+    )
+  })
+
+  it('is THE MOUNT for a path-mounted surface, and `` would be the defect', () => {
+    // THE ASSERTION THIS WHOLE FUNCTION EXISTS FOR. With `''` the bundle issues `/v1/titles`,
+    // which resolves at the APEX ROOT — micro-site's — and micro-site answers its SPA shell. The
+    // call returns 200 with an HTML body where JSON was expected: every panel in a failure state
+    // and a perfectly healthy network tab.
+    assert.equal(
+      at('https://cloudsforge.online', 'market', { market: 'https://cloudsforge.online/market' }),
+      '/market',
+    )
+  })
+
+  it('is ABSOLUTE cross-origin, so `pnpm dev` reaches the service on its own port', () => {
+    assert.equal(
+      at('http://localhost:5173', 'market', { market: 'http://localhost:4007' }),
+      'http://localhost:4007',
+    )
+  })
+
+  it('is ABSOLUTE with no page origin, because a relative URL has nothing to resolve against', () => {
+    assert.equal(at('', 'market', { market: 'https://cloudsforge.online/market' }),
+      'https://cloudsforge.online/market')
+  })
+
+  it('leaves no trailing slash for a caller to double', () => {
+    // Callers concatenate `/v1/…`. A base ending in `/` produces `/market//v1/titles`, which nginx
+    // and Traefik both treat as a different path from the one that is routed.
+    assert.equal(
+      at('https://cloudsforge.online', 'market', { market: 'https://cloudsforge.online/market/' }),
+      '/market',
+    )
+  })
+
+  it('answers the whole value when it is not a URL at all, rather than throwing', () => {
+    // A caller passing something unparseable gets it back unchanged: this function is on the path
+    // of every request a surface makes, and a throw here is a blank page.
+    assert.equal(at('https://cloudsforge.online', 'market', { market: 'not-a-url' }), 'not-a-url')
+  })
+
+  it('matches the registry for every surface that serves its own bundle', () => {
+    // The property, over the real registry rather than fixtures: a page on a surface, asked for
+    // its own API base, is told either the empty string or exactly its own mount — never a path
+    // belonging to something else.
+    const hosts = Object.fromEntries(
+      SURFACES.map((s) => [s.key, `https://cloudsforge.online${s.basePath ?? ''}`]),
+    )
+    for (const s of SURFACES.filter(servesOwnBundle)) {
+      assert.equal(
+        apiBaseFor('https://cloudsforge.online', hosts as never, s.key),
+        s.basePath ?? '',
+        s.key,
+      )
+    }
   })
 })
