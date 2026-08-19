@@ -93,6 +93,34 @@ export interface CloudsForgeSurface {
    * this path.
    */
   readonly basePath?: string
+  /**
+   * ROUTER paths this surface needs kept out of a search index, for `robots.txt`.
+   *
+   * ── WHY A REGISTRY FIELD AND NOT A LINE IN THE SURFACE'S OWN nginx.conf ────────────────────
+   *
+   * Because a folder has no robots.txt. That document is read from the ORIGIN ROOT and nowhere
+   * else, so the moment a surface becomes `<apex>/agora` its own `location = /robots.txt` stops
+   * being policy and becomes dead configuration that READS like policy — the most expensive kind.
+   * The one robots.txt on this origin is micro-site's, and micro-site has no way to know what
+   * another repository wanted disallowed.
+   *
+   * So the fact lives where every cross-repository fact in this estate lives, and micro-site
+   * derives its `Disallow:` lines from it — `${basePath}${path}` — rather than carrying a copy
+   * somebody has to remember to update. `site/test/routes.test.ts` walks this field, so a surface
+   * that gains a private route and declares it here is covered without micro-site being touched.
+   *
+   * ROUTER paths, not public ones: the mount is added by the deriver, exactly as `seo.ts` adds it
+   * for a canonical. Writing `/agora/home` here would produce `Disallow: /agora/agora/home`.
+   *
+   * ── AND IT IS DELIBERATELY NOT "EVERY PRIVATE ROUTE" ───────────────────────────────────────
+   *
+   * Agora's `/moderation` is private and is NOT here. Nothing links to it, so no crawler finds it,
+   * and its own `<meta name="robots">` says `noindex, nofollow` if one ever did. Listing it would
+   * publish the address of the operator queue in a file whose entire purpose is being read by
+   * strangers. A `Disallow:` is a PUBLIC statement that an address exists, which is why this is a
+   * judgement per path rather than a flag derived from `private`.
+   */
+  readonly noIndexPaths?: readonly string[]
   /** The accent, from the validated set below. Never invented locally. */
   readonly accent: string
   /** Switcher glyph. Present on every switcher entry, because colour is never the only channel. */
@@ -1128,11 +1156,39 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
      * position; it would drop a conversation mid-sentence. The bundle keeps the viewed network in
      * the URL, switches the chrome in place, and carries it onto every estate link it composes.
      */
+    // ── A PATH ON THE APEX — WAVE 3c, AND THE FIRST SURFACE WHOSE SERVICE ANSWERS AT ITS ROOT ──
+    //
+    // Same shape as `market`, `create` and `trade`: the bundle is `<apex>/agora`, its API is
+    // `<apex>/agora/v1` and the gateway strips `/agora` back off before `micro-agora` sees it, so
+    // the service is unchanged. `agora.<apex>` answers a permanent 301 for the BUNDLE and keeps
+    // serving the API directly, because a redirect answers a GET well and mangles a POST.
+    //
+    // What is new here, and why this surface got a wave rather than riding along with 3b: agora's
+    // service answers `/livez` and `/readyz` AT ITS ROOT as well as `/v1`. On its own hostname
+    // that was three prefixes on one name and nothing else was there to collide with. Mounted,
+    // those two become `<apex>/agora/livez` and `<apex>/agora/readyz` — still unambiguous, because
+    // the mount is the discriminator — but the gateway rule has to name all three or the health
+    // endpoints land on the BUNDLE, which would answer them with an HTML page and a 200. A monitor
+    // reading that as healthy is the failure this note exists to prevent.
+    //
+    // A discussion forum is the clearest possible case for the consolidation's SEO argument: every
+    // thread is a page somebody might link to, and on `agora.<apex>` each one accrued authority to
+    // a hostname the estate would rather not be teaching search engines about.
     key: 'agora',
     name: 'Forge Agora',
     verb: null,
     kind: 'service',
-    subdomain: 'agora',
+    subdomain: '',
+    basePath: '/agora',
+    // The six the square's own nginx.conf used to disallow, moved here when the folder took its
+    // robots.txt away. Five are the reader's OWN pages: each needs a token and answers 401 without
+    // one, so a crawler gains nothing by fetching them — but `/whispers` in a search index is a URL
+    // that READS like a public page of private messages, and that impression is worth six lines to
+    // avoid. `/search` is public and disallowed for the ordinary reason: the query space is
+    // infinite and every crawl of it is a full-text scan of the whole square.
+    //
+    // `/moderation` is private and deliberately absent — see the field's own comment.
+    noIndexPaths: ['/home', '/notifications', '/whispers', '/bookmarks', '/settings', '/search'],
     devPort: 4150,
     // Orchid, and the only accent in this file that was chosen before the surface it belongs to
     // existed. `tokens.css` records the sweep: the Journal's bronze and this hue were scored
