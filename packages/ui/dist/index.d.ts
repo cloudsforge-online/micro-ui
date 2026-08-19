@@ -154,6 +154,42 @@ export interface CloudsForgeBarProps {
  */
 export type CloudsForgeHosts = Record<SurfaceKey, string>;
 /**
+ * The base a surface's own API is reached at, from a page on that surface.
+ *
+ * ── WHY THIS IS HERE AND NOT IN SIXTEEN COPIES OF `lib/hosts.ts` ────────────────────────────────
+ *
+ * Sixteen frontends define a `resolveApiBase` of their own and eleven of them are byte-identical.
+ * It is a derivation from the registry, and this estate has now been bitten three times by a
+ * SECOND copy of a registry derivation:
+ *
+ *   `rpcUrl()` in exchange-web    hand-rolled the apex from the hostname, returned null the day
+ *                                 the surface became a folder, and every page said "there is no
+ *                                 chain endpoint for this address"
+ *   `KNOWN_SUBS`                  derived, and correct, because it is derived in one place
+ *   `hostsFrom` above             appends `basePath` in ONE line, which is why every link in the
+ *                                 estate re-pointed itself on the day `journal` moved
+ *
+ * So this is the one place, and the copies delegate to it.
+ *
+ * ── THE SAME-ORIGIN BRANCH IS THE WHOLE POINT, AND IT USED TO RETURN `''` ───────────────────────
+ *
+ * In production a bundle and its service share an origin — nginx serves the bundle, the service
+ * serves `/v1` behind the same hostname — so the base was the empty string and requests stayed
+ * RELATIVE. That is correct for a surface mounted at the root and it is wrong for one mounted at
+ * a path: a relative `/v1/titles` from a page at `/market/anything` resolves to `/v1/titles` at
+ * the APEX ROOT, which belongs to micro-site.
+ *
+ * And micro-site answers. It serves its SPA shell for an unknown path, so the call comes back
+ * 200 with an HTML body where JSON was expected — every panel on the page in a failure state,
+ * with a completely healthy network tab. That is the failure `deploy/docs/apex-consolidation.md`
+ * decision 4 exists to prevent, and it is the half of it that lives in the browser.
+ *
+ * So the same-origin answer is the surface's own PATH, not the empty string. For a root-mounted
+ * surface that path is `/` and this returns `''`, which is what it always returned — the change
+ * is invisible to the ten surfaces that have not moved.
+ */
+export declare function apiBaseFor(pageOrigin: string, hosts: CloudsForgeHosts, key: SurfaceKey): string;
+/**
  * Resolve every CloudsForge base URL from the browser's current hostname, so a SINGLE build works
  * both locally and in production behind the gateway — no rebuild per environment.
  *
