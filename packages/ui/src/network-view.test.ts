@@ -699,3 +699,43 @@ describe('apiBaseFor', () => {
     }
   })
 })
+
+describe('apiBaseFor in development, where there is no gateway', () => {
+  it('DROPS the mount for a local service, because nothing strips it there', () => {
+    // ── THE ASYMMETRY DECISION 4 DID NOT HAVE, AND IT WOULD HAVE BROKEN EVERY DEV SESSION ──────
+    //
+    // In production a path-mounted surface reaches its API at `/market/v1/…` and Traefik strips
+    // `/market` before `micro-market` sees it. Under `pnpm dev` there is no Traefik: the service
+    // is a process on port 4007 serving `/v1/…` at its ROOT, and `devPort` says as much — it names
+    // the thing you CALL.
+    //
+    // `hostsFrom` appends `basePath` to every entry, so the dev entry is
+    // `http://localhost:4007/market`, and sending that would 404 every request a developer makes
+    // on every path-mounted surface from wave 3 onwards.
+    assert.equal(
+      apiBaseFor('http://localhost:5187', { market: 'http://localhost:4007/market' } as never, 'market'),
+      'http://localhost:4007',
+    )
+  })
+
+  it('KEEPS the mount for the other estate, which has a gateway of its own', () => {
+    // The discriminator is not "cross-origin" — viewing testnet from mainnet is cross-origin too,
+    // and there the mount must stay, because the testnet gateway strips it exactly as the mainnet
+    // one does. The question is whether anything is in front of the target.
+    assert.equal(
+      apiBaseFor(
+        'https://cloudsforge.online',
+        { market: 'https://testnet.cloudsforge.online/market' } as never,
+        'market',
+      ),
+      'https://testnet.cloudsforge.online/market',
+    )
+  })
+
+  it('leaves a root-mounted surface unchanged in dev, as it always was', () => {
+    assert.equal(
+      apiBaseFor('http://localhost:5173', { hub: 'http://localhost:4001' } as never, 'hub'),
+      'http://localhost:4001',
+    )
+  })
+})
