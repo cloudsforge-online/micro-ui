@@ -17,9 +17,20 @@ describe('what is in the sitemap', () => {
   it('lists the front door, the products and the platform surfaces', () => {
     const locs = sitemapUrls(APEX).map((u) => u.loc)
     assert.ok(locs.includes('https://cloudsforge.online'), 'the apex itself is missing')
+    // ── COMPOSED THE WAY THE GENERATOR COMPOSES, NOT `https://<subdomain>.<apex>` ───────────────
+    //
+    // That form assumed every product owns a hostname. `market` moved to `<apex>/market` in wave 3
+    // of the apex consolidation, `subdomain` became the empty string, and this asked the sitemap
+    // for `https://.cloudsforge.online` — an address that has never existed, reported as "market is
+    // missing" when market was present and correct.
+    //
+    // The next test in this file already covers the path case for `wallet`. What this one is for
+    // is that every PRODUCT is listed at all, so it composes the address rather than assuming its
+    // shape, and the twelve surfaces still to move will not touch it.
     for (const key of ['trade', 'market', 'worlds', 'foresight', 'network', 'create'] as const) {
       const s = surface(key)
-      assert.ok(locs.includes(`https://${s.subdomain}.cloudsforge.online`), `${key} is missing`)
+      const host = s.subdomain === '' ? 'cloudsforge.online' : `${s.subdomain}.cloudsforge.online`
+      assert.ok(locs.includes(`https://${host}${s.basePath ?? ''}`), `${key} is missing`)
     }
     assert.ok(locs.length >= 12, `only ${locs.length} URLs in the sitemap`)
   })
