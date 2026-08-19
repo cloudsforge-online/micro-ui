@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { SURFACES, surface } from './surfaces.ts'
+import { SURFACES, servesOwnBundle, surface } from './surfaces.ts'
 import {
   COMPANY_LINE,
   HTML_LANG,
@@ -199,9 +199,9 @@ describe('the canonical carries the surface\'s mount', () => {
    * Derived from the registry rather than named, so the eleven surfaces still to move are covered
    * the moment their row changes.
    */
-  it('prefixes basePath for every surface that has one', () => {
+  it('prefixes basePath for every surface that serves its own bundle at one', () => {
     for (const s of SURFACES) {
-      if (!s.basePath) continue
+      if (!s.basePath || !servesOwnBundle(s)) continue
       assert.equal(
         surfaceMeta(s.key).path,
         s.basePath,
@@ -211,6 +211,30 @@ describe('the canonical carries the surface\'s mount', () => {
         surfaceMeta(s.key, { path: '/anything' }).path,
         `${s.basePath}/anything`,
         `${s.key}'s page canonical drops its mount`,
+      )
+    }
+  })
+
+  it('does NOT prefix a route that lives inside another surface\'s bundle', () => {
+    /*
+     * ── THE SECOND DEFECT, CAUGHT BY micro-hub-web's CI RATHER THAN BY ME ──────────────────────
+     *
+     * `signin` carries `basePath: '/account'` and `wallet` carries `/wallet`, and neither is a
+     * mounted surface: both are ROUTES INSIDE hub-web's bundle. Its router has no `basename`, so
+     * `useLocation()` already hands `surfaceMeta` the full `/account/login` — and the first
+     * version of this fix prefixed it into `/account/account/login`.
+     *
+     * The two cases are indistinguishable from `basePath` alone and opposite in the browser:
+     * a `basename` is STRIPPED by the router and must be added back; an ordinary route is not.
+     * `servesOwnBundle` is the discriminator, and this is the assertion that keeps it applied.
+     */
+    for (const s of SURFACES) {
+      if (!s.basePath || servesOwnBundle(s)) continue
+      const already = `${s.basePath}/somewhere`
+      assert.equal(
+        surfaceMeta(s.key, { path: already }).path,
+        already,
+        `${s.key} is a route inside another bundle and its mount was added twice`,
       )
     }
   })
