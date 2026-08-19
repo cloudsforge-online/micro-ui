@@ -288,6 +288,18 @@ function hostsFrom(origin: (s: CloudsForgeSurface) => string): CloudsForgeHosts 
 const LOCAL_HOSTS: CloudsForgeHosts = hostsFrom((s) => `http://localhost:${s.devPort}`)
 
 /**
+ * Is this hostname a local development address?
+ *
+ * The same three-way test was inlined at four call sites — `cloudsforgeHosts`, `splitEnvLabel`'s
+ * two callers, and now `apiBaseFor`, which is what made a fourth copy worth refusing. It decides
+ * something load-bearing: a local address has NO GATEWAY in front of it, so a mount that Traefik
+ * would strip has to be dropped by the caller instead.
+ */
+function isLocalHostname(host: string): boolean {
+  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')
+}
+
+/**
  * The base a surface's own API is reached at, from a page on that surface.
  *
  * ── WHY THIS IS HERE AND NOT IN SIXTEEN COPIES OF `lib/hosts.ts` ────────────────────────────────
@@ -340,7 +352,26 @@ export function apiBaseFor(
   // Compare ORIGINS, not whole URLs: a surface with a basePath would otherwise look cross-origin
   // to itself. Under `pnpm dev` the page is on vite's port and the service on the registry's, so
   // the origins genuinely differ and the absolute form is right.
-  if (url.origin !== pageOrigin) return own
+  if (url.origin !== pageOrigin) {
+    // ── AND IN DEVELOPMENT THE MOUNT IS DROPPED, BECAUSE THERE IS NO GATEWAY TO STRIP IT ─────
+    //
+    // A path-mounted surface reaches its API at `/<mount>/v1/…` in production, and that works
+    // because Traefik strips `/<mount>` before the service sees it — `stripPrefix`, decision 4 in
+    // `deploy/docs/apex-consolidation.md`. THERE IS NO TRAEFIK UNDER `pnpm dev`. The service is a
+    // process on its own port serving `/v1/…` at its root, so sending it `/market/v1/titles`
+    // would 404 every request a developer makes, on every path-mounted surface, from the first
+    // day of wave 3 onwards.
+    //
+    // `devPort` is the giveaway and says so itself: it names the thing you CALL. For `market` that
+    // is `micro-market` on 4007, and `micro-market` has never heard of `/market`.
+    //
+    // ONLY LOCAL. Viewing the other estate is also cross-origin — `viewedHosts()` re-points
+    // `market` to `https://testnet.cloudsforge.online/market` — and there the mount MUST stay,
+    // because the testnet gateway strips it exactly as the mainnet one does. So the discriminator
+    // is not "cross-origin", it is "is there a gateway in front of this", and the honest reading
+    // of that is whether the target is a local dev address.
+    return isLocalHostname(url.hostname) ? url.origin : own
+  }
   // Same origin: the mount, with no trailing slash so callers can concatenate `/v1/…` onto it.
   // `/` becomes `''`, which is the relative form every root-mounted surface has always used.
   const mount = url.pathname.replace(/\/+$/, '')
@@ -398,7 +429,7 @@ export function apiBaseFor(
  */
 export function cloudsforgeHosts(): CloudsForgeHosts {
   const host = typeof window !== 'undefined' ? window.location.hostname : ''
-  if (!host || host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+  if (!host || isLocalHostname(host)) {
     return LOCAL_HOSTS
   }
   const parts = host.split('.')
@@ -498,7 +529,7 @@ function ssoHintName(): string {
 function ssoHintDomain(): string | null {
   if (typeof window === 'undefined') return null
   const host = window.location.hostname
-  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return null
+  if (isLocalHostname(host)) return null
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
   const parts = host.split('.')
   if (parts.length < 2) return null
@@ -1551,7 +1582,7 @@ export function CloudsForgeBar({
 export function currentNetwork(): 'mainnet' | 'testnet' | null {
   if (typeof window === 'undefined') return null
   const host = window.location.hostname
-  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return null
+  if (isLocalHostname(host)) return null
   const parts = host.split('.')
   if (parts.length === 2) return 'mainnet' // the mainnet apex surface
   if (parts.length < 2) return null

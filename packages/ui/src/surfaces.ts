@@ -407,11 +407,36 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: true,
   },
   {
+    /*
+     * ── IT IS A PATH ON THE APEX — WAVE 3 OF THE CONSOLIDATION, AND THE FIRST WITH AN API ──────
+     *
+     * `market.cloudsforge.online` served this until 2026-08-19 and now 301s to
+     * `cloudsforge.online/market`. The argument for moving is on the `journal` row and in full in
+     * `deploy/docs/apex-consolidation.md`; it is not restated here.
+     *
+     * WHAT IS NEW HERE IS THE SERVICE. `journal` had none and `exchange` reads a chain
+     * cross-origin, so waves 1 and 2 moved a bundle and nothing else. `micro-market` answers `/v1`
+     * on this surface's hostname, and this bundle reaches it by a RELATIVE request — which is
+     * exactly what lets a bundle not know its own hostname, and exactly what breaks when the
+     * bundle moves: `/v1/titles` from a page at `/market/anything` resolves at the APEX ROOT,
+     * which is micro-site's, and micro-site answers its SPA shell. 200, an HTML body where JSON
+     * was expected, every panel in a failure state and a healthy network tab.
+     *
+     * Two halves fix it and neither is in this file. The GATEWAY routes `/market/v1` and strips
+     * `/market` before the service sees it, so `micro-market` is unchanged and never learns it
+     * moved — `deploy/docs/apex-consolidation.md` decision 4, and the estate already does this in
+     * `public-api.yml`. The BUNDLE asks `apiBaseFor()` where its own API is, and gets `/market`
+     * instead of `''`.
+     *
+     * `devPort` stays 4007 — it names the SERVICE, which has not moved and is still what answers
+     * on a developer's machine.
+     */
     key: 'market',
     name: 'Forge Market',
     verb: 'Sell',
     kind: 'product',
-    subdomain: 'market',
+    subdomain: '',
+    basePath: '/market',
     devPort: 4007,
     accent: '#9b7bf0',
     glyph: '◇',

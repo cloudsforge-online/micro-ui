@@ -15,6 +15,24 @@ import { SURFACES, VIEWING_SURFACES, servesOwnBundle, type SurfaceKey } from './
 import { apiBaseFor } from './index.tsx'
 
 /**
+ * Where the REGISTRY puts a product, composed the way `resolveProducts` composes it.
+ *
+ * These assertions used to spell hostnames. That is the failure this migration keeps producing —
+ * a fixture naming an address the registry owns, which goes red for a change its own repository
+ * did not make. Derived from the row, so the next surface to move does not touch this file.
+ *
+ * The apex is spelled out because the registry does not hold it: `subdomain: ''` means "the apex",
+ * and WHICH apex is the thing these two tests differ on. A root-mounted surface keeps its trailing
+ * slash; a path-mounted one has none, which is why the caller appends `?net=` directly.
+ */
+function productBase(key: string, apex: string): string {
+  const row = SURFACES.find((s) => s.key === key)
+  if (!row) throw new Error(`the registry has no \`${key}\` surface`)
+  const host = row.subdomain === '' ? apex : `${row.subdomain}.${apex}`
+  return row.basePath ? `https://${host}${row.basePath}` : `https://${host}/`
+}
+
+/**
  * THE BUG THIS FILE EXISTS FOR, in the owner's words:
  *
  *     "if you select testnet and switch product you are back to mainnet"
@@ -157,7 +175,11 @@ describe('resolveProducts and the viewed network', () => {
     // product its reset to mainnet" — is why every bundle now views in place instead.
     atUrl('cloudsforge.online')
     const market = resolveProducts(undefined, false, 'testnet').find((p) => p.key === 'market')
-    assert.equal(market?.url, 'https://market.cloudsforge.online/?net=testnet')
+    // DERIVED, not typed. `market` moved to `<apex>/market` in wave 3 and this assertion spelled
+    // its hostname — the same shape that turned micro-hub-web's `main` red for a change hub-web
+    // did not make. What the test is FOR is that the product URL carries `?net=`, and that needs
+    // no hostname written here.
+    assert.equal(market?.url, `${productBase('market', 'cloudsforge.online')}?net=testnet`)
     assert.equal(market?.pinnedNetwork, undefined)
   })
 
@@ -181,7 +203,7 @@ describe('resolveProducts and the viewed network', () => {
     )
     assert.equal(
       products.find((p) => p.key === 'market')?.url,
-      'https://market-testnet.cloudsforge.online/?net=mainnet',
+      `${productBase('market', 'testnet.cloudsforge.online')}?net=mainnet`,
     )
     assert.equal(products.find((p) => p.key === 'market')?.pinnedNetwork, undefined)
   })
@@ -341,22 +363,29 @@ describe('the escape route from a surface that cannot show the other network', (
  */
 describe('createNetworkView', () => {
   it('defaults to the hostname, on both estates and off-registry', () => {
-    atUrl('market.cloudsforge.online')
+    // ── THESE SERVED THE PAGE FROM `market.<apex>`, WHICH THE REGISTRY NO LONGER KNOWS ──────────
+    //
+    // `market` moved to `<apex>/market` in wave 3. Its old hostname is a 301 and nothing is served
+    // there, so `splitEnvLabel` can no longer read an environment out of it and this defaulted to
+    // mainnet on both lines. `hub` is used instead: a surface that is STAYING on its own hostname,
+    // which is what these three assertions are actually about — reading the network off the first
+    // label — and a surface chosen for that reason will not move out from under them again.
+    atUrl('hub.cloudsforge.online')
     assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
-    atUrl('market-testnet.cloudsforge.online')
+    atUrl('hub-testnet.cloudsforge.online')
     assert.equal(createNetworkView().viewedNetwork(), 'testnet')
     atUrl('localhost')
     assert.equal(createNetworkView().viewedNetwork(), 'mainnet')
   })
 
   it('keeps same-network reads relative, and re-points the others', () => {
-    atUrl('market.cloudsforge.online')
+    atUrl('hub.cloudsforge.online')
     const view = createNetworkView()
     // The contract every `resolveApiBase` keeps: this estate's own reads are same-origin, and an
     // absolute same-origin URL would be a second spelling of that which drifts.
     assert.equal(view.viewedApiOrigin(), '')
     view.setViewedNetwork('testnet')
-    assert.equal(view.viewedApiOrigin(), 'https://market-testnet.cloudsforge.online')
+    assert.equal(view.viewedApiOrigin(), 'https://hub-testnet.cloudsforge.online')
     // Choosing the hostname's own network CLEARS the override rather than recording agreement.
     view.setViewedNetwork('mainnet')
     assert.equal(view.viewedApiOrigin(), '')
@@ -387,14 +416,18 @@ describe('createNetworkView', () => {
   })
 
   it('re-points the whole host map, and pins identity and telemetry', () => {
-    atUrl('market.cloudsforge.online')
+    // Served from `hub.<apex>` since wave 3 moved `market` to a path — see the fixture note above.
+    atUrl('hub.cloudsforge.online')
     const view = createNetworkView()
     // Byte-identical until something is being viewed — which is what makes the one-word change at
     // each `apiBase()` call site safe in dev, in a preview deployment and on the apex.
     assert.deepEqual(view.viewedHosts(), cloudsforgeHosts())
     view.setViewedNetwork('testnet')
     const hosts = view.viewedHosts()
-    assert.equal(hosts.market, 'https://market-testnet.cloudsforge.online')
+    // `market` is a PATH now, so its re-pointed address is the testnet apex plus the mount — which
+    // is the property worth asserting here rather than a hostname: `viewedHosts()` re-points the
+    // ORIGIN and carries the mount through untouched.
+    assert.equal(hosts.market, 'https://testnet.cloudsforge.online/market')
     assert.equal(hosts.explorer, 'https://explorer-testnet.cloudsforge.online')
     // One identity is the PREMISE of the combined view, not something it re-points per switch: the
     // reader's token was minted by the estate serving this page and is refreshed there. Telemetry
@@ -664,5 +697,45 @@ describe('apiBaseFor', () => {
         s.key,
       )
     }
+  })
+})
+
+describe('apiBaseFor in development, where there is no gateway', () => {
+  it('DROPS the mount for a local service, because nothing strips it there', () => {
+    // ── THE ASYMMETRY DECISION 4 DID NOT HAVE, AND IT WOULD HAVE BROKEN EVERY DEV SESSION ──────
+    //
+    // In production a path-mounted surface reaches its API at `/market/v1/…` and Traefik strips
+    // `/market` before `micro-market` sees it. Under `pnpm dev` there is no Traefik: the service
+    // is a process on port 4007 serving `/v1/…` at its ROOT, and `devPort` says as much — it names
+    // the thing you CALL.
+    //
+    // `hostsFrom` appends `basePath` to every entry, so the dev entry is
+    // `http://localhost:4007/market`, and sending that would 404 every request a developer makes
+    // on every path-mounted surface from wave 3 onwards.
+    assert.equal(
+      apiBaseFor('http://localhost:5187', { market: 'http://localhost:4007/market' } as never, 'market'),
+      'http://localhost:4007',
+    )
+  })
+
+  it('KEEPS the mount for the other estate, which has a gateway of its own', () => {
+    // The discriminator is not "cross-origin" — viewing testnet from mainnet is cross-origin too,
+    // and there the mount must stay, because the testnet gateway strips it exactly as the mainnet
+    // one does. The question is whether anything is in front of the target.
+    assert.equal(
+      apiBaseFor(
+        'https://cloudsforge.online',
+        { market: 'https://testnet.cloudsforge.online/market' } as never,
+        'market',
+      ),
+      'https://testnet.cloudsforge.online/market',
+    )
+  })
+
+  it('leaves a root-mounted surface unchanged in dev, as it always was', () => {
+    assert.equal(
+      apiBaseFor('http://localhost:5173', { hub: 'http://localhost:4001' } as never, 'hub'),
+      'http://localhost:4001',
+    )
   })
 })
