@@ -428,7 +428,13 @@ describe('createNetworkView', () => {
     // is the property worth asserting here rather than a hostname: `viewedHosts()` re-points the
     // ORIGIN and carries the mount through untouched.
     assert.equal(hosts.market, 'https://testnet.cloudsforge.online/market')
-    assert.equal(hosts.explorer, 'https://explorer-testnet.cloudsforge.online')
+    // And the SUBDOMAIN spelling beside it, because both have to keep working while the
+    // consolidation is half done — which it will be for as long as eleven surfaces remain.
+    //
+    // This read `explorer` until wave 3b moved that too. `status` replaces it and will not need
+    // replacing again: the plan keeps it on its own hostname permanently, so this line goes on
+    // asserting the subdomain half no matter how many surfaces leave.
+    assert.equal(hosts.status, 'https://status-testnet.cloudsforge.online')
     // One identity is the PREMISE of the combined view, not something it re-points per switch: the
     // reader's token was minted by the estate serving this page and is refreshed there. Telemetry
     // is about THIS bundle on THIS deployment, so filing it under testnet would make both estates'

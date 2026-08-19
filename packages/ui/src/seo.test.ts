@@ -112,15 +112,34 @@ describe('what a crawler is told', () => {
 })
 
 describe('the tags themselves', () => {
-  const meta = surfaceMeta('trade', { title: 'Markets', path: '/markets' })
+  /*
+   * ── THE FIXTURE IS A SURFACE ON A SUBDOMAIN, DELIBERATELY ──────────────────────────────────
+   *
+   * These two assert that `metaTags` and `canonicalHref` make a path ABSOLUTE against whatever
+   * origin they are handed and invent no hostname. That is a property of the joining, not of any
+   * surface — so the fixture should be one whose `path` is exactly what it was given, or the
+   * assertion is really about the mount and the join goes unchecked.
+   *
+   * It read `trade`, which became `<apex>/trade` in wave 3b: `surfaceMeta` then returned
+   * `/trade/markets` and these composed `https://trade.cloudsforge.online/trade/markets` — a
+   * hostname that only 301s, with a mount on it. `status` stays on its own hostname permanently
+   * (the plan keeps seven groups there), so this fixture will not move again.
+   *
+   * The MOUNTED join is not lost: `the canonical carries the surface's mount` below asserts it
+   * over every registry surface that has one, in both directions.
+   */
+  const meta = surfaceMeta('status', { title: 'Markets', path: '/markets' })
 
   it('makes every URL absolute against the origin it was served from, and names no host', () => {
-    const tags = metaTags(meta, 'https://trade.cloudsforge.online')
+    const tags = metaTags(meta, 'https://status.cloudsforge.online')
     const url = tags.find((t) => t.key === 'og:url')
     const image = tags.find((t) => t.key === 'og:image')
-    assert.equal(url?.content, 'https://trade.cloudsforge.online/markets')
-    assert.match(image?.content ?? '', /^https:\/\/trade\.cloudsforge\.online\//)
-    assert.equal(canonicalHref(meta, 'https://trade.cloudsforge.online'), 'https://trade.cloudsforge.online/markets')
+    assert.equal(url?.content, 'https://status.cloudsforge.online/markets')
+    assert.match(image?.content ?? '', /^https:\/\/status\.cloudsforge\.online\//)
+    assert.equal(
+      canonicalHref(meta, 'https://status.cloudsforge.online'),
+      'https://status.cloudsforge.online/markets',
+    )
   })
 
   it('emits relative URLs for an empty origin rather than inventing one', () => {

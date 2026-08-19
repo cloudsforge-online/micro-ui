@@ -447,11 +447,16 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: true,
   },
   {
+    // A path on the apex — wave 3b. `create.<apex>` 301s here. Its API moves with it to
+    // `/create/v1`, stripped back to `/v1` before `micro-mint` sees it; the argument is on the
+    // `market` row and in full in `deploy/docs/apex-consolidation.md` §6ter. `devPort` names the
+    // service and does not move.
     key: 'create',
     name: 'Forge Create',
     verb: 'Make',
     kind: 'product',
-    subdomain: 'create',
+    subdomain: '',
+    basePath: '/create',
     devPort: 4004,
     accent: '#b28e1e',
     glyph: '✦',
@@ -464,11 +469,16 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
   {
     // LAST, by instruction, and the paragraph above SURFACES records what that cost the other
     // five. It is the only product a person can open and find nothing to do in.
+    // A path on the apex — wave 3b, same shape as `create` above, API to `/trade/v1` stripped
+    // back to `/v1` before `micro-trade` sees it. Being the one product a person can open and
+    // find nothing to do in changes nothing about the move: an incomplete product still competes
+    // for its own indexing on its own hostname, which is the thing the consolidation removes.
     key: 'trade',
     name: 'Forge Trade',
     verb: 'Trade',
     kind: 'product',
-    subdomain: 'trade',
+    subdomain: '',
+    basePath: '/trade',
     devPort: 4006,
     accent: '#2a9e93',
     glyph: '◐',
@@ -933,6 +943,27 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
   {
     // Reached from the footer, not the product switcher: a developer console is something a
     // person goes looking for, and it does not compete for a switcher slot with the products.
+    /*
+     * ── STAYS ON ITS SUBDOMAIN FOR NOW, AND THE REASON IS STRUCTURE, NOT PRINCIPLE ────────────
+     *
+     * `developers` was in wave 3b with `create` and `trade`, matching the same paper test: a
+     * plain `/v1` API on its own hostname, no nesting, no unversioned root prefixes. Building it
+     * found that micro-devportal-web has structure the other two do not — a SECOND enumerated
+     * route block (`location ~ ^/projects/`) beside the first, and `BARE_PATHS`, a set of
+     * addresses that must be served only WITH a trailing slash. Neither is hard; both are
+     * per-repository judgement rather than the mechanical remount `create` and `trade` are.
+     *
+     * It gets its own wave. This one had already produced two silent defects of exactly that
+     * shape — a testnet API answering 302 to mainnet, and a canonical pointing at a 404 — and
+     * both came from applying a template where the surface did not fit it.
+     *
+     * THE ROW'S OTHER CORRECTION STANDS AND IS WHY IT IS NOT IN WAVE 2. The plan's §1 table
+     * called this "Documentation. Documentation on a subdomain is the canonical example of
+     * authority thrown away." It is not documentation: it is the developer platform CONSOLE, and
+     * `cf-api-developers` serves 35 `/v1` handlers from `micro-devplatform` on this hostname.
+     * Checking that produced the better test — count APIs by the ROUTER'S UPSTREAM rather than by
+     * whether the rule says `/v1` — which is what put `foresight` last.
+     */
     key: 'developers',
     name: 'Developer Platform',
     verb: null,
@@ -1342,6 +1373,29 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
 
   /* --- hostnames with no UI of their own ------------------------------ */
   {
+    /*
+     * ── STAYS ON ITS SUBDOMAIN FOR NOW, AND THE REASON IS A COST THE OTHERS DO NOT HAVE ────────
+     *
+     * `explorer` was in wave 3b with `developers`, `create` and `trade` — same shape on paper: a
+     * plain `/v1` API on its own hostname, no nesting, no unversioned root prefixes. Building it
+     * found something the paper test could not see.
+     *
+     * This surface has a CROSS-ESTATE VIEWING LAYER keyed on ORIGINS. `viewedApiOrigin()` in
+     * `explorer-web/src/lib/viewed.ts` returns an origin — `api.ts` uses it to decide whether to
+     * drop the authorization header, because the other estate's token is not this one's — and it
+     * composes that origin with `networkOrigin()`. A consolidated surface's reads are origin PLUS
+     * MOUNT, so every caller of that function has to learn the difference between "which estate"
+     * and "where under it", and the auth decision has to keep keying on the first alone.
+     *
+     * That is a design change to the combined view, not the mechanical remount the other three
+     * are. It gets its own wave rather than being rushed into this one — the whole argument for
+     * doing `journal` alone in wave 1 was to find out what the plan gets wrong while the cost of
+     * being wrong is small, and this is the same argument arriving later.
+     *
+     * The upstream is `cf-svc-indexer`, not `cf-svc-explorer`, and `check-api-remount.py` reads
+     * API routers by UPSTREAM for exactly that reason. Worth keeping written down here: it is the
+     * thing a future wave will get wrong first.
+     */
     key: 'explorer',
     name: 'Network Explorer',
     verb: null,

@@ -351,9 +351,26 @@ describe('the registry', () => {
 describe('KNOWN_SUBS', () => {
   it('collects every declared subdomain plus www, and never the empty apex', () => {
     assert.ok(KNOWN_SUBS.has('hub'))
-    assert.ok(KNOWN_SUBS.has('trade'))
+    assert.ok(KNOWN_SUBS.has('status'))
     assert.ok(KNOWN_SUBS.has('www'))
     assert.ok(!KNOWN_SUBS.has(''))
+    // ── AND A CONSOLIDATED SURFACE IS NOT A SUBDOMAIN, WHICH IS THE POINT OF THE SET ─────────
+    //
+    // This named `trade` and went red when Forge Trade became `<apex>/trade`. The right response
+    // was NOT to keep a moved surface in the list: `KNOWN_SUBS` is what `cloudsforgeHosts` uses
+    // to decide whether a leading label can be stripped to find the apex, so a moved surface
+    // still in it would let `trade.<apex>` be read as "the apex is `<apex>`" — for a hostname
+    // that now only 301s.
+    //
+    // So the assertion is inverted instead, and it is stronger than the one it replaces: every
+    // surface with an empty subdomain must be ABSENT, derived from the registry rather than
+    // named, so the eleven still to move each get this for free.
+    for (const s of SURFACES.filter((x) => x.subdomain === '')) {
+      assert.ok(
+        !KNOWN_SUBS.has(s.key),
+        `${s.key} is served at a path on the apex and must not be a strippable subdomain`,
+      )
+    }
   })
 })
 
