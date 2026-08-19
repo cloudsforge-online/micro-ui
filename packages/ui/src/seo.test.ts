@@ -172,3 +172,62 @@ describe('descriptionFor', () => {
     )
   })
 })
+
+describe('the canonical carries the surface\'s mount', () => {
+  /*
+   * ── THE DEFECT THIS EXISTS FOR, WHICH SHIPPED TWICE ────────────────────────────────────────
+   *
+   * `page.path` is a ROUTER path. On a surface mounted at a folder, react-router's `basename`
+   * strips the mount before `useLocation()` ever sees it — so a page at `/market/collections`
+   * hands `surfaceMeta` the string `/collections`, and the canonical composed from it was
+   * `https://<apex>/collections`.
+   *
+   * MEASURED 2026-08-19 against production, after wave 3a shipped:
+   *
+   *     curl -o /dev/null -w '%{http_code}' https://cloudsforge.online/collections   404
+   *     curl -o /dev/null -w '%{http_code}' https://cloudsforge.online/fees          404
+   *     curl -o /dev/null -w '%{http_code}' https://cloudsforge.online/pools         404
+   *
+   * Every page of Forge Market and Forge Exchange was declaring itself canonical at an address
+   * that does not exist — on surfaces whose entire reason for moving was to stop throwing
+   * authority away. A canonical pointing at a 404 is WORSE than the subdomain it replaced: a
+   * crawler that believes it drops the real page.
+   *
+   * `journal` escaped only because micro-journal-web pre-renders and asserts
+   * `__CF_ORIGIN__${BASE}` in its own suite. Nothing asserted it for the others.
+   *
+   * Derived from the registry rather than named, so the eleven surfaces still to move are covered
+   * the moment their row changes.
+   */
+  it('prefixes basePath for every surface that has one', () => {
+    for (const s of SURFACES) {
+      if (!s.basePath) continue
+      assert.equal(
+        surfaceMeta(s.key).path,
+        s.basePath,
+        `${s.key}'s root canonical drops its mount`,
+      )
+      assert.equal(
+        surfaceMeta(s.key, { path: '/anything' }).path,
+        `${s.basePath}/anything`,
+        `${s.key}'s page canonical drops its mount`,
+      )
+    }
+  })
+
+  it('leaves a surface with no basePath exactly as it was', () => {
+    // `site` IS the apex and `hub` owns a hostname; neither may acquire a prefix, and the root
+    // must stay `/` rather than becoming the empty string, which is not a path.
+    assert.equal(surfaceMeta('site').path, '/')
+    assert.equal(surfaceMeta('site', { path: '/about' }).path, '/about')
+    assert.equal(surfaceMeta('hub').path, '/')
+  })
+
+  it('still collapses a trailing slash, mount and all', () => {
+    // `normalisePath` runs AFTER the join, so `/market` + `/` is `/market` and not `/market/`.
+    // One page must not acquire two addresses and split its own indexing between them.
+    const mounted = SURFACES.find((s) => s.basePath)
+    assert.ok(mounted, 'no mounted surface in the registry to check')
+    assert.equal(surfaceMeta(mounted.key, { path: '/' }).path, mounted.basePath)
+  })
+})
