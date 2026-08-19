@@ -22,11 +22,30 @@ afterEach(() => {
 })
 
 describe('cloudsforgeHosts', () => {
+  /*
+   * ── `status` IS THE STAND-IN FOR "A SURFACE ON A SUBDOMAIN", AND THAT IS A CHOICE ─────────
+   *
+   * These assertions read `trade` until 2026-08-19 and went red the day Forge Trade became
+   * `<apex>/trade` (wave 3b of `deploy/docs/apex-consolidation.md`). They were never about
+   * trade: each demonstrates a rule of hostname resolution — dev ports, composing from the apex,
+   * stripping a known subdomain, leaving an unknown prefix alone — and needs SOME surface to
+   * demonstrate it on.
+   *
+   * `status` replaces it because the plan keeps seven groups on their own hostnames for reasons
+   * it calls non-negotiable, and `status` is in that set: a status page that shares an origin
+   * with the thing it reports on cannot report the interesting outage. Eleven more product
+   * surfaces move onto the apex; picking any of them would fail these tests again on the wave
+   * that moves them, and that failure would say nothing about hostname resolution.
+   *
+   * The MOUNTED case is not lost — `appends a basePath to the host the surface actually rides
+   * on` below covers it, on `wallet` and `faucet`, which are routes inside another bundle rather
+   * than surfaces that moved. Both spellings stay exercised.
+   */
   it('uses the local dev ports on localhost', () => {
     atHostname('localhost')
     const hosts = cloudsforgeHosts()
     assert.equal(hosts.hub, 'http://localhost:3010')
-    assert.equal(hosts.trade, 'http://localhost:4006')
+    assert.equal(hosts.status, 'http://localhost:3013')
     assert.equal(hosts.site, 'http://localhost:3000')
   })
 
@@ -45,7 +64,7 @@ describe('cloudsforgeHosts', () => {
   it('resolves subdomains from the bare apex', () => {
     atHostname('cloudsforge.online')
     const hosts = cloudsforgeHosts()
-    assert.equal(hosts.trade, 'https://trade.cloudsforge.online')
+    assert.equal(hosts.status, 'https://status.cloudsforge.online')
     assert.equal(hosts.hub, 'https://hub.cloudsforge.online')
     // The site has an empty subdomain: it IS the apex, with no stray leading dot.
     assert.equal(hosts.site, 'https://cloudsforge.online')
@@ -54,7 +73,7 @@ describe('cloudsforgeHosts', () => {
   it('strips a KNOWN subdomain to find the apex', () => {
     atHostname('worlds.cloudsforge.online')
     const hosts = cloudsforgeHosts()
-    assert.equal(hosts.trade, 'https://trade.cloudsforge.online')
+    assert.equal(hosts.status, 'https://status.cloudsforge.online')
     assert.equal(hosts.site, 'https://cloudsforge.online')
   })
 
@@ -62,7 +81,7 @@ describe('cloudsforgeHosts', () => {
     // A preview deployment is its own apex. Guessing otherwise would send its sign-in redirect to
     // a hostname that does not exist, which is a broken login rather than a cosmetic defect.
     atHostname('pr-42.previews.example.dev')
-    assert.equal(cloudsforgeHosts().trade, 'https://trade.pr-42.previews.example.dev')
+    assert.equal(cloudsforgeHosts().status, 'https://status.pr-42.previews.example.dev')
   })
 
   it('appends a basePath to the host the surface actually rides on', () => {
@@ -241,12 +260,20 @@ describe('a testnet page resolves testnet siblings and NOTHING on mainnet', () =
   it('does not mistake an ordinary hyphenated hostname for an environment', () => {
     // `pr-42` ends in `-42`, not in an environment label, so it stays its own apex — the preview
     // deployment property the case above this one depends on.
+    //
+    // `status` for the same reason the block at the top of this file gives: the assertion is
+    // about the ENVIRONMENT READER, not about any surface, so it should name one that will not
+    // move onto the apex and take the test with it.
     atHostname('pr-42.previews.example.dev')
-    assert.equal(cloudsforgeHosts().trade, 'https://trade.pr-42.previews.example.dev')
+    assert.equal(cloudsforgeHosts().status, 'https://status.pr-42.previews.example.dev')
     // And a hyphenated label whose tail IS an environment but whose head is not a registry
     // subdomain is not an environment either: guessing would invent a surface.
+    //
+    // `marketing-` is a sharper fixture than it was, because `market` IS a registry key now —
+    // just not a SUBDOMAIN one, since wave 3a. The head has to fail the known-subdomain test on
+    // its own terms rather than by being an unrecognisable word.
     atHostname('marketing-testnet.cloudsforge.online')
-    assert.equal(cloudsforgeHosts().trade, 'https://trade.marketing-testnet.cloudsforge.online')
+    assert.equal(cloudsforgeHosts().status, 'https://status.marketing-testnet.cloudsforge.online')
   })
 })
 

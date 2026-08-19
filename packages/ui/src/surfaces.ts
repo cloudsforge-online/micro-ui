@@ -447,11 +447,16 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     inSwitcher: true,
   },
   {
+    // A path on the apex — wave 3b. `create.<apex>` 301s here. Its API moves with it to
+    // `/create/v1`, stripped back to `/v1` before `micro-mint` sees it; the argument is on the
+    // `market` row and in full in `deploy/docs/apex-consolidation.md` §6ter. `devPort` names the
+    // service and does not move.
     key: 'create',
     name: 'Forge Create',
     verb: 'Make',
     kind: 'product',
-    subdomain: 'create',
+    subdomain: '',
+    basePath: '/create',
     devPort: 4004,
     accent: '#b28e1e',
     glyph: '✦',
@@ -464,11 +469,16 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
   {
     // LAST, by instruction, and the paragraph above SURFACES records what that cost the other
     // five. It is the only product a person can open and find nothing to do in.
+    // A path on the apex — wave 3b, same shape as `create` above, API to `/trade/v1` stripped
+    // back to `/v1` before `micro-trade` sees it. Being the one product a person can open and
+    // find nothing to do in changes nothing about the move: an incomplete product still competes
+    // for its own indexing on its own hostname, which is the thing the consolidation removes.
     key: 'trade',
     name: 'Forge Trade',
     verb: 'Trade',
     kind: 'product',
-    subdomain: 'trade',
+    subdomain: '',
+    basePath: '/trade',
     devPort: 4006,
     accent: '#2a9e93',
     glyph: '◐',
@@ -933,11 +943,30 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
   {
     // Reached from the footer, not the product switcher: a developer console is something a
     // person goes looking for, and it does not compete for a switcher slot with the products.
+    /*
+     * ── A PATH ON THE APEX — WAVE 3b, AND THE ROW THAT MOVED WAVE ────────────────────────────
+     *
+     * `developers.cloudsforge.online` served this until 2026-08-19 and now 301s to
+     * `cloudsforge.online/developers`. Same arrangement as `market` above: the bundle mounts at
+     * `/developers`, its API mounts at `/developers/v1`, and the gateway strips `/developers`
+     * before `micro-devplatform` sees it, so the service is unchanged.
+     *
+     * THIS ROW IS WHY THE WAVE ORDER WAS WRONG ONCE. The plan's §1 table called this
+     * "Documentation. Documentation on a subdomain is the canonical example of authority thrown
+     * away", and that sentence put it in wave 2 — alongside `exchange`, on the stated test "no
+     * API of its own". It is not documentation. It is the developer platform CONSOLE, and
+     * `cf-api-developers` serves 35 `/v1` handlers from `micro-devplatform` on this hostname.
+     * Checking it produced a better test — count APIs by the ROUTER'S UPSTREAM rather than by
+     * whether the rule says `/v1` — and that test is what put `foresight` last.
+     *
+     * `devPort` stays 3012: it names the SERVICE, which has not moved.
+     */
     key: 'developers',
     name: 'Developer Platform',
     verb: null,
     kind: 'surface',
-    subdomain: 'developers',
+    subdomain: '',
+    basePath: '/developers',
     devPort: 3012,
     accent: '#4a86e0',
     glyph: '⌗',
@@ -1342,11 +1371,22 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
 
   /* --- hostnames with no UI of their own ------------------------------ */
   {
+    /*
+     * A path on the apex — wave 3b. `explorer.<apex>` 301s to `<apex>/explorer`.
+     *
+     * THE UPSTREAM IS NOT NAMED `explorer` AND THAT MATTERS HERE. `cf-api-explorer` routes this
+     * hostname's `/v1` to `cf-svc-indexer` — the surface is a face on `micro-indexer`, which is
+     * why the row is `kind: 'service'`. `check-api-remount.py` reads API routers by UPSTREAM
+     * rather than by name for exactly this case, so the `/explorer/v1` router it demands is the
+     * one pointing at `cf-svc-indexer`, and a check keyed on `cf-svc-explorer` would have found
+     * nothing and passed.
+     */
     key: 'explorer',
     name: 'Network Explorer',
     verb: null,
     kind: 'service',
-    subdomain: 'explorer',
+    subdomain: '',
+    basePath: '/explorer',
     // 4008, the port `micro-indexer` binds (`indexer/src/env.ts`), NOT 8080.
     //
     // 8080 was this bundle's own nginx container port, which is the one number that is certainly

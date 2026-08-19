@@ -69,8 +69,15 @@ describe('what is in the sitemap', () => {
   it('follows whatever origin it is handed, and names no hostname of its own', () => {
     const local = sitemapUrls('http://localhost:3000').map((u) => u.loc)
     assert.ok(local.includes('http://localhost:3000'), 'the apex is missing on a local origin')
-    // The port travels with the host, or the local sitemap names a closed port.
-    assert.ok(local.includes('http://trade.localhost:3000'), `no trade entry: ${local.join(' ')}`)
+    // The port travels with the host, or the local sitemap names a closed port. `status` rather
+    // than `trade`: this asserts that the ORIGIN it is handed is carried through, so it needs a
+    // surface that is still a subdomain — `trade` became `<apex>/trade` in wave 3b and the
+    // assertion would then have been about a path, which is the next line's job.
+    assert.ok(local.includes('http://status.localhost:3000'), `no status entry: ${local.join(' ')}`)
+    // And a CONSOLIDATED surface carries the origin too, mount and all — the same property one
+    // layer down, and the one that would break if `sitemapUrls` composed the apex from anything
+    // other than what it was handed.
+    assert.ok(local.includes('http://localhost:3000/trade'), `no mounted trade entry: ${local.join(' ')}`)
     const testnet = sitemapUrls('https://testnet.cloudsforge.online').map((u) => u.loc)
     assert.ok(testnet.every((l) => l.includes('testnet.cloudsforge.online')))
   })
