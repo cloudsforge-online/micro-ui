@@ -163,7 +163,26 @@ export function surfaceMeta(key: SurfaceKey, page: PageMetaInput = {}): SurfaceM
   return {
     title,
     description: page.description ?? descriptionFor(s),
-    path: normalisePath(page.path ?? '/'),
+    // ── THE MOUNT IS PART OF THE CANONICAL, AND LEAVING IT OFF WAS A LIVE DEFECT ──────────────
+    //
+    // `page.path` is a ROUTER path. On a surface mounted at a folder, react-router's `basename`
+    // strips the mount before `useLocation()` ever sees it — so a page at `/market/collections`
+    // hands this function `/collections`, and the canonical composed from it was
+    // `https://<apex>/collections`.
+    //
+    // MEASURED 2026-08-19 against production: `https://cloudsforge.online/collections` answers
+    // **404**, and so do `/fees` and `/pools`. Every page of Forge Market and Forge Exchange was
+    // therefore declaring itself canonical at an address that does not exist — on surfaces whose
+    // entire reason for moving was to stop throwing authority away. A canonical pointing at a 404
+    // is worse than the subdomain it replaced: a crawler that believes it drops the real page.
+    //
+    // `journal` escaped it only because micro-journal-web pre-renders and asserts
+    // `__CF_ORIGIN__${BASE}` in its own suite. Nothing asserted it for the others, which is why
+    // this shipped twice.
+    //
+    // The registry already holds the answer, so this reads it rather than asking each caller to
+    // remember: one line here fixes every consolidated surface and every one still to come.
+    path: normalisePath(`${s.basePath ?? ''}${page.path ?? '/'}`),
     image: page.image ?? DEFAULT_OG_IMAGE,
     robots: page.robots ?? robotsDirective(s),
     lang: HTML_LANG,
