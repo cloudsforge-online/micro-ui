@@ -99,9 +99,28 @@ describe('the switcher', () => {
   })
 
   it('holds no surface that is in the switcher and has no home', () => {
+    // A HOME IS AN ADDRESS, NOT A SUBDOMAIN, AND THIS ASSERTED THE SUBDOMAIN UNTIL 2026-08-19.
+    //
+    // The switcher navigates to `cloudsforgeHosts()[key]`, and `hostsFrom` composes that as
+    // origin + `basePath ?? ''`. So the question this test exists to ask — can a reader who picks
+    // this entry get anywhere — is answered by the PAIR, and either half alone is enough to
+    // answer it. `subdomain.length > 0` was an exact proxy while every switcher entry owned a
+    // hostname, and the apex consolidation is what ended that: `exchange` is `subdomain: ''` with
+    // `basePath: '/exchange'`, a perfectly good home that the old form called homeless.
+    //
+    // Both halves are checked, and the second is the one the old form could not have caught: two
+    // entries resolving to the SAME address is the failure that actually strands a reader —
+    // picking Forge Exchange and arriving at the marketing site — and it becomes possible for the
+    // first time now that more than one surface can live on the apex.
     for (const s of SWITCHER_SURFACES) {
-      assert.ok(s.subdomain.length > 0, `${s.key} is in the switcher with no subdomain`)
+      assert.ok(
+        s.subdomain.length > 0 || (s.basePath ?? '').length > 0,
+        `${s.key} is in the switcher with neither a subdomain nor a basePath — the switcher would ` +
+          `send a reader to the bare apex`,
+      )
     }
+    const homes = SWITCHER_SURFACES.map((s) => `${s.subdomain}|${s.basePath ?? ''}`)
+    assert.equal(new Set(homes).size, homes.length, 'two switcher entries resolve to one address')
   })
 })
 
