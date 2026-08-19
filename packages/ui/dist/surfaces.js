@@ -667,29 +667,55 @@ export const SURFACES = [
         /*
          * The editorial archive. Reached from the footer and from the marketing site's map.
          *
-         * ── `viewsAnyNetwork` IS SET, AND THE ARGUMENT AGAINST IT IS WORTH RECORDING ───────────────
+         * ── IT IS A PATH ON THE APEX, NOT A HOSTNAME — WAVE 1 OF THE CONSOLIDATION ─────────────────
          *
-         * This row was first written WITHOUT it, on the reasoning that the flag means "reads mainnet
-         * or testnet on request" and the archive reads neither: an article is prose committed to git,
-         * identical on both networks, with nothing on the page that a `?net=` would change. `signin`,
-         * `wallet` and `faucet` looked like the precedent for a serving surface with no network claim.
+         * `journal.cloudsforge.online` served this archive until 2026-08-19 and now 301s to
+         * `cloudsforge.online/journal`. The reason is the one thing a subdomain costs that nothing
+         * else on this row does: a search engine evaluates authority per ORIGIN, so an article that
+         * earns a link on `journal.` made `journal.` stronger and the rest of the estate no stronger
+         * at all. Fourteen content surfaces were fourteen sites, each starting from nothing. See
+         * `deploy/docs/apex-consolidation.md` for the full argument, the seven surfaces that
+         * deliberately do NOT move, and the wave order.
          *
-         * They are not. All three are `basePath` rows — routes inside a bundle that views on their
-         * behalf — and `network-view.test.ts` states the real invariant: VIEWING_SURFACES must equal
-         * every `servesUi` row with no `basePath`, and `viewingSurfaceUrl` must answer null for all of
-         * them. It caught this row immediately, which is the test doing its job.
+         * This was the FIRST one moved, alone, and it was chosen for what it lacks: no service, no
+         * `/v1` router, no session, no chain data. If the base-path pattern were wrong, the cost was
+         * an archive that 404s for an hour.
          *
-         * And the invariant is right, because the flag is not about the DATA. It is about what the
-         * Testnet button does. A reader on `journal.` who presses it while the row is unflagged gets
-         * `viewingSurfaceUrl`'s escape route — thrown out of the article they were reading and onto
-         * Forge Network's testnet page — which is the exact defect the owner reported: "in every page
-         * when you press testnet it take you to network page testnet". That the archive then shows
-         * identical words either way is not a reason to teleport somebody out of it.
+         * `subdomain: ''` is the apex and `basePath` is the mount point. `devPort` stays 5196 rather
+         * than becoming the site's 3000 — unlike `wallet` and `faucet` above, which name the port of
+         * the host they ride on. Here the bundle's own dev server IS what answers, and once its vite
+         * `base` is `/journal/` it answers at `localhost:5196/journal`, so the port and the path
+         * together name something real. `deploy/scripts/check-base-paths-agree.py` asserts that this
+         * `basePath` and that vite `base` are the same string; they are the two halves of one fact and
+         * a surface whose halves disagree serves HTML and 404s every asset.
          *
-         * `surface-routes.py` check 10 requires `micro-journal-web` to really contain
-         * `src/lib/viewed.ts`, so this cannot be set out of optimism. It does: the bundle keeps the
-         * viewed network in the URL, the chrome switches in place, and every outbound estate link the
-         * footer composes carries it onward.
+         * ── `viewsAnyNetwork` STAYS, AND THE MOVE NEARLY TOOK IT ───────────────────────────────────
+         *
+         * The first draft of this change removed it, because `network-view.test.ts` required every
+         * VIEWING_SURFACES row to have a UNIQUE SUBDOMAIN and a path on the apex shares the apex's.
+         * That reading was backwards, and it is worth writing down because it would have repeated
+         * thirteen more times and cost the estate the same guarantee each time.
+         *
+         * The subdomain assertion existed to protect the CROSS-ENVIRONMENT CORS GRANT, which is keyed
+         * by ORIGIN: `wallet`, `signin` and `faucet` flagged would have put `hub` and `network` in that
+         * list twice. But the flag carries a SECOND consequence that is keyed by BUNDLE, not by origin
+         * — `surface-routes.py` check 10 requires the flagged surface's repository to really contain
+         * `src/lib/viewed.ts`, and `viewingSurfaceUrl` answers null for it so its Testnet button cannot
+         * become a navigation to Forge Network. Those are the two halves of the owner's report, in as
+         * many words: "in every page when you press testnet it take you to network page testnet".
+         *
+         * `wallet`, `signin` and `faucet` are unflagged because they are ROUTES INSIDE another bundle
+         * — hub's and network's — so both consequences already belong to the row that serves them. The
+         * archive is not that. It is its own repository, its own container, its own dev server, and
+         * the only thing it now shares with `site` is an origin. Unflagging it would have dropped the
+         * `viewed.ts` requirement for a bundle that genuinely has one and re-armed the escape route
+         * for a reader mid-article, to satisfy an assertion about a list this row does not need an
+         * entry in. So the invariant moved to what it was always about: a surface may be flagged if it
+         * has a BUNDLE of its own (`servesOwnBundle`), and the origin list dedupes.
+         *
+         * The grant needs no journal entry and gets none: `site` carries the flag itself and
+         * `- https://{{ env "CF_VIEW_SITE_HOST" }}` is the FIRST line of it, so the archive's
+         * cross-environment reads are covered by the origin it now lives on.
          *
          * ── `kind: 'surface'` AND NOT 'service', BECAUSE THERE IS NOTHING TO CALL ──────────────────
          *
@@ -697,18 +723,23 @@ export const SURFACES = [
          * going to be one: the entire archive is typed modules in `micro-journal-web`, rendered to
          * static HTML at build time. A CMS would put the words in a database, which would mean the
          * words could change without a commit, which is the property an editorial archive least wants.
+         *
+         * That absence is also why this surface could go first. Eleven of the other thirteen have a
+         * service on their own hostname answering `/v1`, and moving those means moving an API their
+         * bundles reach by RELATIVE path — a change in the service's consumers, not just the frontend.
          */
         key: 'journal',
         name: 'Forge Journal',
         verb: null,
         kind: 'surface',
-        subdomain: 'journal',
+        subdomain: '',
         // 5196 — `journal-web/vite.config.ts`, the vite dev server, for the same reason `exchange`
         // names 5194: a devPort is a fact about the thing you CALL, and with no service behind this
         // surface the bundle's own dev server is the only thing that answers on a developer's machine.
         // `org/tools/registry.ts` derives 4149 for the REPOSITORY, which is a different question — that
         // number is the deploy plane's, and writing it here would reserve an address nothing binds.
         devPort: 5196,
+        basePath: '/journal',
         // Bronze, and scored as one of a PAIR rather than picked alone — see the sweep recorded in
         // `tokens.css`. The second hue is held for the public square that follows this surface, and
         // the pairing is the method: the first two colours that search returned were each clear of the
@@ -1334,17 +1365,43 @@ export const FOOTER_GROUPS = [
     { kind: 'service', title: 'More', surfaces: FOOTER_SURFACES.filter((s) => s.kind === 'service') },
 ];
 /**
+ * Is this surface served by a BUNDLE OF ITS OWN, rather than as a route inside another's?
+ *
+ * The question a `basePath` cannot answer by itself, and the apex consolidation is what forced it
+ * to be asked. Until 2026-08-19 every `basePath` row was the same kind of thing — `wallet` and
+ * `signin` are routes inside Forge Hub, `faucet` is a route on the Network site — so `basePath`
+ * set was a reliable proxy for "somebody else's bundle serves this". `journal` broke the proxy: it
+ * is a separate repository and a separate container that the GATEWAY mounts at a path on the apex,
+ * and thirteen more surfaces follow it (`deploy/docs/apex-consolidation.md`).
+ *
+ * The discriminator is the dev port, and it is not a heuristic: `surfaces.test.ts` already asserts
+ * that two surfaces share one only by DELIBERATE CO-HOSTING, listed by name in `CO_HOSTED`. So a
+ * port no other row claims IS a bundle no other row serves — in development because it is the
+ * server that answers, and in production because the estate runs one container per dev port.
+ *
+ * Anything that does not serve a UI is false rather than throwing: `account` reserves a hostname
+ * nothing is built for, and asking whether it has its own bundle has an answer, which is no.
+ */
+export function servesOwnBundle(s) {
+    if (!s.servesUi)
+        return false;
+    if (s.basePath === undefined)
+        return true;
+    return SURFACES.every((o) => o.key === s.key || o.devPort !== s.devPort);
+}
+/**
  * The bundles that can show another network's data in place — the combined view's viewing set.
  *
- * Every frontend, since the escape route was removed: eighteen rows, one per bundle that serves a
- * UI on a hostname of its own. Derived rather than listed, so a new frontend joins by setting
- * `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a premature
- * `true` costs, and for the check in micro-deploy that reads the other end of it.
+ * Every frontend, since the escape route was removed: one row per bundle that serves a UI of its
+ * own. Derived rather than listed, so a new frontend joins by setting `viewsAnyNetwork: true` on
+ * its own row and nothing else. See that field for what a premature `true` costs, and for the
+ * check in micro-deploy that reads the other end of it.
  *
- * The three `basePath` rows — `wallet`, `signin`, `faucet` — are deliberately NOT here. They are
- * routes inside `hub` and `network`, so their bundles already view; a row of their own would put a
- * duplicate origin in the cross-environment CORS grant, and in the faucet's case would claim a
- * view for a page that is pinned on purpose because it pays out.
+ * "Of its own" and not "on a hostname of its own", since the consolidation. `journal` is a path on
+ * the apex and belongs here; `wallet`, `signin` and `faucet` are `basePath` rows too and
+ * deliberately do NOT, because they are routes inside `hub` and `network` whose bundles already
+ * view. `servesOwnBundle` above is the line between them, and `network-view.test.ts` holds this
+ * list to exactly that set — the flag names which bundles view, never which origins exist.
  */
 export const VIEWING_SURFACES = SURFACES.filter((s) => s.viewsAnyNetwork === true);
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */

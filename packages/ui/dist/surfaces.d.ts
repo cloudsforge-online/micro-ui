@@ -333,17 +333,37 @@ export declare const FOOTER_GROUPS: readonly {
     readonly surfaces: readonly CloudsForgeSurface[];
 }[];
 /**
+ * Is this surface served by a BUNDLE OF ITS OWN, rather than as a route inside another's?
+ *
+ * The question a `basePath` cannot answer by itself, and the apex consolidation is what forced it
+ * to be asked. Until 2026-08-19 every `basePath` row was the same kind of thing — `wallet` and
+ * `signin` are routes inside Forge Hub, `faucet` is a route on the Network site — so `basePath`
+ * set was a reliable proxy for "somebody else's bundle serves this". `journal` broke the proxy: it
+ * is a separate repository and a separate container that the GATEWAY mounts at a path on the apex,
+ * and thirteen more surfaces follow it (`deploy/docs/apex-consolidation.md`).
+ *
+ * The discriminator is the dev port, and it is not a heuristic: `surfaces.test.ts` already asserts
+ * that two surfaces share one only by DELIBERATE CO-HOSTING, listed by name in `CO_HOSTED`. So a
+ * port no other row claims IS a bundle no other row serves — in development because it is the
+ * server that answers, and in production because the estate runs one container per dev port.
+ *
+ * Anything that does not serve a UI is false rather than throwing: `account` reserves a hostname
+ * nothing is built for, and asking whether it has its own bundle has an answer, which is no.
+ */
+export declare function servesOwnBundle(s: CloudsForgeSurface): boolean;
+/**
  * The bundles that can show another network's data in place — the combined view's viewing set.
  *
- * Every frontend, since the escape route was removed: eighteen rows, one per bundle that serves a
- * UI on a hostname of its own. Derived rather than listed, so a new frontend joins by setting
- * `viewsAnyNetwork: true` on its own row and nothing else. See that field for what a premature
- * `true` costs, and for the check in micro-deploy that reads the other end of it.
+ * Every frontend, since the escape route was removed: one row per bundle that serves a UI of its
+ * own. Derived rather than listed, so a new frontend joins by setting `viewsAnyNetwork: true` on
+ * its own row and nothing else. See that field for what a premature `true` costs, and for the
+ * check in micro-deploy that reads the other end of it.
  *
- * The three `basePath` rows — `wallet`, `signin`, `faucet` — are deliberately NOT here. They are
- * routes inside `hub` and `network`, so their bundles already view; a row of their own would put a
- * duplicate origin in the cross-environment CORS grant, and in the faucet's case would claim a
- * view for a page that is pinned on purpose because it pays out.
+ * "Of its own" and not "on a hostname of its own", since the consolidation. `journal` is a path on
+ * the apex and belongs here; `wallet`, `signin` and `faucet` are `basePath` rows too and
+ * deliberately do NOT, because they are routes inside `hub` and `network` whose bundles already
+ * view. `servesOwnBundle` above is the line between them, and `network-view.test.ts` holds this
+ * list to exactly that set — the flag names which bundles view, never which origins exist.
  */
 export declare const VIEWING_SURFACES: readonly CloudsForgeSurface[];
 /** Subdomain prefixes stripped when deriving the apex from a browser hostname. */
