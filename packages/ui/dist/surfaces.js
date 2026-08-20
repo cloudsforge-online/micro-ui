@@ -163,7 +163,23 @@ export const SURFACES = [
         name: 'Forge Worlds',
         verb: 'Play',
         kind: 'product',
-        subdomain: 'worlds',
+        // ── A PATH ON THE APEX — WAVE 3e, AND THE SIMPLEST MOVE SINCE THE EXCHANGE ────────────────
+        //
+        // `<apex>/worlds`. No API remount, and the reason is worth stating because every wave since
+        // 3a has needed one: THIS BUNDLE'S API IS NOT ON ITS OWN HOSTNAME. `worlds-web` calls the
+        // `api` surface — `api.<apex>`, cross-origin by design and by this registry's own description
+        // of what those two rows are — so a mounted bundle's relative requests are not a thing that
+        // exists here. Decision 4 has nothing to strip.
+        //
+        // `worlds.<apex>/v1` still routes straight to `cf-svc-worlds` above the tombstone. This bundle
+        // never called it; a third party might, and a 301 answers a GET well and mangles a POST.
+        //
+        // THE THREE TITLES NEST UNDER THIS, and they move in their own wave. `emberkin`, `aetherholm`
+        // and `tessera` are TITLES rather than products — each row below says so — and a title is
+        // played THROUGH Worlds, which is exactly what `<apex>/worlds/<title>` states and what four
+        // sibling folders on the apex would not. They wait until this path exists to nest under.
+        subdomain: '',
+        basePath: '/worlds',
         devPort: 3001,
         accent: '#6d9a49',
         glyph: '▲',

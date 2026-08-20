@@ -71,10 +71,16 @@ describe('cloudsforgeHosts', () => {
   })
 
   it('strips a KNOWN subdomain to find the apex', () => {
-    atHostname('worlds.cloudsforge.online')
+    // `status`, not `worlds`: this asserts that a known first label is STRIPPED to find the apex,
+    // so it needs a surface that still has one. `worlds` became `<apex>/worlds` in wave 3e and
+    // `worlds.` stopped being a subdomain the estate serves — which makes it the wrong hostname to
+    // demonstrate stripping with, and the right one to demonstrate the mount with, two lines down.
+    atHostname('status.cloudsforge.online')
     const hosts = cloudsforgeHosts()
     assert.equal(hosts.status, 'https://status.cloudsforge.online')
     assert.equal(hosts.site, 'https://cloudsforge.online')
+    // And the consolidated form, from the same page: a folder on the apex it just derived.
+    assert.equal(hosts.worlds, 'https://cloudsforge.online/worlds')
   })
 
   it('leaves an UNKNOWN prefix alone and treats it as the apex', () => {
@@ -330,6 +336,6 @@ describe('resolveProducts', () => {
     atHostname('cloudsforge.online')
     const products = resolveProducts({ trade: 'https://trade.internal' })
     assert.equal(products.find((p) => p.key === 'trade')?.url, 'https://trade.internal')
-    assert.equal(products.find((p) => p.key === 'worlds')?.url, 'https://worlds.cloudsforge.online')
+    assert.equal(products.find((p) => p.key === 'worlds')?.url, 'https://cloudsforge.online/worlds')
   })
 })
