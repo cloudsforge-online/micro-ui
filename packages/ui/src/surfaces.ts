@@ -1410,7 +1410,27 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     name: 'Mining Pool',
     verb: null,
     kind: 'service',
-    subdomain: 'pool',
+    // ── A PATH ON THE APEX — WAVE 3d, AND THE WEBSOCKET DOES NOT MOVE WITH IT ─────────────────
+    //
+    // Same shape as `agora`: the bundle is `<apex>/pool`, the API is `<apex>/pool/v1` stripped back
+    // to `/v1`, and `/livez` and `/readyz` are named alongside it because micro-pool answers those
+    // at its root too. `pool.<apex>` 301s for the BUNDLE and keeps serving the API directly.
+    //
+    // THE BROWSER MINER'S SOCKET IS NOT AFFECTED, and that was checked rather than assumed — it is
+    // the one thing that made this surface look harder than the four before it.
+    //
+    // `hub-web/src/lib/stratum-client.ts` opens `chain.websocketEndpoint`, and that string is
+    // PUBLISHED BY THE SERVICE from `POOL_WEBSOCKET_PUBLIC_ORIGIN` — an operator-set absolute URL —
+    // rather than composed from `window.location`. micro-org#285 is exactly the change that made
+    // that true, and this is the first time it has paid for itself: a bundle that moved would
+    // otherwise have dragged every miner's socket to a new address.
+    //
+    // So the socket stays `wss://pool.<apex>/v1/pool/stratum/<chain>`, on the hostname whose API
+    // this plan deliberately does not redirect. A WebSocket IS an API, and the argument for
+    // leaving `pool.<apex>/v1` alone — a redirect answers a GET well and mangles everything else —
+    // applies to an upgrade request with more force, not less.
+    subdomain: '',
+    basePath: '/pool',
     devPort: 4146,
     // Gold, shared with `create` rather than newly invented. The accent guard forbids a sixth
     // orange and a resurrected retired hue; it does not forbid a service wearing a validated
