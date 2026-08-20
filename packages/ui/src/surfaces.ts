@@ -404,7 +404,36 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     name: 'Forge Foresight',
     verb: 'Bet',
     kind: 'product',
-    subdomain: 'foresight',
+    /*
+     * ── IT IS A PATH ON THE APEX — WAVE 3i, THE LAST ONE, 2026-08-20 ──────────────────────────
+     *
+     * `foresight.cloudsforge.online` served the prediction market until today and now 301s to
+     * `cloudsforge.online/foresight`. Fourteen of fourteen product surfaces are folders now.
+     *
+     * ── THIS ONE WENT LAST, AND THE REASON WAS ITS API ────────────────────────────────────────
+     *
+     * `deploy/docs/apex-consolidation.md` §5: micro-foresight's public routes are SIX
+     * UNVERSIONED PREFIXES AT THE ROOT — `/ideas`, `/categories`, `/image-config`,
+     * `/stake-assets`, `/me`, `/markets`. A `/v1`-shaped test called it "no API" and the
+     * correction is what produced the better test and put this row here.
+     *
+     * The worry the plan recorded was that mounting the bundle would leave those at the apex
+     * root, putting `/me` and `/markets` on `cloudsforge.online` answered by a prediction
+     * market. That is not what happens: they move under the mount with everything else, and the
+     * gateway's `stripPrefix` hands the service back exactly the paths it already serves. The
+     * six prefixes are enumerated in the router rule rather than covered by one `/v1`, which is
+     * the only real difference from the other thirteen.
+     *
+     * ── AND `markets` IS BOTH A PAGE AND AN API PREFIX ────────────────────────────────────────
+     *
+     * `foresight-web` has a `/markets` ROUTE and micro-foresight has a `/markets` RESOURCE. The
+     * estate already resolved that on the old hostname by matching `Accept: application/json`
+     * for the API — a browser navigating sends `text/html`, a `fetch` sends JSON — and the
+     * mounted routers carry that same disambiguation across unchanged. It is the one place in
+     * this estate where a header, not a path, decides which of two services answers.
+     */
+    subdomain: '',
+    basePath: '/foresight',
     // 4021, because that is the port the service actually binds
     // (`foresight/.env.example:13`). It was briefly 4011, which is beacon's — so
     // `cloudsforgeHosts().foresight` resolved a local stack to the monitoring service.
