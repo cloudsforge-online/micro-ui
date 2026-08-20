@@ -1233,7 +1233,25 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     name: 'Emberkin',
     verb: null,
     kind: 'service',
-    subdomain: 'emberkin',
+    // ── A PATH INSIDE ANOTHER PATH — WAVE 3f, AND THE NESTING IS THE STATEMENT ────────────────
+    //
+    // `<apex>/worlds/emberkin`. Not `<apex>/emberkin`, and the difference is the whole reason these
+    // three moved as a group rather than as three more folders on the apex.
+    //
+    // The row above already says what this is: a Forge Worlds TITLE, not a sixth product, absent
+    // from every switcher, reached from the catalogue. `worlds/emberkin` states that in the
+    // address. A sibling folder would have stated the opposite — that Emberkin is a thing you
+    // choose from the top level, which is precisely the category error `inSwitcher: false` exists
+    // to prevent.
+    //
+    // ── AND THE GATEWAY RULE FOR THIS PATH MUST OUTRANK THE ONE FOR `/worlds` ─────────────────
+    //
+    // `/worlds/emberkin` MATCHES `PathPrefix(`/worlds/`)`, which is the catalogue's own bundle
+    // rule. Traefik resolves that overlap by priority and nothing else, so a NESTED bundle takes
+    // 650 against the parent's 600 — a band that did not exist before this wave. Get it wrong and
+    // the catalogue answers for the game: a 200 carrying the wrong application, which renders.
+    subdomain: '',
+    basePath: '/worlds/emberkin',
     // 4100, because that is the port the service binds (`emberkin/src/env.ts`,
     // `emberkin/.env.example:40`). It was briefly 3014 — a free-looking number chosen without
     // reading the service, which is precisely how foresight came to be given beacon's 4011. A
@@ -1257,7 +1275,25 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     name: 'Aetherholm',
     verb: null,
     kind: 'service',
-    subdomain: 'aetherholm',
+    // ── A PATH INSIDE ANOTHER PATH — WAVE 3f, AND THE NESTING IS THE STATEMENT ────────────────
+    //
+    // `<apex>/worlds/aetherholm`. Not `<apex>/aetherholm`, and the difference is the whole reason these
+    // three moved as a group rather than as three more folders on the apex.
+    //
+    // The row above already says what this is: a Forge Worlds TITLE, not a sixth product, absent
+    // from every switcher, reached from the catalogue. `worlds/aetherholm` states that in the
+    // address. A sibling folder would have stated the opposite — that Aetherholm is a thing you
+    // choose from the top level, which is precisely the category error `inSwitcher: false` exists
+    // to prevent.
+    //
+    // ── AND THE GATEWAY RULE FOR THIS PATH MUST OUTRANK THE ONE FOR `/worlds` ─────────────────
+    //
+    // `/worlds/aetherholm` MATCHES `PathPrefix(`/worlds/`)`, which is the catalogue's own bundle
+    // rule. Traefik resolves that overlap by priority and nothing else, so a NESTED bundle takes
+    // 650 against the parent's 600 — a band that did not exist before this wave. Get it wrong and
+    // the catalogue answers for the game: a 200 carrying the wrong application, which renders.
+    subdomain: '',
+    basePath: '/worlds/aetherholm',
     // 4120, because that is the port the service binds (`aetherholm/src/env.ts`,
     // `aetherholm/.env.example:31`). A devPort is a fact about a service, not an allocation —
     // this entry class has been wrong three times, so the test below reads the value.
@@ -1286,7 +1322,25 @@ export const SURFACES: readonly CloudsForgeSurface[] = [
     name: 'Tessera',
     verb: null,
     kind: 'service',
-    subdomain: 'tessera',
+    // ── A PATH INSIDE ANOTHER PATH — WAVE 3f, AND THE NESTING IS THE STATEMENT ────────────────
+    //
+    // `<apex>/worlds/tessera`. Not `<apex>/tessera`, and the difference is the whole reason these
+    // three moved as a group rather than as three more folders on the apex.
+    //
+    // The row above already says what this is: a Forge Worlds TITLE, not a sixth product, absent
+    // from every switcher, reached from the catalogue. `worlds/tessera` states that in the
+    // address. A sibling folder would have stated the opposite — that Tessera is a thing you
+    // choose from the top level, which is precisely the category error `inSwitcher: false` exists
+    // to prevent.
+    //
+    // ── AND THE GATEWAY RULE FOR THIS PATH MUST OUTRANK THE ONE FOR `/worlds` ─────────────────
+    //
+    // `/worlds/tessera` MATCHES `PathPrefix(`/worlds/`)`, which is the catalogue's own bundle
+    // rule. Traefik resolves that overlap by priority and nothing else, so a NESTED bundle takes
+    // 650 against the parent's 600 — a band that did not exist before this wave. Get it wrong and
+    // the catalogue answers for the game: a 200 carrying the wrong application, which renders.
+    subdomain: '',
+    basePath: '/worlds/tessera',
     // ══════════════════════════════════════════════════════════════════════════════════════════
     // 4022, AND IT IS THE ONE NUMBER IN THIS ROW THAT WAS ARGUED RATHER THAN PICKED.
     //

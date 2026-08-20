@@ -572,3 +572,41 @@ describe('noIndexPaths — the robots rules a folder cannot state for itself', (
     assert.ok(!surface('agora').noIndexPaths?.includes('/moderation'))
   })
 })
+
+describe('a nested mount, which is what a Forge Worlds title is', () => {
+  const NESTED = ['emberkin', 'aetherholm', 'tessera'] as const
+
+  it('puts each title UNDER the catalogue, not beside it', () => {
+    // The registry's one-line statement of the relationship every one of these rows describes in
+    // prose: a title is played THROUGH Forge Worlds. `<apex>/worlds/<title>` says so; a sibling
+    // folder on the apex would say the opposite.
+    const worlds = surface('worlds').basePath
+    assert.equal(worlds, '/worlds')
+    for (const key of NESTED) {
+      const s = surface(key)
+      assert.equal(s.subdomain, '', `${key} still owns a subdomain`)
+      assert.equal(s.basePath, `${worlds}/${key}`)
+      assert.equal(s.inSwitcher, false, `${key} is a title, and a title is not a switcher entry`)
+    }
+  })
+
+  it('leaves every nested mount strictly deeper than its parent, so the priority rule has a target', () => {
+    // The gateway gives a nested bundle 650 against the parent's 600, because `/worlds/emberkin`
+    // MATCHES `PathPrefix('/worlds/')` and Traefik breaks the overlap by priority alone. That rule
+    // only makes sense while the nesting is real, so this asserts the shape the rule assumes
+    // rather than trusting three separate literals to stay consistent.
+    for (const key of NESTED) {
+      const child = surface(key).basePath ?? ''
+      assert.ok(child.startsWith('/worlds/'), `${key} is not under the catalogue: ${child}`)
+      assert.ok(child.split('/').length === 3, `${key} is not exactly one segment deeper: ${child}`)
+    }
+  })
+
+  it('gives no title a noIndexPaths, because none of them hides anything', () => {
+    // Checked rather than assumed, and asserted so a future title cannot acquire private routes
+    // without somebody deciding what the apex robots.txt should say about them.
+    for (const key of NESTED) {
+      assert.equal(surface(key).noIndexPaths, undefined, `${key} declares rules nothing carries yet`)
+    }
+  })
+})
