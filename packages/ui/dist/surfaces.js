@@ -1305,7 +1305,33 @@ export const SURFACES = [
         name: 'Network Explorer',
         verb: null,
         kind: 'service',
-        subdomain: 'explorer',
+        /*
+         * ── IT IS A PATH ON THE APEX — WAVE 3h, 2026-08-20 ────────────────────────────────────────
+         *
+         * `explorer.cloudsforge.online` served the chain index until today and now 301s to
+         * `cloudsforge.online/explorer`. Same authority-per-ORIGIN argument as every wave before it.
+         *
+         * ── AND THE DESIGN QUESTION THIS ROW WAS PARKED ON TURNED OUT TO HAVE AN ANSWER ───────────
+         *
+         * The note this replaces said: "this surface has a CROSS-ESTATE VIEWING LAYER keyed on
+         * ORIGINS … a consolidated surface's reads are origin PLUS MOUNT, so every caller has to
+         * learn the difference between WHICH ESTATE and WHERE UNDER IT". That was right, and it read
+         * like a redesign. It is not one — it is the composition wave 3c already made for `agora`,
+         * and the separation it describes is the thing to KEEP rather than the thing to fix:
+         *
+         *   networkOrigin()      WHICH ESTATE — an origin, by construction (`new URL(url).origin`)
+         *   basePath             WHERE UNDER IT — this field
+         *
+         * `viewedApiOrigin()` stays an origin and did not change. `api.ts` composes the two at the
+         * one call site that reads across estates. Conflating them is what broke agora's switcher in
+         * the first draft of 3c, and keeping them apart is why this was a one-line change rather
+         * than the redesign the parking note feared.
+         *
+         * The cross-estate read is still anonymous by construction — this page's bearer means
+         * nothing at the other estate — and the mount does not change that.
+         */
+        subdomain: '',
+        basePath: '/explorer',
         // 4008, the port `micro-indexer` binds (`indexer/src/env.ts`), NOT 8080.
         //
         // 8080 was this bundle's own nginx container port, which is the one number that is certainly
