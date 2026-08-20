@@ -748,7 +748,31 @@ export const SURFACES = [
         name: 'Developer Platform',
         verb: null,
         kind: 'surface',
-        subdomain: 'developers',
+        /*
+         * ── IT IS A PATH ON THE APEX — WAVE 3g, 2026-08-20 ────────────────────────────────────────
+         *
+         * `developers.cloudsforge.online` served this console until today and now 301s to
+         * `cloudsforge.online/developers`. Same argument as every wave before it: a search engine
+         * evaluates authority per ORIGIN, so a link earned by the platform docs made `developers.`
+         * stronger and the rest of the estate no stronger at all.
+         *
+         * ── AND IT WAS PARKED FOR TWO WAVES, ON A CLAIM THAT TURNED OUT TO BE HALF RIGHT ──────────
+         *
+         * The paragraph above still says it: the plan had this in WAVE 2, called it "documentation",
+         * and was corrected — it is the developer platform CONSOLE, and `cf-api-developers` serves 35
+         * `/v1` handlers from `micro-devplatform` on this hostname. So it needed decision 4 (an API
+         * remount with a `stripPrefix`) and wave 2 was for surfaces that need none.
+         *
+         * What the delay actually bought was the SECOND fact, which the `/v1` count did not show: this
+         * bundle enumerates TWO route blocks in nginx rather than one, because its routes split into
+         * addresses that exist in their own right (`/organisations`, `/apps`) and prefixes that only
+         * ever have something after them (`/projects/<id>/…`). `BARE_PATHS` and `PREFIX_ONLY_PATHS`
+         * in `devportal-web/src/lib/routes.ts` are that distinction, and both blocks had to be
+         * mounted — a mount applied to one and not the other 404s half the console with the other
+         * half working, which is the shape of failure that survives a smoke test.
+         */
+        subdomain: '',
+        basePath: '/developers',
         devPort: 3012,
         accent: '#4a86e0',
         glyph: '⌗',
